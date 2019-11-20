@@ -371,6 +371,7 @@ cmTarget::cmTarget(std::string const& name, cmStateEnums::TargetType type,
       initProp("XCODE_SCHEME_THREAD_SANITIZER_STOP");
       initProp("XCODE_SCHEME_UNDEFINED_BEHAVIOUR_SANITIZER");
       initProp("XCODE_SCHEME_UNDEFINED_BEHAVIOUR_SANITIZER_STOP");
+      initProp("XCODE_SCHEME_WORKING_DIRECTORY");
       initProp("XCODE_SCHEME_DISABLE_MAIN_THREAD_CHECKER");
       initProp("XCODE_SCHEME_MAIN_THREAD_CHECKER_STOP");
       initProp("XCODE_SCHEME_MALLOC_SCRIBBLE");
@@ -1288,11 +1289,8 @@ void cmTarget::SetProperty(const std::string& prop, const char* value)
     reusedTarget->SetProperty("COMPILE_PDB_OUTPUT_DIRECTORY",
                               cmStrCat(reusedFrom, ".dir/").c_str());
 
-    for (auto p : { "COMPILE_PDB_NAME", "PRECOMPILE_HEADERS",
-                    "INTERFACE_PRECOMPILE_HEADERS" }) {
-      this->SetProperty(p, reusedTarget->GetProperty(p));
-    }
-
+    this->SetProperty("COMPILE_PDB_NAME",
+                      reusedTarget->GetProperty("COMPILE_PDB_NAME"));
     this->AddUtility(reusedFrom, impl->Makefile);
   } else {
     impl->Properties.SetProperty(prop, value);
