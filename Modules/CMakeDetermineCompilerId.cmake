@@ -182,6 +182,10 @@ function(CMAKE_DETERMINE_COMPILER_ID lang flagvar src)
     message(STATUS "The ${lang} compiler identification is unknown")
   endif()
 
+  if(lang STREQUAL "Fortran" AND CMAKE_${lang}_COMPILER_ID STREQUAL "XL")
+    set(CMAKE_${lang}_XL_CPP "${CMAKE_${lang}_COMPILER_ID_CPP}" PARENT_SCOPE)
+  endif()
+
   set(CMAKE_${lang}_COMPILER_ID "${CMAKE_${lang}_COMPILER_ID}" PARENT_SCOPE)
   set(CMAKE_${lang}_PLATFORM_ID "${CMAKE_${lang}_PLATFORM_ID}" PARENT_SCOPE)
   set(CMAKE_${lang}_COMPILER_ARCHITECTURE_ID "${CMAKE_${lang}_COMPILER_ARCHITECTURE_ID}" PARENT_SCOPE)
@@ -242,7 +246,7 @@ Id flags: ${testflags} ${CMAKE_${lang}_COMPILER_ID_FLAGS_ALWAYS}
     set(id_platform ${CMAKE_VS_PLATFORM_NAME})
     set(id_lang "${lang}")
     set(id_PostBuildEvent_Command "")
-    if(CMAKE_VS_PLATFORM_TOOLSET MATCHES "^[Ll][Ll][Vv][Mm](_v[0-9]+(_xp)?)?$")
+    if(CMAKE_VS_PLATFORM_TOOLSET MATCHES "^([Ll][Ll][Vv][Mm](_v[0-9]+(_xp)?)?|[Cc][Ll][Aa][Nn][Gg][Cc][Ll])$")
       set(id_cl_var "ClangClExecutable")
     elseif(CMAKE_VS_PLATFORM_TOOLSET MATCHES "v[0-9]+_clang_.*")
       set(id_cl clang.exe)
@@ -284,10 +288,11 @@ Id flags: ${testflags} ${CMAKE_${lang}_COMPILER_ID_FLAGS_ALWAYS}
           set(id_cl icl.exe)
         endif()
         if(CMAKE_VS_PLATFORM_TOOLSET_VERSION)
+          set(id_sep "\\")
           if(CMAKE_VS_PLATFORM_TOOLSET_VERSION VERSION_GREATER_EQUAL "14.20")
-            set(id_sep ".")
-          else()
-            set(id_sep "\\")
+            if(EXISTS "${CMAKE_GENERATOR_INSTANCE}/VC/Auxiliary/Build.${CMAKE_VS_PLATFORM_TOOLSET_VERSION}/Microsoft.VCToolsVersion.${CMAKE_VS_PLATFORM_TOOLSET_VERSION}.props")
+              set(id_sep ".")
+            endif()
           endif()
           set(id_toolset_version_props "<Import Project=\"${CMAKE_GENERATOR_INSTANCE}\\VC\\Auxiliary\\Build${id_sep}${CMAKE_VS_PLATFORM_TOOLSET_VERSION}\\Microsoft.VCToolsVersion.${CMAKE_VS_PLATFORM_TOOLSET_VERSION}.props\" />")
           unset(id_sep)
@@ -542,6 +547,12 @@ Id flags: ${testflags} ${CMAKE_${lang}_COMPILER_ID_FLAGS_ALWAYS}
       ERROR_VARIABLE CMAKE_${lang}_COMPILER_ID_OUTPUT
       RESULT_VARIABLE CMAKE_${lang}_COMPILER_ID_RESULT
       )
+    if("${CMAKE_${lang}_COMPILER_ID_OUTPUT}" MATCHES "exec: [^\n]*\\((/[^,\n]*/cpp),CMakeFortranCompilerId.F")
+      set(_cpp "${CMAKE_MATCH_1}")
+      if(EXISTS "${_cpp}")
+        set(CMAKE_${lang}_COMPILER_ID_CPP "${_cpp}" PARENT_SCOPE)
+      endif()
+    endif()
   endif()
 
   # Check the result of compilation.

@@ -1,7 +1,16 @@
 /* Distributed under the OSI-approved BSD 3-Clause License.  See accompanying
    file Copyright.txt or https://cmake.org/licensing for details.  */
 
-#include "cmAlgorithms.h"
+#include <cassert>
+#include <cctype>
+#include <climits>
+#include <cstring>
+#include <iostream>
+#include <string>
+#include <vector>
+
+#include <cmext/algorithm>
+
 #include "cmDocumentationEntry.h" // IWYU pragma: keep
 #include "cmGlobalGenerator.h"
 #include "cmMakefile.h"
@@ -23,14 +32,6 @@
 #if defined(_WIN32) && !defined(CMAKE_BOOTSTRAP)
 #  include "cmsys/ConsoleBuf.hxx"
 #endif
-
-#include <cassert>
-#include <cctype>
-#include <climits>
-#include <cstring>
-#include <iostream>
-#include <string>
-#include <vector>
 
 namespace {
 #ifndef CMAKE_BOOTSTRAP
@@ -78,8 +79,10 @@ const char* cmDocumentationOptions[][2] = {
     "Do not delete the try_compile build tree. Only "
     "useful on one try_compile at a time." },
   { "--debug-output", "Put cmake in a debug mode." },
+  { "--debug-find", "Put cmake find in a debug mode." },
   { "--trace", "Put cmake in trace mode." },
   { "--trace-expand", "Put cmake in trace mode with variable expansion." },
+  { "--trace-format=<human|json-v1>", "Set the output format of the trace." },
   { "--trace-source=<file>",
     "Trace only this CMake file/module. Multiple options allowed." },
   { "--trace-redirect=<file>",
@@ -100,7 +103,7 @@ int do_command(int ac, char const* const* av)
   std::vector<std::string> args;
   args.reserve(ac - 1);
   args.emplace_back(av[0]);
-  cmAppend(args, av + 2, av + ac);
+  cm::append(args, av + 2, av + ac);
   return cmcmd::ExecuteCMakeCommand(args);
 }
 

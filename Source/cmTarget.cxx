@@ -12,6 +12,7 @@
 #include <unordered_set>
 
 #include <cm/memory>
+#include <cmext/algorithm>
 
 #include "cmsys/RegularExpression.hxx"
 
@@ -176,6 +177,7 @@ public:
   bool IsImportedTarget;
   bool ImportedGloballyVisible;
   bool BuildInterfaceIncludesAppended;
+  bool PerConfig;
   std::set<BT<std::string>> Utilities;
   std::vector<cmCustomCommand> PreBuildCommands;
   std::vector<cmCustomCommand> PreLinkCommands;
@@ -213,7 +215,7 @@ public:
 };
 
 cmTarget::cmTarget(std::string const& name, cmStateEnums::TargetType type,
-                   Visibility vis, cmMakefile* mf)
+                   Visibility vis, cmMakefile* mf, bool perConfig)
   : impl(cm::make_unique<cmTargetInternals>())
 {
   assert(mf);
@@ -229,6 +231,7 @@ cmTarget::cmTarget(std::string const& name, cmStateEnums::TargetType type,
     (vis == VisibilityImported || vis == VisibilityImportedGlobally);
   impl->ImportedGloballyVisible = vis == VisibilityImportedGlobally;
   impl->BuildInterfaceIncludesAppended = false;
+  impl->PerConfig = perConfig;
 
   // Check whether this is a DLL platform.
   impl->IsDLLPlatform =
@@ -437,30 +440,30 @@ cmTarget::cmTarget(std::string const& name, cmStateEnums::TargetType type,
   if (!this->IsImported()) {
     // Initialize the INCLUDE_DIRECTORIES property based on the current value
     // of the same directory property:
-    cmAppend(impl->IncludeDirectoriesEntries,
-             impl->Makefile->GetIncludeDirectoriesEntries());
-    cmAppend(impl->IncludeDirectoriesBacktraces,
-             impl->Makefile->GetIncludeDirectoriesBacktraces());
+    cm::append(impl->IncludeDirectoriesEntries,
+               impl->Makefile->GetIncludeDirectoriesEntries());
+    cm::append(impl->IncludeDirectoriesBacktraces,
+               impl->Makefile->GetIncludeDirectoriesBacktraces());
 
     {
       auto const& sysInc = impl->Makefile->GetSystemIncludeDirectories();
       impl->SystemIncludeDirectories.insert(sysInc.begin(), sysInc.end());
     }
 
-    cmAppend(impl->CompileOptionsEntries,
-             impl->Makefile->GetCompileOptionsEntries());
-    cmAppend(impl->CompileOptionsBacktraces,
-             impl->Makefile->GetCompileOptionsBacktraces());
+    cm::append(impl->CompileOptionsEntries,
+               impl->Makefile->GetCompileOptionsEntries());
+    cm::append(impl->CompileOptionsBacktraces,
+               impl->Makefile->GetCompileOptionsBacktraces());
 
-    cmAppend(impl->LinkOptionsEntries,
-             impl->Makefile->GetLinkOptionsEntries());
-    cmAppend(impl->LinkOptionsBacktraces,
-             impl->Makefile->GetLinkOptionsBacktraces());
+    cm::append(impl->LinkOptionsEntries,
+               impl->Makefile->GetLinkOptionsEntries());
+    cm::append(impl->LinkOptionsBacktraces,
+               impl->Makefile->GetLinkOptionsBacktraces());
 
-    cmAppend(impl->LinkDirectoriesEntries,
-             impl->Makefile->GetLinkDirectoriesEntries());
-    cmAppend(impl->LinkDirectoriesBacktraces,
-             impl->Makefile->GetLinkDirectoriesBacktraces());
+    cm::append(impl->LinkDirectoriesEntries,
+               impl->Makefile->GetLinkDirectoriesEntries());
+    cm::append(impl->LinkDirectoriesBacktraces,
+               impl->Makefile->GetLinkDirectoriesBacktraces());
   }
 
   if (this->GetType() != cmStateEnums::INTERFACE_LIBRARY &&
@@ -949,9 +952,8 @@ void cmTarget::AddLinkLibrary(cmMakefile& mf, std::string const& lib,
       (isNonImportedTarget && llt != GENERAL_LibraryType)
       ? targetNameGenex(libRef)
       : libRef;
-    this->AppendProperty(
-      "LINK_LIBRARIES",
-      this->GetDebugGeneratorExpressions(libName, llt).c_str());
+    this->AppendProperty("LINK_LIBRARIES",
+                         this->GetDebugGeneratorExpressions(libName, llt));
   }
 
   if (cmGeneratorExpression::Find(lib) != std::string::npos || lib != libRef ||
@@ -1285,9 +1287,9 @@ void cmTarget::SetProperty(const std::string& prop, const char* value)
 
     impl->Properties.SetProperty(prop, reusedFrom.c_str());
 
-    reusedTarget->SetProperty("COMPILE_PDB_NAME", reusedFrom.c_str());
+    reusedTarget->SetProperty("COMPILE_PDB_NAME", reusedFrom);
     reusedTarget->SetProperty("COMPILE_PDB_OUTPUT_DIRECTORY",
-                              cmStrCat(reusedFrom, ".dir/").c_str());
+                              cmStrCat(reusedFrom, ".dir/"));
 
     this->SetProperty("COMPILE_PDB_NAME",
                       reusedTarget->GetProperty("COMPILE_PDB_NAME"));
@@ -1422,7 +1424,7 @@ void cmTarget::AppendBuildInterfaceIncludes()
     dirs += impl->Makefile->GetCurrentSourceDirectory();
     if (!dirs.empty()) {
       this->AppendProperty("INTERFACE_INCLUDE_DIRECTORIES",
-                           ("$<BUILD_INTERFACE:" + dirs + ">").c_str());
+                           ("$<BUILD_INTERFACE:" + dirs + ">"));
     }
   }
 }
@@ -1798,6 +1800,11 @@ bool cmTarget::IsImported() const
 bool cmTarget::IsImportedGloballyVisible() const
 {
   return impl->ImportedGloballyVisible;
+}
+
+bool cmTarget::IsPerConfig() const
+{
+  return impl->PerConfig;
 }
 
 const char* cmTarget::GetSuffixVariableInternal(

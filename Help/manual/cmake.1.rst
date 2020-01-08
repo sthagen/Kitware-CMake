@@ -241,6 +241,12 @@ Options
  Print extra information during the cmake run like stack traces with
  :command:`message(SEND_ERROR)` calls.
 
+``--debug-find``
+ Put cmake find in a debug mode.
+
+ Print extra find call information during the cmake run to standard
+ error. Output is designed for human consumption and not for parsing.
+
 ``--trace``
  Put cmake in trace mode.
 
@@ -250,6 +256,66 @@ Options
  Put cmake in trace mode.
 
  Like ``--trace``, but with variables expanded.
+
+``--trace-format=<format>``
+ Put cmake in trace mode and sets the trace output format.
+
+ ``<format>`` can be one of the following values.
+
+   ``human``
+     Prints each trace line in a human-readable format. This is the
+     default format.
+
+   ``json``
+     Prints each line as a separate JSON document. Each document is
+     separated by a newline ( ``\n`` ). It is guaranteed that no
+     newline characters will be present inside a JSON document.
+
+     JSON trace format:
+
+     .. code-block:: json
+
+       {
+         "file": "/full/path/to/the/CMake/file.txt",
+         "line": 0,
+         "cmd": "add_executable",
+         "args": ["foo", "bar"]
+       }
+
+     The members are:
+
+     ``file``
+       The full path to the CMake source file where the function
+       was called.
+
+      ``line``
+       The line in `file` of the function call.
+
+     ``cmd``
+       The name of the function that was called.
+
+     ``args``
+       A string list of all function parameters.
+
+     Additionally, the first JSON document outputted contains the
+     ``version`` key for the current major and minor version of the
+
+     JSON trace format:
+
+     .. code-block:: json
+
+       {
+         "version": {
+           "major": 1,
+           "minor": 0
+         }
+       }
+
+     The members are:
+
+     ``version``
+       Indicates the version of the JSON format. The version has a
+       major and minor components following semantic version conventions.
 
 ``--trace-source=<file>``
  Put cmake in trace mode, but output only lines of a specified file.

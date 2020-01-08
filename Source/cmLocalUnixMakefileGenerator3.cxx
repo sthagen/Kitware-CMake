@@ -3,11 +3,13 @@
 #include "cmLocalUnixMakefileGenerator3.h"
 
 #include <algorithm>
+#include <cassert>
 #include <cstdio>
 #include <sstream>
 #include <utility>
 
 #include <cm/memory>
+#include <cmext/algorithm>
 
 #include "cmsys/FStream.hxx"
 #include "cmsys/Terminal.h"
@@ -106,6 +108,13 @@ cmLocalUnixMakefileGenerator3::cmLocalUnixMakefileGenerator3(
 
 cmLocalUnixMakefileGenerator3::~cmLocalUnixMakefileGenerator3() = default;
 
+std::string cmLocalUnixMakefileGenerator3::GetConfigName() const
+{
+  auto const& configNames = this->GetConfigNames();
+  assert(configNames.size() == 1);
+  return configNames.front();
+}
+
 void cmLocalUnixMakefileGenerator3::Generate()
 {
   // Record whether some options are enabled to avoid checking many
@@ -162,7 +171,7 @@ void cmLocalUnixMakefileGenerator3::GetLocalObjectFiles(
       continue;
     }
     std::vector<cmSourceFile const*> objectSources;
-    gt->GetObjectSources(objectSources, this->ConfigName);
+    gt->GetObjectSources(objectSources, this->GetConfigName());
     // Compute full path to object file directory for this target.
     std::string dir = cmStrCat(gt->LocalGenerator->GetCurrentBinaryDirectory(),
                                '/', this->GetTargetDirectory(gt.get()), '/');
@@ -401,7 +410,7 @@ void cmLocalUnixMakefileGenerator3::WriteLocalMakefileTargets(
 
       // Add a local name for the rule to relink the target before
       // installation.
-      if (target->NeedRelinkBeforeInstall(this->ConfigName)) {
+      if (target->NeedRelinkBeforeInstall(this->GetConfigName())) {
         makeTargetName = cmStrCat(
           this->GetRelativeTargetDirectory(target.get()), "/preinstall");
         localName = cmStrCat(target->GetName(), "/preinstall");
@@ -850,7 +859,7 @@ void cmLocalUnixMakefileGenerator3::AppendRuleDepends(
   // Add a dependency on the rule file itself unless an option to skip
   // it is specifically enabled by the user or project.
   if (!this->Makefile->IsOn("CMAKE_SKIP_RULE_DEPENDENCY")) {
-    cmAppend(depends, ruleFiles);
+    cm::append(depends, ruleFiles);
   }
 }
 
@@ -858,7 +867,7 @@ void cmLocalUnixMakefileGenerator3::AppendCustomDepends(
   std::vector<std::string>& depends, const std::vector<cmCustomCommand>& ccs)
 {
   for (cmCustomCommand const& cc : ccs) {
-    cmCustomCommandGenerator ccg(cc, this->ConfigName, this);
+    cmCustomCommandGenerator ccg(cc, this->GetConfigName(), this);
     this->AppendCustomDepend(depends, ccg);
   }
 }
@@ -869,7 +878,7 @@ void cmLocalUnixMakefileGenerator3::AppendCustomDepend(
   for (std::string const& d : ccg.GetDepends()) {
     // Lookup the real name of the dependency in case it is a CMake target.
     std::string dep;
-    if (this->GetRealDependency(d, this->ConfigName, dep)) {
+    if (this->GetRealDependency(d, this->GetConfigName(), dep)) {
       depends.push_back(std::move(dep));
     }
   }
@@ -880,7 +889,7 @@ void cmLocalUnixMakefileGenerator3::AppendCustomCommands(
   cmGeneratorTarget* target, std::string const& relative)
 {
   for (cmCustomCommand const& cc : ccs) {
-    cmCustomCommandGenerator ccg(cc, this->ConfigName, this);
+    cmCustomCommandGenerator ccg(cc, this->GetConfigName(), this);
     this->AppendCustomCommand(commands, ccg, target, relative, true);
   }
 }
@@ -1023,7 +1032,7 @@ void cmLocalUnixMakefileGenerator3::AppendCustomCommand(
   this->CreateCDCommand(commands1, dir, relative);
 
   // push back the custom commands
-  cmAppend(commands, commands1);
+  cm::append(commands, commands1);
 }
 
 void cmLocalUnixMakefileGenerator3::AppendCleanCommand(
@@ -1094,8 +1103,7 @@ void cmLocalUnixMakefileGenerator3::AppendDirectoryCleanCommand(
     return;
   }
 
-  cmLocalGenerator* rootLG =
-    this->GetGlobalGenerator()->GetLocalGenerators().at(0);
+  const auto& rootLG = this->GetGlobalGenerator()->GetLocalGenerators().at(0);
   std::string const& binaryDir = rootLG->GetCurrentBinaryDirectory();
   std::string const& currentBinaryDir = this->GetCurrentBinaryDirectory();
   std::string cleanfile =
@@ -1840,7 +1848,7 @@ void cmLocalUnixMakefileGenerator3::WriteDependLanguageInfo(
 
     // Build a list of preprocessor definitions for the target.
     std::set<std::string> defines;
-    this->GetTargetDefines(target, this->ConfigName, implicitLang.first,
+    this->GetTargetDefines(target, this->GetConfigName(), implicitLang.first,
                            defines);
     if (!defines.empty()) {
       /* clang-format off */
@@ -1864,7 +1872,7 @@ void cmLocalUnixMakefileGenerator3::WriteDependLanguageInfo(
     std::vector<std::string> includes;
 
     this->GetIncludeDirectories(includes, target, implicitLang.first,
-                                this->ConfigName);
+                                this->GetConfigName());
     std::string binaryDir = this->GetState()->GetBinaryDirectory();
     if (this->Makefile->IsOn("CMAKE_DEPENDS_IN_PROJECT_ONLY")) {
       std::string const& sourceDir = this->GetState()->GetSourceDirectory();

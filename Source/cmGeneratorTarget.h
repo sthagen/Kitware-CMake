@@ -250,6 +250,13 @@ public:
   std::string GetAppBundleDirectory(const std::string& config,
                                     BundleDirectoryLevel level) const;
 
+  /** Return whether this target is marked as deprecated by the
+      maintainer  */
+  bool IsDeprecated() const;
+
+  /** Returns the deprecation message provided by the maintainer */
+  std::string GetDeprecation() const;
+
   /** Return whether this target is an executable Bundle, a framework
       or CFBundle on Apple.  */
   bool IsBundleOnApple() const;
@@ -707,7 +714,8 @@ public:
 
   std::string EvaluateInterfaceProperty(
     std::string const& prop, cmGeneratorExpressionContext* context,
-    cmGeneratorExpressionDAGChecker* dagCheckerParent) const;
+    cmGeneratorExpressionDAGChecker* dagCheckerParent,
+    bool usage_requirements_only = true) const;
 
   bool HaveInstallTreeRPATH(const std::string& config) const;
 
@@ -766,6 +774,7 @@ private:
   };
   using SourceEntriesType = std::map<cmSourceFile const*, SourceEntry>;
   SourceEntriesType SourceDepends;
+  mutable std::set<std::string> VisitedConfigsForObjects;
   mutable std::map<cmSourceFile const*, std::string> Objects;
   std::set<cmSourceFile const*> ExplicitObjectName;
   mutable std::map<std::string, std::vector<std::string>> SystemIncludesCache;
@@ -886,7 +895,8 @@ private:
 
   mutable std::unordered_map<std::string, bool> MaybeInterfacePropertyExists;
   bool MaybeHaveInterfaceProperty(std::string const& prop,
-                                  cmGeneratorExpressionContext* context) const;
+                                  cmGeneratorExpressionContext* context,
+                                  bool usage_requirements_only) const;
 
   using TargetPropertyEntryVector =
     std::vector<std::unique_ptr<TargetPropertyEntry>>;

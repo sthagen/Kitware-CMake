@@ -71,7 +71,7 @@ struct cmVisualStudio10TargetGenerator::Elem
   void SetHasElements()
   {
     if (!HasElements) {
-      this->S << ">\n";
+      this->S << ">";
       HasElements = true;
     }
   }
@@ -103,15 +103,10 @@ struct cmVisualStudio10TargetGenerator::Elem
 
     if (HasElements) {
       this->WriteString("</") << this->Tag << ">";
-      if (this->Indent > 0) {
-        this->S << '\n';
-      } else {
-        // special case: don't print EOL at EOF
-      }
     } else if (HasContent) {
-      this->S << "</" << this->Tag << ">\n";
+      this->S << "</" << this->Tag << ">";
     } else {
-      this->S << " />\n";
+      this->S << " />";
     }
   }
 
@@ -282,6 +277,7 @@ void cmVisualStudio10TargetGenerator::Elem::WritePlatformConfigTag(
 std::ostream& cmVisualStudio10TargetGenerator::Elem::WriteString(
   const char* line)
 {
+  this->S << '\n';
   this->S.fill(' ');
   this->S.width(this->Indent * 2);
   // write an empty string to get the fill level indent to print
@@ -334,9 +330,9 @@ void cmVisualStudio10TargetGenerator::Generate()
   }
   // Tell the global generator the name of the project file
   this->GeneratorTarget->Target->SetProperty("GENERATOR_FILE_NAME",
-                                             this->Name.c_str());
+                                             this->Name);
   this->GeneratorTarget->Target->SetProperty("GENERATOR_FILE_NAME_EXT",
-                                             ProjectFileExtension.c_str());
+                                             ProjectFileExtension);
   this->DotNetHintReferences.clear();
   this->AdditionalUsingDirectories.clear();
   if (this->GeneratorTarget->GetType() <= cmStateEnums::OBJECT_LIBRARY) {
@@ -376,8 +372,7 @@ void cmVisualStudio10TargetGenerator::Generate()
   char magic[] = { char(0xEF), char(0xBB), char(0xBF) };
   BuildFileStream.write(magic, 3);
   BuildFileStream << "<?xml version=\"1.0\" encoding=\""
-                  << this->GlobalGenerator->Encoding() << "\"?>"
-                  << "\n";
+                  << this->GlobalGenerator->Encoding() << "\"?>";
   {
     Elem e0(BuildFileStream, "Project");
     e0.Attribute("DefaultTargets", "Build");
@@ -1611,8 +1606,7 @@ void cmVisualStudio10TargetGenerator::WriteGroups()
   fout.write(magic, 3);
 
   fout << "<?xml version=\"1.0\" encoding=\""
-       << this->GlobalGenerator->Encoding() << "\"?>"
-       << "\n";
+       << this->GlobalGenerator->Encoding() << "\"?>";
   {
     Elem e0(fout, "Project");
     e0.Attribute("ToolsVersion", this->GlobalGenerator->GetToolsVersion());
@@ -2160,7 +2154,6 @@ void cmVisualStudio10TargetGenerator::WriteAllSources(Elem& e0)
         this->WriteExtraSource(e1, si.Source);
         break;
       case cmGeneratorTarget::SourceKindHeader:
-      case cmGeneratorTarget::SourceKindUnityBatched:
         this->WriteHeaderSource(e1, si.Source);
         break;
       case cmGeneratorTarget::SourceKindIDL:
@@ -2172,6 +2165,7 @@ void cmVisualStudio10TargetGenerator::WriteAllSources(Elem& e0)
       case cmGeneratorTarget::SourceKindModuleDefinition:
         tool = "None";
         break;
+      case cmGeneratorTarget::SourceKindUnityBatched:
       case cmGeneratorTarget::SourceKindObjectSource: {
         const std::string& lang = si.Source->GetLanguage();
         if (lang == "C" || lang == "CXX") {
@@ -2417,6 +2411,9 @@ void cmVisualStudio10TargetGenerator::OutputSourceSpecificFlags(
       if (clOptions.HasFlag("DisableSpecificWarnings")) {
         clOptions.AppendFlag("DisableSpecificWarnings",
                              "%(DisableSpecificWarnings)");
+      }
+      if (clOptions.HasFlag("ForcedIncludeFiles")) {
+        clOptions.AppendFlag("ForcedIncludeFiles", "%(ForcedIncludeFiles)");
       }
       if (configDependentDefines) {
         clOptions.AddDefines(
@@ -2832,10 +2829,8 @@ bool cmVisualStudio10TargetGenerator::ComputeClOptions(
   }
 
   if (this->MSTools) {
-    // If we have the VS_WINRT_COMPONENT or CMAKE_VS_WINRT_BY_DEFAULT
-    // set then force Compile as WinRT.
-    if (this->GeneratorTarget->GetPropertyAsBool("VS_WINRT_COMPONENT") ||
-        this->Makefile->IsOn("CMAKE_VS_WINRT_BY_DEFAULT")) {
+    // If we have the VS_WINRT_COMPONENT set then force Compile as WinRT
+    if (this->GeneratorTarget->GetPropertyAsBool("VS_WINRT_COMPONENT")) {
       clOptions.AddFlag("CompileAsWinRT", "true");
       // For WinRT components, add the _WINRT_DLL define to produce a lib
       if (this->GeneratorTarget->GetType() == cmStateEnums::SHARED_LIBRARY ||
@@ -2843,7 +2838,8 @@ bool cmVisualStudio10TargetGenerator::ComputeClOptions(
         clOptions.AddDefine("_WINRT_DLL");
       }
     } else if (this->GlobalGenerator->TargetsWindowsStore() ||
-               this->GlobalGenerator->TargetsWindowsPhone()) {
+               this->GlobalGenerator->TargetsWindowsPhone() ||
+               this->Makefile->IsOn("CMAKE_VS_WINRT_BY_DEFAULT")) {
       if (!clOptions.IsWinRt()) {
         clOptions.AddFlag("CompileAsWinRT", "false");
       }

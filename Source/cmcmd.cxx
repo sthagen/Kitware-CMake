@@ -2,6 +2,8 @@
    file Copyright.txt or https://cmake.org/licensing for details.  */
 #include "cmcmd.h"
 
+#include <cmext/algorithm>
+
 #include "cmAlgorithms.h"
 #include "cmDuration.h"
 #include "cmGlobalGenerator.h"
@@ -21,16 +23,15 @@
 
 #if !defined(CMAKE_BOOTSTRAP)
 #  include "cmDependsFortran.h" // For -E cmake_copy_f90_mod callback.
+#  include "cmFileTime.h"
 #  include "cmServer.h"
 #  include "cmServerConnection.h"
+
+#  include "bindexplib.h"
 #endif
 
 #if !defined(CMAKE_BOOTSTRAP) && defined(_WIN32)
 #  include "cmsys/ConsoleBuf.hxx"
-
-#  include "cmFileTime.h"
-
-#  include "bindexplib.h"
 #endif
 
 #if !defined(CMAKE_BOOTSTRAP) && defined(_WIN32) && !defined(__CYGWIN__)
@@ -199,7 +200,7 @@ static int HandleIWYU(const std::string& runCmd,
   // Construct the iwyu command line by taking what was given
   // and adding all the arguments we give to the compiler.
   std::vector<std::string> iwyu_cmd = cmExpandedList(runCmd, true);
-  cmAppend(iwyu_cmd, orig_cmd.begin() + 1, orig_cmd.end());
+  cm::append(iwyu_cmd, orig_cmd.begin() + 1, orig_cmd.end());
   // Run the iwyu command line.  Capture its stderr and hide its stdout.
   // Ignore its return code because the tool always returns non-zero.
   std::string stdErr;
@@ -230,7 +231,7 @@ static int HandleTidy(const std::string& runCmd, const std::string& sourceFile,
   std::vector<std::string> tidy_cmd = cmExpandedList(runCmd, true);
   tidy_cmd.push_back(sourceFile);
   tidy_cmd.emplace_back("--");
-  cmAppend(tidy_cmd, orig_cmd);
+  cm::append(tidy_cmd, orig_cmd);
 
   // Run the tidy command line.  Capture its stdout and hide its stderr.
   std::string stdOut;
@@ -581,11 +582,11 @@ int cmcmd::ExecuteCMakeCommand(std::vector<std::string> const& args)
       return 0;
     }
 
-#if defined(_WIN32) && !defined(CMAKE_BOOTSTRAP)
-    else if (args[1] == "__create_def") {
+#if !defined(CMAKE_BOOTSTRAP)
+    if (args[1] == "__create_def") {
       if (args.size() < 4) {
         std::cerr << "__create_def Usage: -E __create_def outfile.def "
-                     "objlistfile [-nm=nm-path]\n";
+                     "objlistfile [--nm=nm-path]\n";
         return 1;
       }
       cmsys::ifstream fin(args[3].c_str(), std::ios::in | std::ios::binary);
@@ -612,7 +613,7 @@ int cmcmd::ExecuteCMakeCommand(std::vector<std::string> const& args)
           return 0;
         }
       }
-      FILE* fout = cmsys::SystemTools::Fopen(args[2].c_str(), "w+");
+      FILE* fout = cmsys::SystemTools::Fopen(args[2], "w+");
       if (!fout) {
         std::cerr << "could not open output .def file: " << args[2].c_str()
                   << "\n";
@@ -1085,7 +1086,7 @@ int cmcmd::ExecuteCMakeCommand(std::vector<std::string> const& args)
         snapshot.GetDirectory().SetCurrentBinary(startOutDir);
         snapshot.GetDirectory().SetCurrentSource(startDir);
         cmMakefile mf(ggd, snapshot);
-        std::unique_ptr<cmLocalGenerator> lgd(ggd->CreateLocalGenerator(&mf));
+        auto lgd = ggd->CreateLocalGenerator(&mf);
 
         // Actually scan dependencies.
         return lgd->UpdateDependencies(depInfo, verbose, color) ? 0 : 2;
@@ -2028,7 +2029,7 @@ int cmVSLink::RunMT(std::string const& out, bool notify)
   if (this->LinkGeneratesManifest) {
     mtCommand.push_back(this->LinkerManifestFile);
   }
-  cmAppend(mtCommand, this->UserManifests);
+  cm::append(mtCommand, this->UserManifests);
   mtCommand.push_back(out);
   if (notify) {
     // Add an undocumented option that enables a special return

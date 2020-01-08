@@ -10,14 +10,13 @@
 #include <cstdlib>
 #include <cstring>
 #include <iterator>
+#include <queue>
 #include <sstream>
 #include <unordered_set>
 #include <utility>
 
 #include <cm/memory>
 #include <cm/string_view>
-
-#include <queue>
 
 #include "cmsys/RegularExpression.hxx"
 
@@ -649,6 +648,7 @@ void cmGeneratorTarget::ClearSourcesCache()
   this->KindedSourcesMap.clear();
   this->LinkImplementationLanguageIsContextDependent = true;
   this->Objects.clear();
+  this->VisitedConfigsForObjects.clear();
 }
 
 void cmGeneratorTarget::AddSourceCommon(const std::string& src, bool before)
@@ -738,7 +738,7 @@ void cmGeneratorTarget::GetObjectSources(
 {
   IMPLEMENT_VISIT(SourceKindObjectSource);
 
-  if (!this->Objects.empty()) {
+  if (this->VisitedConfigsForObjects.count(config)) {
     return;
   }
 
@@ -747,16 +747,17 @@ void cmGeneratorTarget::GetObjectSources(
   }
 
   this->LocalGenerator->ComputeObjectFilenames(this->Objects, this);
+  this->VisitedConfigsForObjects.insert(config);
 }
 
 void cmGeneratorTarget::ComputeObjectMapping()
 {
-  if (!this->Objects.empty()) {
+  auto const& configs = this->Makefile->GetGeneratorConfigs();
+  std::set<std::string> configSet(configs.begin(), configs.end());
+  if (configSet == this->VisitedConfigsForObjects) {
     return;
   }
 
-  std::vector<std::string> const& configs =
-    this->Makefile->GetGeneratorConfigs();
   for (std::string const& c : configs) {
     std::vector<cmSourceFile const*> sourceFiles;
     this->GetObjectSources(sourceFiles, c);
@@ -1116,7 +1117,8 @@ bool cmGeneratorTarget::GetPropertyAsBool(const std::string& prop) const
 }
 
 bool cmGeneratorTarget::MaybeHaveInterfaceProperty(
-  std::string const& prop, cmGeneratorExpressionContext* context) const
+  std::string const& prop, cmGeneratorExpressionContext* context,
+  bool usage_requirements_only) const
 {
   std::string const key = prop + '@' + context->Config;
   auto i = this->MaybeInterfacePropertyExists.find(key);
@@ -1135,7 +1137,7 @@ bool cmGeneratorTarget::MaybeHaveInterfaceProperty(
         context->HeadTarget ? context->HeadTarget : this;
       if (cmLinkInterfaceLibraries const* iface =
             this->GetLinkInterfaceLibraries(context->Config, headTarget,
-                                            true)) {
+                                            usage_requirements_only)) {
         if (iface->HadHeadSensitiveCondition) {
           // With a different head target we may get to a library with
           // this interface property.
@@ -1145,7 +1147,8 @@ bool cmGeneratorTarget::MaybeHaveInterfaceProperty(
           // head target, so we can follow them.
           for (cmLinkItem const& lib : iface->Libraries) {
             if (lib.Target &&
-                lib.Target->MaybeHaveInterfaceProperty(prop, context)) {
+                lib.Target->MaybeHaveInterfaceProperty(
+                  prop, context, usage_requirements_only)) {
               maybeInterfaceProp = true;
               break;
             }
@@ -1159,12 +1162,14 @@ bool cmGeneratorTarget::MaybeHaveInterfaceProperty(
 
 std::string cmGeneratorTarget::EvaluateInterfaceProperty(
   std::string const& prop, cmGeneratorExpressionContext* context,
-  cmGeneratorExpressionDAGChecker* dagCheckerParent) const
+  cmGeneratorExpressionDAGChecker* dagCheckerParent,
+  bool usage_requirements_only) const
 {
   std::string result;
 
   // If the property does not appear transitively at all, we are done.
-  if (!this->MaybeHaveInterfaceProperty(prop, context)) {
+  if (!this->MaybeHaveInterfaceProperty(prop, context,
+                                        usage_requirements_only)) {
     return result;
   }
 
@@ -1196,8 +1201,8 @@ std::string cmGeneratorTarget::EvaluateInterfaceProperty(
       p, context->LG, context, headTarget, &dagChecker, this);
   }
 
-  if (cmLinkInterfaceLibraries const* iface =
-        this->GetLinkInterfaceLibraries(context->Config, headTarget, true)) {
+  if (cmLinkInterfaceLibraries const* iface = this->GetLinkInterfaceLibraries(
+        context->Config, headTarget, usage_requirements_only)) {
     for (cmLinkItem const& lib : iface->Libraries) {
       // Broken code can have a target in its own link interface.
       // Don't follow such link interface entries so as not to create a
@@ -1211,8 +1216,8 @@ std::string cmGeneratorTarget::EvaluateInterfaceProperty(
           context->EvaluateForBuildsystem, context->Backtrace,
           context->Language);
         std::string libResult = cmGeneratorExpression::StripEmptyListElements(
-          lib.Target->EvaluateInterfaceProperty(prop, &libContext,
-                                                &dagChecker));
+          lib.Target->EvaluateInterfaceProperty(prop, &libContext, &dagChecker,
+                                                usage_requirements_only));
         if (!libResult.empty()) {
           if (result.empty()) {
             result = std::move(libResult);
@@ -1240,7 +1245,8 @@ void AddInterfaceEntries(cmGeneratorTarget const* headTarget,
                          std::string const& config, std::string const& prop,
                          std::string const& lang,
                          cmGeneratorExpressionDAGChecker* dagChecker,
-                         std::vector<EvaluatedTargetPropertyEntry>& entries)
+                         std::vector<EvaluatedTargetPropertyEntry>& entries,
+                         bool usage_requirements_only = true)
 {
   if (cmLinkImplementationLibraries const* impl =
         headTarget->GetLinkImplementationLibraries(config)) {
@@ -1253,9 +1259,9 @@ void AddInterfaceEntries(cmGeneratorTarget const* headTarget,
         cmGeneratorExpressionContext context(
           headTarget->GetLocalGenerator(), config, false, headTarget,
           headTarget, true, lib.Backtrace, lang);
-        cmExpandList(
-          lib.Target->EvaluateInterfaceProperty(prop, &context, dagChecker),
-          ee.Values);
+        cmExpandList(lib.Target->EvaluateInterfaceProperty(
+                       prop, &context, dagChecker, usage_requirements_only),
+                     ee.Values);
         ee.ContextDependent = context.HadContextSensitiveCondition;
         entries.emplace_back(std::move(ee));
       }
@@ -2508,11 +2514,11 @@ void cmGeneratorTarget::ComputeModuleDefinitionInfo(
   info.WindowsExportAllSymbols =
     this->Makefile->IsOn("CMAKE_SUPPORT_WINDOWS_EXPORT_ALL_SYMBOLS") &&
     this->GetPropertyAsBool("WINDOWS_EXPORT_ALL_SYMBOLS");
-#if defined(_WIN32) && !defined(CMAKE_BOOTSTRAP)
+#if !defined(CMAKE_BOOTSTRAP)
   info.DefFileGenerated =
     info.WindowsExportAllSymbols || info.Sources.size() > 1;
 #else
-  // Our __create_def helper is only available on Windows.
+  // Our __create_def helper is not available during CMake bootstrap.
   info.DefFileGenerated = false;
 #endif
   if (info.DefFileGenerated) {
@@ -3663,7 +3669,8 @@ std::vector<BT<std::string>> cmGeneratorTarget::GetLinkOptions(
                                   this->LinkOptionsEntries);
 
   AddInterfaceEntries(this, config, "INTERFACE_LINK_OPTIONS", language,
-                      &dagChecker, entries);
+                      &dagChecker, entries,
+                      this->GetPolicyStatusCMP0099() != cmPolicies::NEW);
 
   processOptions(this, entries, result, uniqueOptions, debugOptions,
                  "link options", OptionsParse::Shell);
@@ -3918,7 +3925,8 @@ std::vector<BT<std::string>> cmGeneratorTarget::GetLinkDirectories(
                                   this->LinkDirectoriesEntries);
 
   AddInterfaceEntries(this, config, "INTERFACE_LINK_DIRECTORIES", language,
-                      &dagChecker, entries);
+                      &dagChecker, entries,
+                      this->GetPolicyStatusCMP0099() != cmPolicies::NEW);
 
   processLinkDirectories(this, entries, result, uniqueDirectories,
                          debugDirectories);
@@ -3956,7 +3964,8 @@ std::vector<BT<std::string>> cmGeneratorTarget::GetLinkDepends(
     }
   }
   AddInterfaceEntries(this, config, "INTERFACE_LINK_DEPENDS", language,
-                      &dagChecker, entries);
+                      &dagChecker, entries,
+                      this->GetPolicyStatusCMP0099() != cmPolicies::NEW);
 
   processOptions(this, entries, result, uniqueOptions, false, "link depends",
                  OptionsParse::None);
@@ -6344,6 +6353,21 @@ std::string cmGeneratorTarget::CheckCMP0004(std::string const& item) const
   return lib;
 }
 
+bool cmGeneratorTarget::IsDeprecated() const
+{
+  const char* deprecation = this->GetProperty("DEPRECATION");
+  return deprecation && *deprecation;
+}
+
+std::string cmGeneratorTarget::GetDeprecation() const
+{
+  // find DEPRECATION property
+  if (const char* deprecation = this->GetProperty("DEPRECATION")) {
+    return deprecation;
+  }
+  return std::string();
+}
+
 void cmGeneratorTarget::GetLanguages(std::set<std::string>& languages,
                                      const std::string& config) const
 {
@@ -6612,6 +6636,19 @@ cmLinkItem cmGeneratorTarget::ResolveLinkItem(
 
   if (!resolved.Target) {
     return cmLinkItem(resolved.String, bt);
+  }
+
+  // Check deprecation, issue message with `bt` backtrace.
+  if (resolved.Target->IsDeprecated()) {
+    std::ostringstream w;
+    /* clang-format off */
+    w <<
+      "The library that is being linked to, "  << resolved.Target->GetName() <<
+      ", is marked as being deprecated by the owner.  The message provided by "
+      "the developer is: \n" << resolved.Target->GetDeprecation() << "\n";
+    /* clang-format on */
+    this->LocalGenerator->GetCMakeInstance()->IssueMessage(
+      MessageType::AUTHOR_WARNING, w.str(), bt);
   }
 
   // Skip targets that will not really be linked.  This is probably a

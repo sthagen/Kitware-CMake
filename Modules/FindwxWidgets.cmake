@@ -649,7 +649,7 @@ if(wxWidgets_FIND_STYLE STREQUAL "win32")
         # Find wxWidgets libraries.
         WX_FIND_LIBS("${PF}" "${UNV}" "${UCD}" "${DBG}")
         if(WX_USE_REL_AND_DBG)
-          WX_FIND_LIBS("${UNV}" "${UCD}" "d")
+          WX_FIND_LIBS("${PF}" "${UNV}" "${UCD}" "d")
         endif()
 
         # Settings for requested libs (i.e., include dir, libraries, etc.).
@@ -851,6 +851,8 @@ else()
         string(STRIP "${wxWidgets_LIBRARIES}" wxWidgets_LIBRARIES)
         separate_arguments(wxWidgets_LIBRARIES)
         string(REPLACE "-framework;" "-framework "
+          wxWidgets_LIBRARIES "${wxWidgets_LIBRARIES}")
+        string(REPLACE "-weak_framework;" "-weak_framework "
           wxWidgets_LIBRARIES "${wxWidgets_LIBRARIES}")
         string(REPLACE "-arch;" "-arch "
           wxWidgets_LIBRARIES "${wxWidgets_LIBRARIES}")

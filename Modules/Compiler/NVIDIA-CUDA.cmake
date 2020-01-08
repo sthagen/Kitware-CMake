@@ -1,6 +1,31 @@
+include(Compiler/CMakeCommonCompilerMacros)
+
 set(CMAKE_CUDA_COMPILER_HAS_DEVICE_LINK_PHASE True)
 set(CMAKE_CUDA_VERBOSE_FLAG "-v")
 set(CMAKE_CUDA_VERBOSE_COMPILE_FLAG "-Xcompiler=-v")
+
+if (NOT CMAKE_CUDA_COMPILER_VERSION VERSION_LESS 10.2)
+  # The -forward-unknown-to-host-compiler flag was only
+  # added to nvcc in 10.2 so before that we had no good
+  # way to invoke the CUDA compiler and propagate unknown
+  # flags such as -pthread to the host compiler
+  set(_CMAKE_CUDA_EXTRA_FLAGS "-forward-unknown-to-host-compiler")
+else()
+  set(_CMAKE_CUDA_EXTRA_FLAGS "")
+endif()
+
+if(CMAKE_CUDA_COMPILER_VERSION VERSION_GREATER_EQUAL "8.0.0")
+  set(_CMAKE_CUDA_EXTRA_DEVICE_LINK_FLAGS "-Wno-deprecated-gpu-targets")
+else()
+  set(_CMAKE_CUDA_EXTRA_DEVICE_LINK_FLAGS "")
+endif()
+
+if (NOT CMAKE_CUDA_COMPILER_VERSION VERSION_LESS 10.2)
+  # The -MD flag was only added to nvcc in 10.2 so
+  # before that we had to invoke the compiler twice
+  # to get header dependency information
+  set(CMAKE_DEPFILE_FLAGS_CUDA "-MD -MT <OBJECT> -MF <DEPFILE>")
+endif()
 
 if(NOT "x${CMAKE_CUDA_SIMULATE_ID}" STREQUAL "xMSVC")
   set(CMAKE_CUDA_COMPILE_OPTIONS_PIE -Xcompiler=-fPIE)
@@ -19,17 +44,26 @@ set(CMAKE_SHARED_LIBRARY_CREATE_CUDA_FLAGS -shared)
 set(CMAKE_INCLUDE_SYSTEM_FLAG_CUDA -isystem=)
 
 if("x${CMAKE_CUDA_SIMULATE_ID}" STREQUAL "xMSVC")
-  set(CMAKE_CUDA_STANDARD_DEFAULT "")
+  set(CMAKE_CUDA03_STANDARD_COMPILE_OPTION "")
+  set(CMAKE_CUDA03_EXTENSION_COMPILE_OPTION "")
+
+  set(CMAKE_CUDA11_STANDARD_COMPILE_OPTION "")
+  set(CMAKE_CUDA11_EXTENSION_COMPILE_OPTION "")
+
+  if (NOT CMAKE_CUDA_COMPILER_VERSION VERSION_LESS 9.0)
+    set(CMAKE_CUDA14_STANDARD_COMPILE_OPTION "")
+    set(CMAKE_CUDA14_EXTENSION_COMPILE_OPTION "")
+  endif()
 else()
-  set(CMAKE_CUDA_STANDARD_DEFAULT 98)
-  set(CMAKE_CUDA98_STANDARD_COMPILE_OPTION "")
-  set(CMAKE_CUDA98_EXTENSION_COMPILE_OPTION "")
+  set(CMAKE_CUDA03_STANDARD_COMPILE_OPTION "")
+  set(CMAKE_CUDA03_EXTENSION_COMPILE_OPTION "")
+
   set(CMAKE_CUDA11_STANDARD_COMPILE_OPTION "-std=c++11")
   set(CMAKE_CUDA11_EXTENSION_COMPILE_OPTION "-std=c++11")
 
   if (NOT CMAKE_CUDA_COMPILER_VERSION VERSION_LESS 9.0)
-    set(CMAKE_CUDA98_STANDARD_COMPILE_OPTION "-std=c++03")
-    set(CMAKE_CUDA98_EXTENSION_COMPILE_OPTION "-std=c++03")
+    set(CMAKE_CUDA03_STANDARD_COMPILE_OPTION "-std=c++03")
+    set(CMAKE_CUDA03_EXTENSION_COMPILE_OPTION "-std=c++03")
     set(CMAKE_CUDA14_STANDARD_COMPILE_OPTION "-std=c++14")
     set(CMAKE_CUDA14_EXTENSION_COMPILE_OPTION "-std=c++14")
   endif()
@@ -46,3 +80,5 @@ if (CMAKE_CUDA_COMPILER_VERSION VERSION_GREATER_EQUAL "9.0")
   set(CMAKE_CUDA_RESPONSE_FILE_LINK_FLAG "--options-file ")
   set(CMAKE_CUDA_RESPONSE_FILE_FLAG "--options-file ")
 endif()
+
+__compiler_check_default_language_standard(CUDA 6.0 03)

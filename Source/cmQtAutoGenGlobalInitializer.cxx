@@ -7,7 +7,6 @@
 #include <cm/memory>
 
 #include "cmCustomCommandLines.h"
-#include "cmCustomCommandTypes.h"
 #include "cmDuration.h"
 #include "cmGeneratorTarget.h"
 #include "cmLocalGenerator.h"
@@ -41,9 +40,9 @@ cmQtAutoGenGlobalInitializer::Keywords::Keywords()
 }
 
 cmQtAutoGenGlobalInitializer::cmQtAutoGenGlobalInitializer(
-  std::vector<cmLocalGenerator*> const& localGenerators)
+  std::vector<std::unique_ptr<cmLocalGenerator>> const& localGenerators)
 {
-  for (cmLocalGenerator* localGen : localGenerators) {
+  for (const auto& localGen : localGenerators) {
     // Detect global autogen and autorcc target names
     bool globalAutoGenTarget = false;
     bool globalAutoRccTarget = false;
@@ -56,7 +55,7 @@ cmQtAutoGenGlobalInitializer::cmQtAutoGenGlobalInitializer(
         if (targetName.empty()) {
           targetName = "autogen";
         }
-        GlobalAutoGenTargets_.emplace(localGen, std::move(targetName));
+        GlobalAutoGenTargets_.emplace(localGen.get(), std::move(targetName));
         globalAutoGenTarget = true;
       }
 
@@ -67,7 +66,7 @@ cmQtAutoGenGlobalInitializer::cmQtAutoGenGlobalInitializer(
         if (targetName.empty()) {
           targetName = "autorcc";
         }
-        GlobalAutoRccTargets_.emplace(localGen, std::move(targetName));
+        GlobalAutoRccTargets_.emplace(localGen.get(), std::move(targetName));
         globalAutoRccTarget = true;
       }
     }
@@ -154,12 +153,12 @@ void cmQtAutoGenGlobalInitializer::GetOrCreateGlobalTarget(
     cmMakefile* makefile = localGen->GetMakefile();
 
     // Create utility target
-    cmTarget* target = makefile->AddUtilityCommand(
-      name, cmCommandOrigin::Generator, true,
-      makefile->GetHomeOutputDirectory().c_str() /*work dir*/,
-      std::vector<std::string>() /*output*/,
-      std::vector<std::string>() /*depends*/, cmCustomCommandLines(), false,
-      comment.c_str());
+    std::vector<std::string> no_byproducts;
+    std::vector<std::string> no_depends;
+    cmCustomCommandLines no_commands;
+    cmTarget* target = localGen->AddUtilityCommand(
+      name, true, makefile->GetHomeOutputDirectory().c_str(), no_byproducts,
+      no_depends, no_commands, false, comment.c_str());
     localGen->AddGeneratorTarget(
       cm::make_unique<cmGeneratorTarget>(target, localGen));
 

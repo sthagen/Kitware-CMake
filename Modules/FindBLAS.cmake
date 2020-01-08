@@ -481,8 +481,12 @@ if (BLA_VENDOR STREQUAL "OpenBLAS" OR BLA_VENDOR STREQUAL "All")
       ""
       )
   endif()
-  if(NOT BLAS_LIBRARIES)
-    find_package(Threads)
+  if(NOT BLAS_LIBRARIES AND (CMAKE_C_COMPILER_LOADED OR CMAKE_CXX_COMPILER_LOADED))
+    if(BLAS_FIND_QUIETLY OR NOT BLAS_FIND_REQUIRED)
+      find_package(Threads)
+    else()
+      find_package(Threads REQUIRED)
+    endif()
     # OpenBLAS (http://www.openblas.net)
     check_fortran_libraries(
       BLAS_LIBRARIES
@@ -517,7 +521,7 @@ if (BLA_VENDOR STREQUAL "ATLAS" OR BLA_VENDOR STREQUAL "All")
       BLAS
       dgemm
       ""
-      "f77blas;atlas"
+      "blas;f77blas;atlas"
       ""
       )
   endif()

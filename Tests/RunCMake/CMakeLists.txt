@@ -125,7 +125,7 @@ endif()
 if(CMAKE_GENERATOR MATCHES "Make")
   add_RunCMake_test(Make -DMAKE_IS_GNU=${MAKE_IS_GNU})
 endif()
-if(CMAKE_GENERATOR STREQUAL "Ninja")
+if(CMAKE_GENERATOR MATCHES "Ninja")
   set(Ninja_ARGS
     -DCMAKE_C_OUTPUT_EXTENSION=${CMAKE_C_OUTPUT_EXTENSION}
     -DCMAKE_SHARED_LIBRARY_PREFIX=${CMAKE_SHARED_LIBRARY_PREFIX}
@@ -134,6 +134,13 @@ if(CMAKE_GENERATOR STREQUAL "Ninja")
     list(APPEND Ninja_ARGS -DTEST_Fortran=1)
   endif()
   add_RunCMake_test(Ninja)
+  set(NinjaMultiConfig_ARGS
+    -DCYGWIN=${CYGWIN}
+    )
+  if(CMake_TEST_Qt5 AND Qt5Core_FOUND)
+    list(APPEND NinjaMultiConfig_ARGS -DCMake_TEST_Qt5=1)
+  endif()
+  add_RunCMake_test(NinjaMultiConfig)
 endif()
 add_RunCMake_test(CTest)
 
@@ -210,6 +217,7 @@ add_RunCMake_test(ScriptMode)
 add_RunCMake_test(Swift -DCMAKE_Swift_COMPILER=${CMAKE_Swift_COMPILER})
 add_RunCMake_test(TargetObjects)
 add_RunCMake_test(TargetSources)
+add_RunCMake_test(TargetProperties)
 add_RunCMake_test(ToolchainFile)
 add_RunCMake_test(find_dependency)
 add_RunCMake_test(CompileDefinitions)
@@ -272,6 +280,7 @@ add_RunCMake_test(find_package)
 add_RunCMake_test(find_path)
 add_RunCMake_test(find_program -DCMAKE_SYSTEM_NAME=${CMAKE_SYSTEM_NAME})
 add_RunCMake_test(foreach)
+add_RunCMake_test(function)
 add_RunCMake_test(get_filename_component)
 add_RunCMake_test(get_property)
 add_RunCMake_test(if)
@@ -446,7 +455,7 @@ add_RunCMake_test(target_include_directories)
 add_RunCMake_test(target_sources)
 add_RunCMake_test(CheckModules)
 add_RunCMake_test(CheckIPOSupported)
-add_RunCMake_test(CommandLine -DCMAKE_SYSTEM_NAME=${CMAKE_SYSTEM_NAME} -DCYGWIN=${CYGWIN})
+add_RunCMake_test(CommandLine -DCMAKE_SYSTEM_NAME=${CMAKE_SYSTEM_NAME} -DCYGWIN=${CYGWIN} -DPYTHON_EXECUTABLE=${PYTHON_EXECUTABLE})
 add_RunCMake_test(CommandLineTar)
 
 if(CMAKE_PLATFORM_NO_VERSIONED_SONAME OR (NOT CMAKE_SHARED_LIBRARY_SONAME_FLAG AND NOT CMAKE_SHARED_LIBRARY_SONAME_C_FLAG))
@@ -556,6 +565,7 @@ set(cpack_tests
   DEB.MD5SUMS
   DEB.DEB_PACKAGE_VERSION_BACK_COMPATIBILITY
   DEB.DEB_DESCRIPTION
+  DEB.PROJECT_META
 
   RPM.CUSTOM_BINARY_SPEC_FILE
   RPM.CUSTOM_NAMES
@@ -576,6 +586,7 @@ set(cpack_tests
   RPM.SUGGESTS
   RPM.SYMLINKS
   RPM.USER_FILELIST
+  RPM.PROJECT_META
 
   7Z
   TBZ2

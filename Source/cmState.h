@@ -70,10 +70,12 @@ public:
     cmStateSnapshot const& originSnapshot);
   cmStateSnapshot Pop(cmStateSnapshot const& originSnapshot);
 
-  static cmStateEnums::CacheEntryType StringToCacheEntryType(const char*);
-  static bool StringToCacheEntryType(const char*,
+  static cmStateEnums::CacheEntryType StringToCacheEntryType(
+    const std::string&);
+  static bool StringToCacheEntryType(const std::string&,
                                      cmStateEnums::CacheEntryType& type);
-  static const char* CacheEntryTypeToString(cmStateEnums::CacheEntryType);
+  static const std::string& CacheEntryTypeToString(
+    cmStateEnums::CacheEntryType);
   static bool IsCacheEntryType(std::string const& key);
 
   bool LoadCache(const std::string& path, bool internal,
@@ -190,6 +192,8 @@ public:
   bool UseNMake() const;
   void SetMSYSShell(bool mSYSShell);
   bool UseMSYSShell() const;
+  void SetNinjaMulti(bool ninjaMulti);
+  bool UseNinjaMulti() const;
 
   unsigned int GetCacheMajorVersion() const;
   unsigned int GetCacheMinorVersion() const;
@@ -245,6 +249,7 @@ private:
   bool MinGWMake = false;
   bool NMake = false;
   bool MSYSShell = false;
+  bool NinjaMulti = false;
   Mode CurrentMode = Unknown;
 };
 

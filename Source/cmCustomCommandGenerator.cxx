@@ -6,6 +6,8 @@
 #include <memory>
 #include <utility>
 
+#include <cmext/algorithm>
+
 #include "cmAlgorithms.h"
 #include "cmCustomCommand.h"
 #include "cmCustomCommandLines.h"
@@ -28,11 +30,14 @@ void AppendPaths(const std::vector<std::string>& inputs,
       cmExpandedList(cge->Evaluate(lg, config));
     for (std::string& it : result) {
       cmSystemTools::ConvertToUnixSlashes(it);
+      if (cmContains(it, '/') && !cmSystemTools::FileIsFullPath(it)) {
+        it = cmStrCat(lg->GetMakefile()->GetCurrentBinaryDirectory(), '/', it);
+      }
       if (cmSystemTools::FileIsFullPath(it)) {
         it = cmSystemTools::CollapseFullPath(it);
       }
     }
-    cmAppend(output, result);
+    cm::append(output, result);
   }
 }
 }
@@ -56,7 +61,7 @@ cmCustomCommandGenerator::cmCustomCommandGenerator(cmCustomCommand const& cc,
       std::unique_ptr<cmCompiledGeneratorExpression> cge = ge.Parse(clarg);
       std::string parsed_arg = cge->Evaluate(this->LG, this->Config);
       if (this->CC.GetCommandExpandLists()) {
-        cmAppend(argv, cmExpandedList(parsed_arg));
+        cm::append(argv, cmExpandedList(parsed_arg));
       } else {
         argv.push_back(std::move(parsed_arg));
       }
@@ -201,7 +206,9 @@ void cmCustomCommandGenerator::AppendArguments(unsigned int c,
       if (this->OldStyle) {
         cmd += escapeForShellOldStyle(emulator[j]);
       } else {
-        cmd += this->LG->EscapeForShell(emulator[j], this->MakeVars);
+        cmd +=
+          this->LG->EscapeForShell(emulator[j], this->MakeVars, false, false,
+                                   this->MakeVars && this->LG->IsNinjaMulti());
       }
     }
 
@@ -222,7 +229,9 @@ void cmCustomCommandGenerator::AppendArguments(unsigned int c,
     if (this->OldStyle) {
       cmd += escapeForShellOldStyle(arg);
     } else {
-      cmd += this->LG->EscapeForShell(arg, this->MakeVars);
+      cmd +=
+        this->LG->EscapeForShell(arg, this->MakeVars, false, false,
+                                 this->MakeVars && this->LG->IsNinjaMulti());
     }
   }
 }

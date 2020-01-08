@@ -2,11 +2,26 @@
    file Copyright.txt or https://cmake.org/licensing for details.  */
 #include "cmake.h"
 
+#include <algorithm>
+#include <cstdio>
+#include <cstdlib>
+#include <cstring>
+#include <initializer_list>
+#include <iostream>
+#include <sstream>
+#include <utility>
+
 #include <cm/memory>
 #include <cm/string_view>
 #if defined(_WIN32) && !defined(__CYGWIN__) && !defined(CMAKE_BOOT_MINGW)
 #  include <cm/iterator>
 #endif
+
+#include <cmext/algorithm>
+
+#include "cmsys/FStream.hxx"
+#include "cmsys/Glob.hxx"
+#include "cmsys/RegularExpression.hxx"
 
 #include "cm_sys_stat.h"
 
@@ -105,19 +120,6 @@
 #  include <sys/resource.h>
 #  include <sys/time.h>
 #endif
-
-#include <algorithm>
-#include <cstdio>
-#include <cstdlib>
-#include <cstring>
-#include <initializer_list>
-#include <iostream>
-#include <sstream>
-#include <utility>
-
-#include "cmsys/FStream.hxx"
-#include "cmsys/Glob.hxx"
-#include "cmsys/RegularExpression.hxx"
 
 namespace {
 
@@ -511,8 +513,9 @@ bool cmake::FindPackage(const std::vector<std::string>& args)
     cmSystemTools::GetCurrentWorkingDirectory());
   // read in the list file to fill the cache
   snapshot.SetDefaultDefinitions();
-  cmMakefile* mf = new cmMakefile(gg, snapshot);
-  gg->AddMakefile(mf);
+  auto mfu = cm::make_unique<cmMakefile>(gg, snapshot);
+  cmMakefile* mf = mfu.get();
+  gg->AddMakefile(std::move(mfu));
 
   mf->SetArgcArgv(args);
 
@@ -538,7 +541,7 @@ bool cmake::FindPackage(const std::vector<std::string>& args)
     std::vector<std::string> includeDirs = cmExpandedList(includes);
 
     gg->CreateGenerationObjects();
-    cmLocalGenerator* lg = gg->LocalGenerators[0];
+    const auto& lg = gg->LocalGenerators[0];
     std::string includeFlags =
       lg->GetIncludeFlags(includeDirs, nullptr, language);
 
@@ -548,7 +551,7 @@ bool cmake::FindPackage(const std::vector<std::string>& args)
     const char* targetName = "dummy";
     std::vector<std::string> srcs;
     cmTarget* tgt = mf->AddExecutable(targetName, srcs, true);
-    tgt->SetProperty("LINKER_LANGUAGE", language.c_str());
+    tgt->SetProperty("LINKER_LANGUAGE", language);
 
     std::string libs = mf->GetSafeDefinition("PACKAGE_LIBRARIES");
     std::vector<std::string> libList = cmExpandedList(libs);
@@ -749,10 +752,22 @@ void cmake::SetArgs(const std::vector<std::string>& args)
       this->LogLevelWasSetViaCLI = true;
     } else if (arg == "--log-context") {
       this->SetShowLogContext(true);
+    } else if (arg.find("--debug-find", 0) == 0) {
+      std::cout << "Running with debug output on for the `find` commands.\n";
+      this->SetDebugFindOutputOn(true);
     } else if (arg.find("--trace-expand", 0) == 0) {
       std::cout << "Running with expanded trace output on.\n";
       this->SetTrace(true);
       this->SetTraceExpand(true);
+    } else if (arg.find("--trace-format=", 0) == 0) {
+      this->SetTrace(true);
+      const auto traceFormat =
+        StringToTraceFormat(arg.substr(strlen("--trace-format=")));
+      if (traceFormat == TraceFormat::TRACE_UNDEFINED) {
+        cmSystemTools::Error("Invalid format specified for --trace-format");
+        return;
+      }
+      this->SetTraceFormat(traceFormat);
     } else if (arg.find("--trace-source=", 0) == 0) {
       std::string file = arg.substr(strlen("--trace-source="));
       cmSystemTools::ConvertToUnixSlashes(file);
@@ -893,6 +908,23 @@ cmake::LogLevel cmake::StringToLogLevel(const std::string& levelStr)
   return (it != levels.cend()) ? it->second : LogLevel::LOG_UNDEFINED;
 }
 
+cmake::TraceFormat cmake::StringToTraceFormat(const std::string& traceStr)
+{
+  using TracePair = std::pair<std::string, TraceFormat>;
+  static const std::vector<TracePair> levels = {
+    { "human", TraceFormat::TRACE_HUMAN },
+    { "json-v1", TraceFormat::TRACE_JSON_V1 },
+  };
+
+  const auto traceStrLowCase = cmSystemTools::LowerCase(traceStr);
+
+  const auto it = std::find_if(levels.cbegin(), levels.cend(),
+                               [&traceStrLowCase](const TracePair& p) {
+                                 return p.first == traceStrLowCase;
+                               });
+  return (it != levels.cend()) ? it->second : TraceFormat::TRACE_UNDEFINED;
+}
+
 void cmake::SetTraceFile(const std::string& file)
 {
   this->TraceFile.close();
@@ -905,6 +937,48 @@ void cmake::SetTraceFile(const std::string& file)
     return;
   }
   std::cout << "Trace will be written to " << file << "\n";
+}
+
+void cmake::PrintTraceFormatVersion()
+{
+  if (!this->GetTrace()) {
+    return;
+  }
+
+  std::string msg;
+
+  switch (this->GetTraceFormat()) {
+    case TraceFormat::TRACE_JSON_V1: {
+#ifndef CMAKE_BOOTSTRAP
+      Json::Value val;
+      Json::Value version;
+      Json::StreamWriterBuilder builder;
+      builder["indentation"] = "";
+      version["major"] = 1;
+      version["minor"] = 0;
+      val["version"] = version;
+      msg = Json::writeString(builder, val);
+#endif
+      break;
+    }
+    case TraceFormat::TRACE_HUMAN:
+      msg = "";
+      break;
+    case TraceFormat::TRACE_UNDEFINED:
+      msg = "INTERNAL ERROR: Trace format is TRACE_UNDEFINED";
+      break;
+  }
+
+  if (msg.empty()) {
+    return;
+  }
+
+  auto& f = this->GetTraceFile();
+  if (f) {
+    f << msg << '\n';
+  } else {
+    cmSystemTools::Message(msg);
+  }
 }
 
 void cmake::SetDirectoriesFromFile(const std::string& arg)
@@ -1049,7 +1123,7 @@ void cmake::GetRegisteredGenerators(std::vector<GeneratorInfo>& generators,
     std::vector<std::string> names = gen->GetGeneratorNames();
 
     if (includeNamesWithPlatform) {
-      cmAppend(names, gen->GetGeneratorNamesWithPlatform());
+      cm::append(names, gen->GetGeneratorNamesWithPlatform());
     }
 
     for (std::string const& name : names) {
@@ -1574,7 +1648,7 @@ int cmake::ActualConfigure()
     }
   }
 
-  cmMakefile* mf = this->GlobalGenerator->GetMakefiles()[0];
+  auto& mf = this->GlobalGenerator->GetMakefiles()[0];
   if (mf->IsOn("CTEST_USE_LAUNCHERS") &&
       !this->State->GetGlobalProperty("RULE_LAUNCH_COMPILE")) {
     cmSystemTools::Error(
@@ -1697,6 +1771,11 @@ int cmake::Run(const std::vector<std::string>& args, bool noconfigure)
   this->SetArgs(args);
   if (cmSystemTools::GetErrorOccuredFlag()) {
     return -1;
+  }
+
+  // Log the trace format version to the desired output
+  if (this->GetTrace()) {
+    this->PrintTraceFormatVersion();
   }
 
   // If we are given a stamp list file check if it is really out of date.
@@ -1919,6 +1998,7 @@ void cmake::AddDefaultGenerators()
   this->Generators.push_back(cmGlobalGhsMultiGenerator::NewFactory());
 #  endif
   this->Generators.push_back(cmGlobalNinjaGenerator::NewFactory());
+  this->Generators.push_back(cmGlobalNinjaMultiGenerator::NewFactory());
 #endif
 #if defined(CMAKE_USE_WMAKE)
   this->Generators.push_back(cmGlobalWatcomWMakeGenerator::NewFactory());
@@ -2169,7 +2249,7 @@ int cmake::CheckBuildSystem()
     if (ggd) {
       cm.GetCurrentSnapshot().SetDefaultDefinitions();
       cmMakefile mfd(ggd.get(), cm.GetCurrentSnapshot());
-      std::unique_ptr<cmLocalGenerator> lgd(ggd->CreateLocalGenerator(&mfd));
+      auto lgd = ggd->CreateLocalGenerator(&mfd);
       lgd->ClearDependencies(&mfd, verbose);
     }
   }

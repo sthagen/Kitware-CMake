@@ -44,7 +44,7 @@ public:
   };
 
   cmTarget(std::string const& name, cmStateEnums::TargetType type,
-           Visibility vis, cmMakefile* mf);
+           Visibility vis, cmMakefile* mf, bool perConfig);
 
   cmTarget(cmTarget const&) = delete;
   cmTarget(cmTarget&&) noexcept;
@@ -164,8 +164,17 @@ public:
 
   //! Set/Get a property of this target file
   void SetProperty(const std::string& prop, const char* value);
+  void SetProperty(const std::string& prop, const std::string& value)
+  {
+    SetProperty(prop, value.c_str());
+  }
   void AppendProperty(const std::string& prop, const char* value,
                       bool asString = false);
+  void AppendProperty(const std::string& prop, const std::string& value,
+                      bool asString = false)
+  {
+    AppendProperty(prop, value.c_str(), asString);
+  }
   //! Might return a nullptr if the property is not set or invalid
   const char* GetProperty(const std::string& prop) const;
   //! Always returns a valid pointer
@@ -186,6 +195,7 @@ public:
 
   bool IsImported() const;
   bool IsImportedGloballyVisible() const;
+  bool IsPerConfig() const;
 
   bool GetMappedConfig(std::string const& desired_config, const char** loc,
                        const char** imp, std::string& suffix) const;

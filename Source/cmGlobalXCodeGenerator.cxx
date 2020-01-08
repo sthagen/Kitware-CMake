@@ -10,6 +10,7 @@
 #include <sstream>
 
 #include <cm/memory>
+#include <cmext/algorithm>
 
 #include "cmsys/RegularExpression.hxx"
 
@@ -392,9 +393,11 @@ cmGlobalXCodeGenerator::GenerateBuildCommand(
 }
 
 //! Create a local generator appropriate to this Global Generator
-cmLocalGenerator* cmGlobalXCodeGenerator::CreateLocalGenerator(cmMakefile* mf)
+std::unique_ptr<cmLocalGenerator> cmGlobalXCodeGenerator::CreateLocalGenerator(
+  cmMakefile* mf)
 {
-  return new cmLocalXCodeGenerator(this, mf);
+  return std::unique_ptr<cmLocalGenerator>(
+    cm::make_unique<cmLocalXCodeGenerator>(this, mf));
 }
 
 void cmGlobalXCodeGenerator::AddExtraIDETargets()
@@ -500,16 +503,13 @@ std::string cmGlobalXCodeGenerator::PostBuildMakeTarget(
 void cmGlobalXCodeGenerator::AddExtraTargets(
   cmLocalGenerator* root, std::vector<cmLocalGenerator*>& gens)
 {
-  cmMakefile* mf = root->GetMakefile();
-
   const char* no_working_directory = nullptr;
   std::vector<std::string> no_byproducts;
   std::vector<std::string> no_depends;
 
   // Add ALL_BUILD
-  cmTarget* allbuild = mf->AddUtilityCommand(
-    "ALL_BUILD", cmCommandOrigin::Generator, true, no_working_directory,
-    no_byproducts, no_depends,
+  cmTarget* allbuild = root->AddUtilityCommand(
+    "ALL_BUILD", true, no_working_directory, no_byproducts, no_depends,
     cmMakeSingleCommandLine({ "echo", "Build all projects" }));
 
   root->AddGeneratorTarget(cm::make_unique<cmGeneratorTarget>(allbuild, root));
@@ -523,7 +523,7 @@ void cmGlobalXCodeGenerator::AddExtraTargets(
   // Add ZERO_CHECK
   bool regenerate = !this->GlobalSettingIsOn("CMAKE_SUPPRESS_REGENERATION");
   bool generateTopLevelProjectOnly =
-    mf->IsOn("CMAKE_XCODE_GENERATE_TOP_LEVEL_PROJECT_ONLY");
+    root->GetMakefile()->IsOn("CMAKE_XCODE_GENERATE_TOP_LEVEL_PROJECT_ONLY");
   bool isTopLevel =
     !root->GetStateSnapshot().GetBuildsystemDirectoryParent().IsValid();
   if (regenerate && (isTopLevel || !generateTopLevelProjectOnly)) {
@@ -531,10 +531,10 @@ void cmGlobalXCodeGenerator::AddExtraTargets(
     std::string file =
       this->ConvertToRelativeForMake(this->CurrentReRunCMakeMakefile);
     cmSystemTools::ReplaceString(file, "\\ ", " ");
-    cmTarget* check = mf->AddUtilityCommand(
-      CMAKE_CHECK_BUILD_SYSTEM_TARGET, cmCommandOrigin::Generator, true,
-      no_working_directory, no_byproducts, no_depends,
-      cmMakeSingleCommandLine({ "make", "-f", file }));
+    cmTarget* check =
+      root->AddUtilityCommand(CMAKE_CHECK_BUILD_SYSTEM_TARGET, true,
+                              no_working_directory, no_byproducts, no_depends,
+                              cmMakeSingleCommandLine({ "make", "-f", file }));
 
     root->AddGeneratorTarget(cm::make_unique<cmGeneratorTarget>(check, root));
   }
@@ -559,7 +559,7 @@ void cmGlobalXCodeGenerator::AddExtraTargets(
       if (target->GetType() == cmStateEnums::OBJECT_LIBRARY) {
         commandLines.front().back() = // fill placeholder
           this->PostBuildMakeTarget(target->GetName(), "$(CONFIGURATION)");
-        gen->GetMakefile()->AddCustomCommandToTarget(
+        gen->AddCustomCommandToTarget(
           target->GetName(), no_byproducts, no_depends, commandLines,
           cmCustomCommandType::POST_BUILD, "Depend check for xcode",
           dir.c_str(), true, false, "", "", false,
@@ -578,7 +578,7 @@ void cmGlobalXCodeGenerator::CreateReRunCMakeFile(
 {
   std::vector<std::string> lfiles;
   for (auto gen : gens) {
-    cmAppend(lfiles, gen->GetMakefile()->GetListFiles());
+    cm::append(lfiles, gen->GetMakefile()->GetListFiles());
   }
 
   // sort the array
@@ -1096,7 +1096,7 @@ bool cmGlobalXCodeGenerator::CreateXCodeTargets(
 {
   this->SetCurrentLocalGenerator(gen);
   std::vector<cmGeneratorTarget*> gts;
-  cmAppend(gts, this->CurrentLocalGenerator->GetGeneratorTargets());
+  cm::append(gts, this->CurrentLocalGenerator->GetGeneratorTargets());
   std::sort(gts.begin(), gts.end(),
             [this](cmGeneratorTarget const* l, cmGeneratorTarget const* r) {
               return this->TargetOrderIndex[l] < this->TargetOrderIndex[r];
@@ -1366,7 +1366,7 @@ bool cmGlobalXCodeGenerator::CreateXCodeTarget(
 
 void cmGlobalXCodeGenerator::ForceLinkerLanguages()
 {
-  for (auto localGenerator : this->LocalGenerators) {
+  for (const auto& localGenerator : this->LocalGenerators) {
     // All targets depend on the build-system check target.
     for (const auto& tgt : localGenerator->GetGeneratorTargets()) {
       // This makes sure all targets link using the proper language.
@@ -1462,12 +1462,12 @@ void cmGlobalXCodeGenerator::CreateCustomCommands(
       { cmSystemTools::GetCMakeCommand(), "-E", "cmake_symlink_library",
         str_file, str_so_file, str_link_file });
 
-    cmCustomCommand command(this->CurrentMakefile, std::vector<std::string>(),
-                            std::vector<std::string>(),
-                            std::vector<std::string>(), cmd,
-                            "Creating symlinks", "");
+    cmCustomCommand command(
+      std::vector<std::string>(), std::vector<std::string>(),
+      std::vector<std::string>(), cmd, this->CurrentMakefile->GetBacktrace(),
+      "Creating symlinks", "");
 
-    postbuild.push_back(command);
+    postbuild.push_back(std::move(command));
   }
 
   std::vector<cmSourceFile*> classes;

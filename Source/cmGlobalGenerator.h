@@ -14,9 +14,10 @@
 #include <utility>
 #include <vector>
 
+#include <cmext/algorithm>
+
 #include "cm_codecvt.hxx"
 
-#include "cmAlgorithms.h"
 #include "cmCustomCommandLines.h"
 #include "cmDuration.h"
 #include "cmExportSet.h"
@@ -71,7 +72,7 @@ struct GeneratedMakeCommand
   void Add(std::vector<std::string>::const_iterator start,
            std::vector<std::string>::const_iterator end)
   {
-    cmAppend(PrimaryCommand, start, end);
+    cm::append(PrimaryCommand, start, end);
   }
 
   std::string Printable() const { return cmJoin(PrimaryCommand, " "); }
@@ -90,11 +91,14 @@ struct GeneratedMakeCommand
 class cmGlobalGenerator
 {
 public:
+  using LocalGeneratorVector = std::vector<std::unique_ptr<cmLocalGenerator>>;
+
   //! Free any memory allocated with the GlobalGenerator
   cmGlobalGenerator(cmake* cm);
   virtual ~cmGlobalGenerator();
 
-  virtual cmLocalGenerator* CreateLocalGenerator(cmMakefile* mf);
+  virtual std::unique_ptr<cmLocalGenerator> CreateLocalGenerator(
+    cmMakefile* mf);
 
   //! Get the name for this generator
   virtual std::string GetName() const { return "Generic"; }
@@ -158,11 +162,11 @@ public:
    */
   virtual void Generate();
 
-  virtual cmLinkLineComputer* CreateLinkLineComputer(
+  virtual std::unique_ptr<cmLinkLineComputer> CreateLinkLineComputer(
     cmOutputConverter* outputConverter,
     cmStateDirectory const& stateDir) const;
 
-  cmLinkLineComputer* CreateMSVC60LinkLineComputer(
+  std::unique_ptr<cmLinkLineComputer> CreateMSVC60LinkLineComputer(
     cmOutputConverter* outputConverter,
     cmStateDirectory const& stateDir) const;
 
@@ -245,11 +249,11 @@ public:
   cmake* GetCMakeInstance() const { return this->CMakeInstance; }
 
   void SetConfiguredFilesPath(cmGlobalGenerator* gen);
-  const std::vector<cmMakefile*>& GetMakefiles() const
+  const std::vector<std::unique_ptr<cmMakefile>>& GetMakefiles() const
   {
     return this->Makefiles;
   }
-  const std::vector<cmLocalGenerator*>& GetLocalGenerators() const
+  const LocalGeneratorVector& GetLocalGenerators() const
   {
     return this->LocalGenerators;
   }
@@ -264,7 +268,7 @@ public:
     this->CurrentConfigureMakefile = mf;
   }
 
-  void AddMakefile(cmMakefile* mf);
+  void AddMakefile(std::unique_ptr<cmMakefile> mf);
 
   //! Set an generator for an "external makefile based project"
   void SetExternalMakefileProjectGenerator(
@@ -441,12 +445,13 @@ public:
 
   void ProcessEvaluationFiles();
 
-  std::map<std::string, cmExportBuildFileGenerator*>& GetBuildExportSets()
+  std::map<std::string, std::unique_ptr<cmExportBuildFileGenerator>>&
+  GetBuildExportSets()
   {
     return this->BuildExportSets;
   }
-  void AddBuildExportSet(cmExportBuildFileGenerator*);
-  void AddBuildExportExportSet(cmExportBuildFileGenerator*);
+  void AddBuildExportSet(std::unique_ptr<cmExportBuildFileGenerator>);
+  void AddBuildExportExportSet(std::unique_ptr<cmExportBuildFileGenerator>);
   bool IsExportedTargetsFile(const std::string& filename) const;
   bool GenerateImportFile(const std::string& file);
   cmExportBuildFileGenerator* GetExportedTargetsFile(
@@ -476,13 +481,17 @@ public:
 
   int RecursionDepth;
 
+  virtual void GetQtAutoGenConfigs(std::vector<std::string>& configs) const
+  {
+    configs.emplace_back("$<CONFIG>");
+  }
+
 protected:
-  using GeneratorVector = std::vector<cmLocalGenerator*>;
   // for a project collect all its targets by following depend
   // information, and also collect all the targets
   void GetTargetSets(TargetDependSet& projectTargets,
                      TargetDependSet& originalTargets, cmLocalGenerator* root,
-                     GeneratorVector const&);
+                     std::vector<cmLocalGenerator*>& generators);
   bool IsRootOnlyTarget(cmGeneratorTarget* target) const;
   void AddTargetDepends(const cmGeneratorTarget* target,
                         TargetDependSet& projectTargets);
@@ -525,6 +534,7 @@ protected:
     std::vector<std::string> Depends;
     std::string WorkingDir;
     bool UsesTerminal = false;
+    bool PerConfig = true;
   };
 
   void CreateDefaultGlobalTargets(std::vector<GlobalTargetInfo>& targets);
@@ -540,8 +550,8 @@ protected:
   std::string FindMakeProgramFile;
   std::string ConfiguredFilesPath;
   cmake* CMakeInstance;
-  std::vector<cmMakefile*> Makefiles;
-  std::vector<cmLocalGenerator*> LocalGenerators;
+  std::vector<std::unique_ptr<cmMakefile>> Makefiles;
+  LocalGeneratorVector LocalGenerators;
   cmMakefile* CurrentConfigureMakefile;
   // map from project name to vector of local generators in that project
   std::map<std::string, std::vector<cmLocalGenerator*>> ProjectMap;
@@ -550,7 +560,8 @@ protected:
   std::set<std::string> InstallComponents;
   // Sets of named target exports
   cmExportSetMap ExportSets;
-  std::map<std::string, cmExportBuildFileGenerator*> BuildExportSets;
+  std::map<std::string, std::unique_ptr<cmExportBuildFileGenerator>>
+    BuildExportSets;
   std::map<std::string, cmExportBuildFileGenerator*> BuildExportExportSets;
 
   std::map<std::string, std::string> AliasTargets;
