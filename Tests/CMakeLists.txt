@@ -989,6 +989,27 @@ ${CMake_SOURCE_DIR}/Utilities/Release/push.bash --dir dev -- '${CMake_BUILD_NIGH
     endif()
   endif()
 
+  # On Windows run the CPackNSISGenerator test
+  # if the nsis is available
+  if(WIN32 AND NSIS_MAKENSIS_EXECUTABLE)
+    add_test(CPackNSISGenerator ${CMAKE_CTEST_COMMAND}
+      -C \${CTEST_CONFIGURATION_TYPE}
+      --build-and-test
+      "${CMake_SOURCE_DIR}/Tests/CPackNSISGenerator"
+      "${CMake_BINARY_DIR}/Tests/CPackNSISGenerator"
+      ${build_generator_args}
+      --build-project CPackNSISGenerator
+      --build-options
+      --test-command ${CMAKE_CMAKE_COMMAND}
+        "-DCPackNSISGenerator_BINARY_DIR:PATH=${CMake_BINARY_DIR}/Tests/CPackNSISGenerator"
+        "-Dconfig=\${CTEST_CONFIGURATION_TYPE}"
+        -P "${CMake_SOURCE_DIR}/Tests/CPackNSISGenerator/RunCPackVerifyResult.cmake")
+
+    set_property(TEST CPackNSISGenerator PROPERTY
+      ATTACHED_FILES_ON_FAIL
+      "${CMake_BINARY_DIR}/Tests/CPackNSISGenerator/_CPack_Packages/win32/NSIS/NSISOutput.log")
+  endif()
+
   if(CTEST_TEST_CPACK)
     add_test(CPackUseDefaultVersion ${CMAKE_CTEST_COMMAND}
       --build-and-test
@@ -1595,6 +1616,7 @@ ${CMake_SOURCE_DIR}/Utilities/Release/push.bash --dir dev -- '${CMake_BUILD_NIGH
       set(tutorial_build_options -DUSE_MYMATH:BOOL=OFF)
     endif()
     add_test(${tutorial_test_name} ${CMAKE_CTEST_COMMAND}
+      -C "Release"
       --build-and-test
       "${CMake_SOURCE_DIR}/Help/guide/tutorial/${step_name}"
       ${tutorial_build_dir}_Build
@@ -1606,11 +1628,11 @@ ${CMake_SOURCE_DIR}/Utilities/Release/push.bash --dir dev -- '${CMake_BUILD_NIGH
   endfunction()
 
   if(NOT CMake_TEST_EXTERNAL_CMAKE)
-    foreach(STP RANGE 2 11)
+    foreach(STP RANGE 2 12)
       add_tutorial_test(Step${STP} TRUE)
     endforeach()
     add_tutorial_test(Complete TRUE)
-    foreach(STP RANGE 3 11)
+    foreach(STP RANGE 3 12)
       add_tutorial_test(Step${STP} FALSE)
     endforeach()
     add_tutorial_test(Complete FALSE)

@@ -17,6 +17,7 @@
 #include <cm/iterator>
 #include <cm/memory>
 #include <cm/optional>
+#include <cm/vector>
 #include <cmext/algorithm>
 
 #include "cmsys/FStream.hxx"
@@ -139,7 +140,7 @@ cmDirectoryId cmMakefile::GetDirectoryId() const
   // If we ever need to expose this to CMake language code we should
   // add a read-only property in cmMakefile::GetProperty.
   char buf[32];
-  sprintf(buf, "<%p>",
+  sprintf(buf, "(%p)",
           static_cast<void const*>(this)); // cast avoids format warning
   return std::string(buf);
 }
@@ -840,12 +841,12 @@ void cmMakefile::DoGenerate(cmLocalGenerator& lg)
   // we don't want cmake to re-run if a configured file is created and deleted
   // during processing as that would make it a transient file that can't
   // influence the build process
-  cmEraseIf(this->OutputFiles, file_not_persistent());
+  cm::erase_if(this->OutputFiles, file_not_persistent());
 
   // if a configured file is used as input for another configured file,
   // and then deleted it will show up in the input list files so we
   // need to scan those too
-  cmEraseIf(this->ListFiles, file_not_persistent());
+  cm::erase_if(this->ListFiles, file_not_persistent());
 }
 
 // Generate the output file

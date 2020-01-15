@@ -530,6 +530,35 @@ void cmGlobalNinjaGenerator::Generate()
   if (!this->WriteDefaultBuildFile()) {
     return;
   }
+
+  auto run_ninja_tool = [this](char const* tool) {
+    std::vector<std::string> command;
+    command.push_back(this->NinjaCommand);
+    command.emplace_back("-t");
+    command.emplace_back(tool);
+    std::string error;
+    if (!cmSystemTools::RunSingleCommand(command, nullptr, &error, nullptr,
+                                         nullptr,
+                                         cmSystemTools::OUTPUT_NONE)) {
+      this->GetCMakeInstance()->IssueMessage(MessageType::FATAL_ERROR,
+                                             "Running\n '" +
+                                               cmJoin(command, "' '") +
+                                               "'\n"
+                                               "failed with:\n " +
+                                               error);
+      cmSystemTools::SetFatalErrorOccured();
+    }
+  };
+
+  if (this->NinjaSupportsCleanDeadTool) {
+    run_ninja_tool("cleandead");
+  }
+  if (this->NinjaSupportsUnconditionalRecompactTool) {
+    run_ninja_tool("recompact");
+  }
+  if (this->NinjaSupportsRestatTool) {
+    run_ninja_tool("restat");
+  }
 }
 
 bool cmGlobalNinjaGenerator::FindMakeProgram(cmMakefile* mf)
@@ -593,6 +622,16 @@ void cmGlobalNinjaGenerator::CheckNinjaFeatures()
       }
     }
   }
+  this->NinjaSupportsCleanDeadTool = !cmSystemTools::VersionCompare(
+    cmSystemTools::OP_LESS, this->NinjaVersion.c_str(),
+    RequiredNinjaVersionForCleanDeadTool().c_str());
+  this->NinjaSupportsUnconditionalRecompactTool =
+    !cmSystemTools::VersionCompare(
+      cmSystemTools::OP_LESS, this->NinjaVersion.c_str(),
+      RequiredNinjaVersionForUnconditionalRecompactTool().c_str());
+  this->NinjaSupportsRestatTool = !cmSystemTools::VersionCompare(
+    cmSystemTools::OP_LESS, this->NinjaVersion.c_str(),
+    RequiredNinjaVersionForRestatTool().c_str());
 }
 
 bool cmGlobalNinjaGenerator::CheckLanguages(
@@ -1153,7 +1192,10 @@ void cmGlobalNinjaGenerator::WriteTargetAliases(std::ostream& os)
       this->AppendTargetOutputs(ta.second.GeneratorTarget, build.ExplicitDeps,
                                 ta.second.Config);
     }
-    this->WriteBuild(os, build);
+    this->WriteBuild(this->EnableCrossConfigBuild()
+                       ? os
+                       : *this->GetConfigFileStream(ta.second.Config),
+                     build);
   }
 
   if (this->IsMultiConfig()) {
@@ -1220,7 +1262,10 @@ void cmGlobalNinjaGenerator::WriteFolderTargets(std::ostream& os)
         }
       }
       // Write target
-      this->WriteBuild(os, build);
+      this->WriteBuild(this->EnableCrossConfigBuild()
+                         ? os
+                         : *this->GetConfigFileStream(config),
+                       build);
     }
 
     // Add shortcut target
@@ -1235,7 +1280,7 @@ void cmGlobalNinjaGenerator::WriteFolderTargets(std::ostream& os)
     }
 
     // Add target for all configs
-    if (this->IsMultiConfig()) {
+    if (this->EnableCrossConfigBuild()) {
       build.ExplicitDeps.clear();
       for (auto const& config : configs) {
         build.ExplicitDeps.push_back(this->BuildAlias(
@@ -1243,7 +1288,7 @@ void cmGlobalNinjaGenerator::WriteFolderTargets(std::ostream& os)
       }
       build.Outputs.front() = this->BuildAlias(
         this->ConvertToNinjaPath(currentBinaryDir + "/all"), "all");
-      this->WriteBuild(*this->GetCommonFileStream(), build);
+      this->WriteBuild(os, build);
     }
   }
 }
@@ -1671,6 +1716,9 @@ void cmGlobalNinjaGenerator::WriteTargetClean(std::ostream& os)
           config));
       }
       for (auto const& fileConfig : configs) {
+        if (fileConfig != config && !this->EnableCrossConfigBuild()) {
+          continue;
+        }
         if (this->IsMultiConfig()) {
           build.Variables["FILE_ARG"] = cmStrCat(
             "-f ", cmGlobalNinjaMultiGenerator::GetNinjaFilename(fileConfig));
@@ -1679,7 +1727,7 @@ void cmGlobalNinjaGenerator::WriteTargetClean(std::ostream& os)
       }
     }
 
-    if (this->IsMultiConfig()) {
+    if (this->EnableCrossConfigBuild()) {
       build.Outputs.front() = this->BuildAlias(
         this->NinjaOutputPath(this->GetCleanTargetName()), "all");
       build.ExplicitDeps.clear();
@@ -2151,6 +2199,12 @@ bool cmGlobalNinjaGenerator::WriteDyndepFile(
   tmf << tm;
 
   return true;
+}
+
+bool cmGlobalNinjaGenerator::EnableCrossConfigBuild() const
+{
+  return this->IsMultiConfig() &&
+    this->Makefiles.front()->IsOn("CMAKE_NINJA_CROSS_CONFIG_ENABLE");
 }
 
 int cmcmd_cmake_ninja_dyndep(std::vector<std::string>::const_iterator argBeg,
