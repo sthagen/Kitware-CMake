@@ -7,6 +7,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <functional>
 #include <initializer_list>
 #include <iterator>
 #include <sstream>
@@ -2458,6 +2459,13 @@ void cmGlobalGenerator::AddGlobalTarget_Test(
   cmCustomCommandLine singleLine;
   singleLine.push_back(cmSystemTools::GetCTestCommand());
   singleLine.push_back("--force-new-ctest-process");
+  if (auto testArgs = mf->GetDefinition("CMAKE_CTEST_ARGUMENTS")) {
+    std::vector<std::string> args;
+    cmExpandList(testArgs, args);
+    for (auto const& arg : args) {
+      singleLine.push_back(arg);
+    }
+  }
   if (cmakeCfgIntDir && *cmakeCfgIntDir && cmakeCfgIntDir[0] != '.') {
     singleLine.push_back("-C");
     singleLine.push_back(cmakeCfgIntDir);
@@ -3111,6 +3119,16 @@ std::set<cmGeneratorTarget const*> const&
 cmGlobalGenerator::GetFilenameTargetDepends(cmSourceFile* sf) const
 {
   return this->FilenameTargetDepends[sf];
+}
+
+const std::string& cmGlobalGenerator::GetRealPath(const std::string& dir)
+{
+  auto i = this->RealPaths.lower_bound(dir);
+  if (i == this->RealPaths.end() ||
+      this->RealPaths.key_comp()(dir, i->first)) {
+    i = this->RealPaths.emplace_hint(i, dir, cmSystemTools::GetRealPath(dir));
+  }
+  return i->second;
 }
 
 void cmGlobalGenerator::ProcessEvaluationFiles()

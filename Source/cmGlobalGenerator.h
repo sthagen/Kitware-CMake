@@ -415,6 +415,8 @@ public:
 
   virtual bool IsXcode() const { return false; }
 
+  virtual bool IsVisualStudio() const { return false; }
+
   /** Return true if we know the exact location of object files.
       If false, store the reason in the given string.
       This is meaningful only after EnableLanguage has been called.  */
@@ -485,6 +487,8 @@ public:
   {
     configs.emplace_back("$<CONFIG>");
   }
+
+  std::string const& GetRealPath(std::string const& dir);
 
 protected:
   // for a project collect all its targets by following depend
@@ -677,6 +681,8 @@ private:
 
   mutable std::map<cmSourceFile*, std::set<cmGeneratorTarget const*>>
     FilenameTargetDepends;
+
+  std::map<std::string, std::string> RealPaths;
 
 #if !defined(CMAKE_BOOTSTRAP)
   // Pool of file locks
