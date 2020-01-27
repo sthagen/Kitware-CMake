@@ -72,8 +72,9 @@ void cmNinjaNormalTargetGenerator::Generate(const std::string& config)
   // Write the build statements
   bool firstForConfig = true;
   for (auto const& fileConfig : this->GetConfigNames()) {
-    if (fileConfig != config &&
-        !this->GetGlobalGenerator()->EnableCrossConfigBuild()) {
+    if (!this->GetGlobalGenerator()
+           ->GetCrossConfigs(fileConfig)
+           .count(config)) {
       continue;
     }
     this->WriteObjectBuildStatements(config, fileConfig, firstForConfig);
@@ -85,8 +86,9 @@ void cmNinjaNormalTargetGenerator::Generate(const std::string& config)
   } else {
     firstForConfig = true;
     for (auto const& fileConfig : this->GetConfigNames()) {
-      if (fileConfig != config &&
-          !this->GetGlobalGenerator()->EnableCrossConfigBuild()) {
+      if (!this->GetGlobalGenerator()
+             ->GetCrossConfigs(fileConfig)
+             .count(config)) {
         continue;
       }
       // If this target has cuda language link inputs, and we need to do
@@ -811,9 +813,9 @@ void cmNinjaNormalTargetGenerator::WriteLinkStatement(
   }
 
   // Write comments.
-  cmGlobalNinjaGenerator::WriteDivider(this->GetConfigFileStream(fileConfig));
+  cmGlobalNinjaGenerator::WriteDivider(this->GetImplFileStream(fileConfig));
   const cmStateEnums::TargetType targetType = gt->GetType();
-  this->GetConfigFileStream(fileConfig)
+  this->GetImplFileStream(fileConfig)
     << "# Link build statements for " << cmState::GetTargetTypeName(targetType)
     << " target " << this->GetTargetName() << "\n\n";
 
@@ -1183,7 +1185,7 @@ void cmNinjaNormalTargetGenerator::WriteLinkStatement(
 
   // Write the build statement for this target.
   bool usedResponseFile = false;
-  globalGen->WriteBuild(this->GetConfigFileStream(fileConfig), linkBuild,
+  globalGen->WriteBuild(this->GetImplFileStream(fileConfig), linkBuild,
                         commandLineLengthLimit, &usedResponseFile);
   this->WriteLinkRule(usedResponseFile, config);
 
@@ -1197,7 +1199,7 @@ void cmNinjaNormalTargetGenerator::WriteLinkStatement(
       }
       build.ExplicitDeps.push_back(targetOutputReal);
       build.Variables = std::move(symlinkVars);
-      globalGen->WriteBuild(this->GetConfigFileStream(fileConfig), build);
+      globalGen->WriteBuild(this->GetImplFileStream(fileConfig), build);
     } else {
       cmNinjaBuild build("CMAKE_SYMLINK_LIBRARY");
       build.Comment = "Create library symlink " + targetOutput;
@@ -1223,7 +1225,7 @@ void cmNinjaNormalTargetGenerator::WriteLinkStatement(
       build.ExplicitDeps.push_back(targetOutputReal);
       build.Variables = std::move(symlinkVars);
 
-      globalGen->WriteBuild(this->GetConfigFileStream(fileConfig), build);
+      globalGen->WriteBuild(this->GetImplFileStream(fileConfig), build);
     }
   }
 

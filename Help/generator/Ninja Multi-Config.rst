@@ -31,6 +31,12 @@ targets will always use the configuration specified in
 Ninja for the same file to be output with different commands in the same build
 graph.
 
+You can additionally use :variable:`CMAKE_NINJA_MULTI_CROSS_CONFIGS` to limit
+the configurations that get cross-generated. If this variable is set, each
+``build-<Config>.ninja`` file will only contain rules for the configurations
+listed in the variable, plus their own configuration. This also affects which
+configurations are built by the ``<target>:all`` target.
+
 If :variable:`CMAKE_NINJA_MULTI_CROSS_CONFIG_ENABLE` is not enabled, you can
 still build any target in ``build-<Config>.ninja`` by specifying
 ``<target>:<Config>`` or ``<target>``, but not ``<target>:<OtherConfig>`` or
@@ -78,4 +84,13 @@ targets built with the generated code.
 As a convenience, ``Ninja Multi-Config`` offers a
 :variable:`CMAKE_NINJA_MULTI_DEFAULT_BUILD_TYPE` setting. If this variable is
 specified, a ``build.ninja`` file will be generated which points to the
-specified ``build-<Config>.ninja`` file.
+specified ``build-<Config>.ninja`` file. In addition, if
+:variable:`CMAKE_NINJA_MULTI_DEFAULT_BUILD_TYPE` is used in conjunction with
+:variable:`CMAKE_NINJA_MULTI_CROSS_CONFIG_ENABLE`, you can also specify
+:variable:`CMAKE_NINJA_MULTI_DEFAULT_BUILD_ALIAS`, which changes the config
+of the ``<target>`` targets in ``build.ninja``. For example, if you set
+:variable:`CMAKE_NINJA_MULTI_DEFAULT_BUILD_TYPE` to ``Release``, but set
+:variable:`CMAKE_NINJA_MULTI_DEFAULT_BUILD_ALIAS` to ``Debug`` or ``all``,
+all ``<target>`` aliases in ``build.ninja`` will resolve to ``<target>:Debug``
+or ``<target>:all``, but custom commands will still use the ``Release``
+configuration.
