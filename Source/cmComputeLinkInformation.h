@@ -6,6 +6,7 @@
 #include "cmConfigure.h" // IWYU pragma: keep
 
 #include <iosfwd>
+#include <memory>
 #include <set>
 #include <string>
 #include <utility>
@@ -29,6 +30,9 @@ class cmComputeLinkInformation
 public:
   cmComputeLinkInformation(cmGeneratorTarget const* target,
                            const std::string& config);
+  cmComputeLinkInformation(const cmComputeLinkInformation&) = delete;
+  cmComputeLinkInformation& operator=(const cmComputeLinkInformation&) =
+    delete;
   ~cmComputeLinkInformation();
   bool Compute();
 
@@ -164,7 +168,7 @@ private:
   cmsys::RegularExpression SplitFramework;
 
   // Linker search path computation.
-  cmOrderDirectories* OrderLinkerSearchPath;
+  std::unique_ptr<cmOrderDirectories> OrderLinkerSearchPath;
   bool FinishLinkerSearchDirectories();
   void PrintLinkPolicyDiagnosis(std::ostream&);
 
@@ -172,6 +176,7 @@ private:
   void LoadImplicitLinkInfo();
   void AddImplicitLinkInfo();
   void AddImplicitLinkInfo(std::string const& lang);
+  void AddRuntimeLinkLibrary(std::string const& lang);
   std::set<std::string> ImplicitLinkDirs;
   std::set<std::string> ImplicitLinkLibs;
 
@@ -184,9 +189,9 @@ private:
   std::vector<std::string> OldUserFlagItems;
   std::set<std::string> CMP0060WarnItems;
   // Dependent library path computation.
-  cmOrderDirectories* OrderDependentRPath;
+  std::unique_ptr<cmOrderDirectories> OrderDependentRPath;
   // Runtime path computation.
-  cmOrderDirectories* OrderRuntimeSearchPath;
+  std::unique_ptr<cmOrderDirectories> OrderRuntimeSearchPath;
 
   bool OldLinkDirMode;
   bool OpenBSD;

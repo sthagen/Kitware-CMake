@@ -1455,6 +1455,7 @@ void cmVisualStudio10TargetGenerator::WriteCustomRule(
     std::string comment = lg->ConstructComment(ccg);
     comment = cmVS10EscapeComment(comment);
     std::string script = lg->ConstructScript(ccg);
+    bool symbolic = false;
     // input files for custom command
     std::stringstream additional_inputs;
     {
@@ -1481,6 +1482,12 @@ void cmVisualStudio10TargetGenerator::WriteCustomRule(
           ConvertToWindowsSlash(dep);
           additional_inputs << sep << dep;
           sep = ";";
+          if (!symbolic) {
+            if (cmSourceFile* sf = this->Makefile->GetSource(
+                  dep, cmSourceFileLocationKind::Known)) {
+              symbolic = sf->GetPropertyAsBool("SYMBOLIC");
+            }
+          }
         }
       }
       if (this->ProjectType != csproj) {
@@ -1489,7 +1496,6 @@ void cmVisualStudio10TargetGenerator::WriteCustomRule(
     }
     // output files for custom command
     std::stringstream outputs;
-    bool symbolic = false;
     {
       const char* sep = "";
       for (std::string const& o : ccg.GetOutputs()) {
@@ -3650,18 +3656,7 @@ bool cmVisualStudio10TargetGenerator::ComputeLinkOptions(
   this->AddLibraries(cli, libVec, vsTargetVec, config);
   if (cmContains(linkClosure->Languages, "CUDA") &&
       this->CudaOptions[config] != nullptr) {
-    switch (this->CudaOptions[config]->GetCudaRuntime()) {
-      case cmVisualStudioGeneratorOptions::CudaRuntimeStatic:
-        libVec.push_back("cudadevrt.lib");
-        libVec.push_back("cudart_static.lib");
-        break;
-      case cmVisualStudioGeneratorOptions::CudaRuntimeShared:
-        libVec.push_back("cudadevrt.lib");
-        libVec.push_back("cudart.lib");
-        break;
-      case cmVisualStudioGeneratorOptions::CudaRuntimeNone:
-        break;
-    }
+    this->CudaOptions[config]->FixCudaRuntime(this->GeneratorTarget);
   }
   std::string standardLibsVar =
     cmStrCat("CMAKE_", linkLanguage, "_STANDARD_LIBRARIES");

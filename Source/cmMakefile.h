@@ -135,7 +135,7 @@ public:
   std::unique_ptr<cmFunctionBlocker> RemoveFunctionBlocker();
 
   /**
-   * Try running cmake and building a file. This is used for dynalically
+   * Try running cmake and building a file. This is used for dynamically
    * loaded commands, not as part of the usual build process.
    */
   int TryCompile(const std::string& srcdir, const std::string& bindir,
@@ -784,7 +784,7 @@ public:
 
   //! Set/Get a property of this directory
   void SetProperty(const std::string& prop, const char* value);
-  void AppendProperty(const std::string& prop, const char* value,
+  void AppendProperty(const std::string& prop, const std::string& value,
                       bool asString = false);
   const char* GetProperty(const std::string& prop) const;
   const char* GetProperty(const std::string& prop, bool chain) const;

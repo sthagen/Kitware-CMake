@@ -8,8 +8,11 @@
 #include <sstream>
 #include <utility>
 
+#include <cm/memory>
+
 #include "cmAlgorithms.h"
 #include "cmComputeLinkDepends.h"
+#include "cmGeneratorExpression.h"
 #include "cmGeneratorTarget.h"
 #include "cmGlobalGenerator.h"
 #include "cmListFileCache.h"
@@ -256,11 +259,10 @@ cmComputeLinkInformation::cmComputeLinkInformation(
     "FIND_LIBRARY_USE_OPENBSD_VERSIONING");
 
   // Allocate internals.
-  this->OrderLinkerSearchPath = new cmOrderDirectories(
+  this->OrderLinkerSearchPath = cm::make_unique<cmOrderDirectories>(
     this->GlobalGenerator, target, "linker search path");
-  this->OrderRuntimeSearchPath = new cmOrderDirectories(
+  this->OrderRuntimeSearchPath = cm::make_unique<cmOrderDirectories>(
     this->GlobalGenerator, target, "runtime search path");
-  this->OrderDependentRPath = nullptr;
 
   // Get the language used for linking this target.
   this->LinkLanguage = this->Target->GetLinkerLanguage(config);
@@ -358,7 +360,7 @@ cmComputeLinkInformation::cmComputeLinkInformation(
     this->SharedDependencyMode = SharedDepModeLibDir;
   } else if (!this->RPathLinkFlag.empty()) {
     this->SharedDependencyMode = SharedDepModeDir;
-    this->OrderDependentRPath = new cmOrderDirectories(
+    this->OrderDependentRPath = cm::make_unique<cmOrderDirectories>(
       this->GlobalGenerator, target, "dependent library path");
   }
 
@@ -400,12 +402,7 @@ cmComputeLinkInformation::cmComputeLinkInformation(
     "CMAKE_POLICY_WARNING_CMP0060");
 }
 
-cmComputeLinkInformation::~cmComputeLinkInformation()
-{
-  delete this->OrderLinkerSearchPath;
-  delete this->OrderRuntimeSearchPath;
-  delete this->OrderDependentRPath;
-}
+cmComputeLinkInformation::~cmComputeLinkInformation() = default;
 
 void cmComputeLinkInformation::AppendValues(
   std::string& result, std::vector<BT<std::string>>& values)
@@ -573,9 +570,51 @@ void cmComputeLinkInformation::AddImplicitLinkInfo()
   cmGeneratorTarget::LinkClosure const* lc =
     this->Target->GetLinkClosure(this->Config);
   for (std::string const& li : lc->Languages) {
+
+    if (li == "CUDA") {
+      // These need to go before the other implicit link information
+      // as they could require symbols from those other library
+      // Currently restricted to CUDA as it is the only language
+      // we have documented runtime behavior controls for
+      this->AddRuntimeLinkLibrary(li);
+    }
+
     // Skip those of the linker language.  They are implicit.
     if (li != this->LinkLanguage) {
       this->AddImplicitLinkInfo(li);
+    }
+  }
+}
+
+void cmComputeLinkInformation::AddRuntimeLinkLibrary(std::string const& lang)
+{ // Add the lang runtime library flags. This is activated by the presence
+  // of a default selection whether or not it is overridden by a property.
+  std::string defaultVar =
+    cmStrCat("CMAKE_", lang, "_RUNTIME_LIBRARY_DEFAULT");
+  const char* langRuntimeLibraryDefault =
+    this->Makefile->GetDefinition(defaultVar);
+  if (langRuntimeLibraryDefault && *langRuntimeLibraryDefault) {
+    const char* runtimeLibraryValue =
+      this->Target->GetProperty(cmStrCat(lang, "_RUNTIME_LIBRARY"));
+    if (!runtimeLibraryValue) {
+      runtimeLibraryValue = langRuntimeLibraryDefault;
+    }
+
+    std::string runtimeLibrary =
+      cmSystemTools::UpperCase(cmGeneratorExpression::Evaluate(
+        runtimeLibraryValue, this->Target->GetLocalGenerator(), this->Config,
+        this->Target));
+    if (!runtimeLibrary.empty()) {
+      if (const char* runtimeLinkOptions = this->Makefile->GetDefinition(
+            "CMAKE_" + lang + "_RUNTIME_LIBRARY_LINK_OPTIONS_" +
+            runtimeLibrary)) {
+        std::vector<std::string> libsVec = cmExpandedList(runtimeLinkOptions);
+        for (std::string const& i : libsVec) {
+          if (!cmContains(this->ImplicitLinkLibs, i)) {
+            this->AddItem(i, nullptr);
+          }
+        }
+      }
     }
   }
 }
@@ -747,10 +786,10 @@ void cmComputeLinkInformation::AddSharedDepItem(std::string const& item,
   if (this->SharedDependencyMode == SharedDepModeLibDir &&
       !this->LinkWithRuntimePath /* AddLibraryRuntimeInfo adds it */) {
     // Add the item to the linker search path.
-    order = this->OrderLinkerSearchPath;
+    order = this->OrderLinkerSearchPath.get();
   } else if (this->SharedDependencyMode == SharedDepModeDir) {
     // Add the item to the separate dependent library search path.
-    order = this->OrderDependentRPath;
+    order = this->OrderDependentRPath.get();
   }
   if (order) {
     if (tgt) {

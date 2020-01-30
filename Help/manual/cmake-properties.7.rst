@@ -173,6 +173,7 @@ Properties on Targets
    /prop_tgt/CUDA_PTX_COMPILATION
    /prop_tgt/CUDA_SEPARABLE_COMPILATION
    /prop_tgt/CUDA_RESOLVE_DEVICE_SYMBOLS
+   /prop_tgt/CUDA_RUNTIME_LIBRARY
    /prop_tgt/CUDA_EXTENSIONS
    /prop_tgt/CUDA_STANDARD
    /prop_tgt/CUDA_STANDARD_REQUIRED
@@ -301,6 +302,8 @@ Properties on Targets
    /prop_tgt/OBJCXX_STANDARD_REQUIRED
    /prop_tgt/OSX_ARCHITECTURES_CONFIG
    /prop_tgt/OSX_ARCHITECTURES
+   /prop_tgt/OSX_CURRENT_VERSION
+   /prop_tgt/OSX_COMPATIBILITY_VERSION
    /prop_tgt/OUTPUT_NAME_CONFIG
    /prop_tgt/OUTPUT_NAME
    /prop_tgt/PDB_NAME_CONFIG

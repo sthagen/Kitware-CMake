@@ -1645,7 +1645,9 @@ void cmGlobalGenerator::FinalizeTargetCompileInfo()
         for (std::string const& c : configs) {
           std::string defPropName =
             cmStrCat("COMPILE_DEFINITIONS_", cmSystemTools::UpperCase(c));
-          t->AppendProperty(defPropName, mf->GetProperty(defPropName));
+          if (const char* val = mf->GetProperty(defPropName)) {
+            t->AppendProperty(defPropName, val);
+          }
         }
       }
     }
@@ -2525,6 +2527,7 @@ void cmGlobalGenerator::AddGlobalTarget_RebuildCache(
   gti.PerConfig = false;
   cmCustomCommandLine singleLine;
   singleLine.push_back(cmSystemTools::GetCMakeCommand());
+  singleLine.push_back("--regenerate-during-build");
   singleLine.push_back("-S$(CMAKE_SOURCE_DIR)");
   singleLine.push_back("-B$(CMAKE_BINARY_DIR)");
   gti.CommandLines.push_back(std::move(singleLine));

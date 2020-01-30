@@ -663,6 +663,8 @@ void cmake::SetArgs(const std::vector<std::string>& args)
     } else if ((i < args.size() - 1) &&
                (arg.find("--check-stamp-list", 0) == 0)) {
       this->CheckStampList = args[++i];
+    } else if (arg == "--regenerate-during-build") {
+      this->RegenerateDuringBuild = true;
     }
 #if defined(CMAKE_HAVE_VS_GENERATORS)
     else if ((i < args.size() - 1) &&
@@ -2374,7 +2376,7 @@ void cmake::SetProperty(const std::string& prop, const char* value)
   this->State->SetGlobalProperty(prop, value);
 }
 
-void cmake::AppendProperty(const std::string& prop, const char* value,
+void cmake::AppendProperty(const std::string& prop, const std::string& value,
                            bool asString)
 {
   this->State->AppendGlobalProperty(prop, value, asString);

@@ -528,7 +528,8 @@ void cmGlobalXCodeGenerator::AddExtraTargets(
     root->GetMakefile()->IsOn("CMAKE_XCODE_GENERATE_TOP_LEVEL_PROJECT_ONLY");
   bool isTopLevel =
     !root->GetStateSnapshot().GetBuildsystemDirectoryParent().IsValid();
-  if (regenerate && (isTopLevel || !generateTopLevelProjectOnly)) {
+  bool isGenerateProject = isTopLevel || !generateTopLevelProjectOnly;
+  if (regenerate && isGenerateProject) {
     this->CreateReRunCMakeFile(root, gens);
     std::string file =
       this->ConvertToRelativeForMake(this->CurrentReRunCMakeMakefile);
@@ -558,7 +559,8 @@ void cmGlobalXCodeGenerator::AddExtraTargets(
       // run the depend check makefile as a post build rule
       // this will make sure that when the next target is built
       // things are up-to-date
-      if (target->GetType() == cmStateEnums::OBJECT_LIBRARY) {
+      if (isGenerateProject &&
+          target->GetType() == cmStateEnums::OBJECT_LIBRARY) {
         commandLines.front().back() = // fill placeholder
           this->PostBuildMakeTarget(target->GetName(), "$(CONFIGURATION)");
         gen->AddCustomCommandToTarget(
@@ -2366,8 +2368,9 @@ void cmGlobalXCodeGenerator::CreateBuildSettings(cmGeneratorTarget* gtgt,
     int minor;
     int patch;
 
-    // VERSION -> current_version
-    gtgt->GetTargetVersion(false, major, minor, patch);
+    // OSX_CURRENT_VERSION or VERSION -> current_version
+    gtgt->GetTargetVersionFallback("OSX_CURRENT_VERSION", "VERSION", major,
+                                   minor, patch);
     std::ostringstream v;
 
     // Xcode always wants at least 1.0.0 or nothing
@@ -2377,8 +2380,9 @@ void cmGlobalXCodeGenerator::CreateBuildSettings(cmGeneratorTarget* gtgt,
     buildSettings->AddAttribute("DYLIB_CURRENT_VERSION",
                                 this->CreateString(v.str()));
 
-    // SOVERSION -> compatibility_version
-    gtgt->GetTargetVersion(true, major, minor, patch);
+    // OSX_COMPATIBILITY_VERSION or SOVERSION -> compatibility_version
+    gtgt->GetTargetVersionFallback("OSX_COMPATIBILITY_VERSION", "SOVERSION",
+                                   major, minor, patch);
     std::ostringstream vso;
 
     // Xcode always wants at least 1.0.0 or nothing
