@@ -286,6 +286,7 @@ void cmNinjaNormalTargetGenerator::WriteLinkRule(bool useResponseFile,
 
     std::string lang = this->TargetLinkLanguage(config);
     vars.Language = config.c_str();
+    vars.AIXExports = "$AIX_EXPORTS";
 
     if (this->TargetLinkLanguage(config) == "Swift") {
       vars.SwiftLibraryName = "$SWIFT_LIBRARY_NAME";
@@ -550,16 +551,23 @@ std::vector<std::string> cmNinjaNormalTargetGenerator::ComputeLinkCmd(
         linkCmds.push_back(cmakeCommand + " -E touch $TARGET_FILE");
       }
 #endif
-      return linkCmds;
-    }
+    } break;
     case cmStateEnums::SHARED_LIBRARY:
     case cmStateEnums::MODULE_LIBRARY:
+      break;
     case cmStateEnums::EXECUTABLE:
+      if (this->TargetLinkLanguage(config) == "Swift") {
+        if (this->GeneratorTarget->IsExecutableWithExports()) {
+          const std::string flags =
+            this->Makefile->GetSafeDefinition("CMAKE_EXE_EXPORTS_Swift_FLAG");
+          cmExpandList(flags, linkCmds);
+        }
+      }
       break;
     default:
       assert(false && "Unexpected target type");
   }
-  return std::vector<std::string>();
+  return linkCmds;
 }
 
 void cmNinjaNormalTargetGenerator::WriteDeviceLinkStatement(
@@ -955,6 +963,7 @@ void cmNinjaNormalTargetGenerator::WriteLinkStatement(
   vars["LINK_FLAGS"] = globalGen->EncodeLiteral(vars["LINK_FLAGS"]);
 
   vars["MANIFESTS"] = this->GetManifests(config);
+  vars["AIX_EXPORTS"] = this->GetAIXExports(config);
 
   vars["LINK_PATH"] = frameworkPath + linkPath;
   std::string lwyuFlags;
