@@ -46,7 +46,8 @@
 #include "cmake.h"
 
 const char* cmGlobalNinjaGenerator::NINJA_BUILD_FILE = "build.ninja";
-const char* cmGlobalNinjaGenerator::NINJA_RULES_FILE = "rules.ninja";
+const char* cmGlobalNinjaGenerator::NINJA_RULES_FILE =
+  "CMakeFiles/rules.ninja";
 const char* cmGlobalNinjaGenerator::INDENT = "  ";
 #ifdef _WIN32
 std::string const cmGlobalNinjaGenerator::SHELL_NOOP = "cd .";
@@ -800,8 +801,7 @@ cmGlobalNinjaGenerator::GenerateBuildCommand(
     makeCommand.Add("-j", std::to_string(jobs));
   }
 
-  this->AppendNinjaFileArgument(makeCommand,
-                                config.empty() ? "Debug" : config);
+  this->AppendNinjaFileArgument(makeCommand, config);
 
   makeCommand.Add(makeOptions.begin(), makeOptions.end());
   for (const auto& tname : targetNames) {
@@ -2559,8 +2559,10 @@ void cmGlobalNinjaMultiGenerator::CloseBuildFileStreams()
 void cmGlobalNinjaMultiGenerator::AppendNinjaFileArgument(
   GeneratedMakeCommand& command, const std::string& config) const
 {
-  command.Add("-f");
-  command.Add(GetNinjaConfigFilename(config));
+  if (!config.empty()) {
+    command.Add("-f");
+    command.Add(GetNinjaConfigFilename(config));
+  }
 }
 
 std::string cmGlobalNinjaMultiGenerator::GetNinjaImplFilename(
@@ -2601,11 +2603,30 @@ void cmGlobalNinjaMultiGenerator::GetQtAutoGenConfigs(
 
 bool cmGlobalNinjaMultiGenerator::InspectConfigTypeVariables()
 {
-  auto configsVec = this->Makefiles.front()->GetGeneratorConfigs();
+  return this->ReadCacheEntriesForBuild(*this->Makefiles.front()->GetState());
+}
+
+std::string cmGlobalNinjaMultiGenerator::GetDefaultBuildConfig() const
+{
+  if (this->DefaultFileConfig.empty()) {
+    return "Debug";
+  }
+  return "";
+}
+
+bool cmGlobalNinjaMultiGenerator::ReadCacheEntriesForBuild(
+  const cmState& state)
+{
+  std::vector<std::string> configsVec;
+  cmExpandList(state.GetSafeCacheEntryValue("CMAKE_CONFIGURATION_TYPES"),
+               configsVec);
+  if (configsVec.empty()) {
+    configsVec.emplace_back();
+  }
   std::set<std::string> configs(configsVec.cbegin(), configsVec.cend());
 
-  this->DefaultFileConfig = this->Makefiles.front()->GetSafeDefinition(
-    "CMAKE_NMC_DEFAULT_BUILD_FILE_CONFIG");
+  this->DefaultFileConfig =
+    state.GetSafeCacheEntryValue("CMAKE_NMC_DEFAULT_BUILD_FILE_CONFIG");
   if (!this->DefaultFileConfig.empty() &&
       !configs.count(this->DefaultFileConfig)) {
     std::ostringstream msg;
@@ -2618,9 +2639,8 @@ bool cmGlobalNinjaMultiGenerator::InspectConfigTypeVariables()
   }
 
   std::vector<std::string> crossConfigsVec;
-  cmExpandList(
-    this->Makefiles.front()->GetSafeDefinition("CMAKE_NMC_CROSS_CONFIGS"),
-    crossConfigsVec);
+  cmExpandList(state.GetSafeCacheEntryValue("CMAKE_NMC_CROSS_CONFIGS"),
+               crossConfigsVec);
   auto crossConfigs = ListSubsetWithAll(configs, crossConfigsVec);
   if (!crossConfigs) {
     std::ostringstream msg;
@@ -2633,7 +2653,7 @@ bool cmGlobalNinjaMultiGenerator::InspectConfigTypeVariables()
   this->CrossConfigs = *crossConfigs;
 
   auto defaultConfigsString =
-    this->Makefiles.front()->GetSafeDefinition("CMAKE_NMC_DEFAULT_CONFIGS");
+    state.GetSafeCacheEntryValue("CMAKE_NMC_DEFAULT_CONFIGS");
   if (defaultConfigsString.empty()) {
     defaultConfigsString = this->DefaultFileConfig;
   }
