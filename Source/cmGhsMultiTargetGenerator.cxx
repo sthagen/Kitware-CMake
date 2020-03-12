@@ -180,15 +180,12 @@ void cmGhsMultiTargetGenerator::SetCompilerFlags(std::string const& config,
   auto i = this->FlagsByLanguage.find(language);
   if (i == this->FlagsByLanguage.end()) {
     std::string flags;
-    const char* lang = language.c_str();
-
-    this->LocalGenerator->AddLanguageFlags(flags, this->GeneratorTarget, lang,
-                                           config);
-
-    this->LocalGenerator->AddCMP0018Flags(flags, this->GeneratorTarget, lang,
-                                          config);
+    this->LocalGenerator->AddLanguageFlags(flags, this->GeneratorTarget,
+                                           language, config);
+    this->LocalGenerator->AddCMP0018Flags(flags, this->GeneratorTarget,
+                                          language, config);
     this->LocalGenerator->AddVisibilityPresetFlags(
-      flags, this->GeneratorTarget, lang);
+      flags, this->GeneratorTarget, language);
 
     // Append old-style preprocessor definition flags.
     if (this->Makefile->GetDefineFlags() != " ") {
@@ -197,8 +194,8 @@ void cmGhsMultiTargetGenerator::SetCompilerFlags(std::string const& config,
     }
 
     // Add target-specific flags.
-    this->LocalGenerator->AddCompileOptions(flags, this->GeneratorTarget, lang,
-                                            config);
+    this->LocalGenerator->AddCompileOptions(flags, this->GeneratorTarget,
+                                            language, config);
 
     std::map<std::string, std::string>::value_type entry(language, flags);
     i = this->FlagsByLanguage.insert(entry).first;
@@ -211,13 +208,12 @@ std::string cmGhsMultiTargetGenerator::GetDefines(const std::string& language,
   auto i = this->DefinesByLanguage.find(language);
   if (i == this->DefinesByLanguage.end()) {
     std::set<std::string> defines;
-    const char* lang = language.c_str();
     // Add preprocessor definitions for this target and configuration.
     this->LocalGenerator->GetTargetDefines(this->GeneratorTarget, config,
                                            language, defines);
 
     std::string definesString;
-    this->LocalGenerator->JoinDefines(defines, definesString, lang);
+    this->LocalGenerator->JoinDefines(defines, definesString, language);
 
     std::map<std::string, std::string>::value_type entry(language,
                                                          definesString);
@@ -235,7 +231,7 @@ void cmGhsMultiTargetGenerator::WriteCompilerFlags(std::ostream& fout,
     if (!flagsByLangI->second.empty()) {
       std::vector<std::string> ghsCompFlags =
         cmSystemTools::ParseArguments(flagsByLangI->second);
-      for (auto& f : ghsCompFlags) {
+      for (const std::string& f : ghsCompFlags) {
         fout << "    " << f << std::endl;
       }
     }
@@ -290,14 +286,14 @@ void cmGhsMultiTargetGenerator::WriteTargetLinkLine(std::ostream& fout,
 
   // write out link options
   std::vector<std::string> lopts = cmSystemTools::ParseArguments(linkFlags);
-  for (auto& l : lopts) {
+  for (const std::string& l : lopts) {
     fout << "    " << l << std::endl;
   }
 
   // write out link search paths
   // must be quoted for paths that contain spaces
   std::vector<std::string> lpath = cmSystemTools::ParseArguments(linkPath);
-  for (auto& l : lpath) {
+  for (const std::string& l : lpath) {
     fout << "    -L\"" << l << "\"" << std::endl;
   }
 
@@ -307,7 +303,7 @@ void cmGhsMultiTargetGenerator::WriteTargetLinkLine(std::ostream& fout,
 
   std::vector<std::string> llibs =
     cmSystemTools::ParseArguments(linkLibraries);
-  for (auto& l : llibs) {
+  for (const std::string& l : llibs) {
     if (l.compare(0, 2, "-l") == 0) {
       fout << "    \"" << l << "\"" << std::endl;
     } else {
@@ -463,7 +459,7 @@ void cmGhsMultiTargetGenerator::WriteSourceProperty(
   const char* prop = sf->GetProperty(propName);
   if (prop) {
     std::vector<std::string> list = cmExpandedList(prop);
-    for (auto& p : list) {
+    for (const std::string& p : list) {
       fout << "    " << propFlag << p << std::endl;
     }
   }
@@ -483,7 +479,7 @@ void cmGhsMultiTargetGenerator::WriteSources(std::ostream& fout_proj)
   /* for each source file assign it to its group */
   std::map<std::string, std::vector<cmSourceFile*>> groupFiles;
   std::set<std::string> groupNames;
-  for (auto& sf : sources) {
+  for (cmSourceFile* sf : sources) {
     cmSourceGroup* sourceGroup =
       this->Makefile->FindSourceGroup(sf->ResolveFullPath(), sourceGroups);
     std::string gn = sourceGroup->GetFullName();
@@ -730,7 +726,7 @@ bool cmGhsMultiTargetGenerator::DetermineIfIntegrityApp()
   }
   std::vector<cmSourceFile*> sources;
   this->GeneratorTarget->GetSourceFiles(sources, this->ConfigName);
-  for (auto& sf : sources) {
+  for (const cmSourceFile* sf : sources) {
     if ("int" == sf->GetExtension()) {
       return true;
     }
