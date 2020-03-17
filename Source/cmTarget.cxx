@@ -78,7 +78,7 @@ const std::string& cmTargetPropertyComputer::ComputeLocation<cmTarget>(
 }
 
 template <>
-const char* cmTargetPropertyComputer::GetSources<cmTarget>(
+cmProp cmTargetPropertyComputer::GetSources<cmTarget>(
   cmTarget const* tgt, cmMessenger* messenger,
   cmListFileBacktrace const& context)
 {
@@ -156,7 +156,7 @@ const char* cmTargetPropertyComputer::GetSources<cmTarget>(
   }
   static std::string srcs;
   srcs = ss.str();
-  return srcs.c_str();
+  return &srcs;
 }
 
 class cmTargetInternals
@@ -1613,7 +1613,9 @@ const char* cmTarget::GetComputedProperty(
   const std::string& prop, cmMessenger* messenger,
   cmListFileBacktrace const& context) const
 {
-  return cmTargetPropertyComputer::GetProperty(this, prop, messenger, context);
+  cmProp retVal =
+    cmTargetPropertyComputer::GetProperty(this, prop, messenger, context);
+  return retVal ? retVal->c_str() : nullptr;
 }
 
 const char* cmTarget::GetProperty(const std::string& prop) const
@@ -1771,7 +1773,7 @@ const char* cmTarget::GetProperty(const std::string& prop) const
     }
   }
 
-  const char* retVal = impl->Properties.GetPropertyValue(prop);
+  cmProp retVal = impl->Properties.GetPropertyValue(prop);
   if (!retVal) {
     const bool chain =
       impl->Makefile->GetState()->IsPropertyChained(prop, cmProperty::TARGET);
@@ -1779,8 +1781,9 @@ const char* cmTarget::GetProperty(const std::string& prop) const
       return impl->Makefile->GetStateSnapshot().GetDirectory().GetProperty(
         prop, chain);
     }
+    return nullptr;
   }
-  return retVal;
+  return retVal->c_str();
 }
 
 const char* cmTarget::GetSafeProperty(const std::string& prop) const
