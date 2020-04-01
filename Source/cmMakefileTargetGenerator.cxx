@@ -46,9 +46,8 @@ cmMakefileTargetGenerator::cmMakefileTargetGenerator(cmGeneratorTarget* target)
     this->LocalGenerator->GetGlobalGenerator());
   cmake* cm = this->GlobalGenerator->GetCMakeInstance();
   this->NoRuleMessages = false;
-  if (const char* ruleStatus =
-        cm->GetState()->GetGlobalProperty("RULE_MESSAGES")) {
-    this->NoRuleMessages = cmIsOff(ruleStatus);
+  if (cmProp ruleStatus = cm->GetState()->GetGlobalProperty("RULE_MESSAGES")) {
+    this->NoRuleMessages = cmIsOff(*ruleStatus);
   }
   MacOSXContentGenerator = cm::make_unique<MacOSXContentGeneratorType>(this);
 }
@@ -300,8 +299,7 @@ void cmMakefileTargetGenerator::WriteCommonCodeRules()
       dependFileNameFull, false, this->GlobalGenerator->GetMakefileEncoding());
     depFileStream << "# Empty dependencies file for "
                   << this->GeneratorTarget->GetName() << ".\n"
-                  << "# This may be replaced when dependencies are built."
-                  << std::endl;
+                  << "# This may be replaced when dependencies are built.\n";
   }
 
   // Open the flags file.  This should be copy-if-different because the
@@ -639,7 +637,7 @@ void cmMakefileTargetGenerator::WriteObjectRuleFiles(
   cmRulePlaceholderExpander::RuleVariables vars;
   vars.CMTargetName = this->GeneratorTarget->GetName().c_str();
   vars.CMTargetType =
-    cmState::GetTargetTypeName(this->GeneratorTarget->GetType());
+    cmState::GetTargetTypeName(this->GeneratorTarget->GetType()).c_str();
   vars.Language = lang.c_str();
   vars.Target = targetOutPathReal.c_str();
   vars.TargetPDB = targetOutPathPDB.c_str();
@@ -716,8 +714,8 @@ void cmMakefileTargetGenerator::WriteObjectRuleFiles(
       // no launcher for CMAKE_EXPORT_COMPILE_COMMANDS
       rulePlaceholderExpander->ExpandRuleVariables(this->LocalGenerator,
                                                    compileCommand, vars);
-      std::string workingDirectory = cmSystemTools::CollapseFullPath(
-        this->LocalGenerator->GetCurrentBinaryDirectory());
+      std::string workingDirectory =
+        this->LocalGenerator->GetCurrentBinaryDirectory();
       compileCommand.replace(compileCommand.find(langFlags), langFlags.size(),
                              this->GetFlags(lang, this->GetConfigName()));
       std::string langDefines = std::string("$(") + lang + "_DEFINES)";
@@ -1129,8 +1127,7 @@ void cmMakefileTargetGenerator::WriteTargetDependRules()
   // translation table for the dependency scanning process.
   depCmd << "cd "
          << (this->LocalGenerator->ConvertToOutputFormat(
-              cmSystemTools::CollapseFullPath(
-                this->LocalGenerator->GetBinaryDirectory()),
+              this->LocalGenerator->GetBinaryDirectory(),
               cmOutputConverter::SHELL))
          << " && ";
 #endif
@@ -1146,23 +1143,19 @@ void cmMakefileTargetGenerator::WriteTargetDependRules()
   depCmd << "$(CMAKE_COMMAND) -E cmake_depends \""
          << this->GlobalGenerator->GetName() << "\" "
          << this->LocalGenerator->ConvertToOutputFormat(
-              cmSystemTools::CollapseFullPath(
-                this->LocalGenerator->GetSourceDirectory()),
+              this->LocalGenerator->GetSourceDirectory(),
               cmOutputConverter::SHELL)
          << " "
          << this->LocalGenerator->ConvertToOutputFormat(
-              cmSystemTools::CollapseFullPath(
-                this->LocalGenerator->GetCurrentSourceDirectory()),
+              this->LocalGenerator->GetCurrentSourceDirectory(),
               cmOutputConverter::SHELL)
          << " "
          << this->LocalGenerator->ConvertToOutputFormat(
-              cmSystemTools::CollapseFullPath(
-                this->LocalGenerator->GetBinaryDirectory()),
+              this->LocalGenerator->GetBinaryDirectory(),
               cmOutputConverter::SHELL)
          << " "
          << this->LocalGenerator->ConvertToOutputFormat(
-              cmSystemTools::CollapseFullPath(
-                this->LocalGenerator->GetCurrentBinaryDirectory()),
+              this->LocalGenerator->GetCurrentBinaryDirectory(),
               cmOutputConverter::SHELL)
          << " "
          << this->LocalGenerator->ConvertToOutputFormat(
@@ -1250,8 +1243,10 @@ void cmMakefileTargetGenerator::GenerateCustomRuleFile(
 
   // Setup implicit dependency scanning.
   for (auto const& idi : ccg.GetCC().GetImplicitDepends()) {
-    std::string objFullPath = cmSystemTools::CollapseFullPath(outputs[0]);
-    std::string srcFullPath = cmSystemTools::CollapseFullPath(idi.second);
+    std::string objFullPath = cmSystemTools::CollapseFullPath(
+      outputs[0], this->LocalGenerator->GetCurrentBinaryDirectory());
+    std::string srcFullPath = cmSystemTools::CollapseFullPath(
+      idi.second, this->LocalGenerator->GetCurrentBinaryDirectory());
     this->LocalGenerator->AddImplicitDepends(this->GeneratorTarget, idi.first,
                                              objFullPath, srcFullPath);
   }

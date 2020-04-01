@@ -53,7 +53,8 @@ public:
     CPack,
   };
 
-  static const char* GetTargetTypeName(cmStateEnums::TargetType targetType);
+  static const std::string& GetTargetTypeName(
+    cmStateEnums::TargetType targetType);
 
   cmStateSnapshot CreateBaseSnapshot();
   cmStateSnapshot CreateBuildsystemDirectorySnapshot(
@@ -104,8 +105,8 @@ public:
   void SetCacheEntryBoolProperty(std::string const& key,
                                  std::string const& propertyName, bool value);
   std::vector<std::string> GetCacheEntryPropertyList(std::string const& key);
-  const char* GetCacheEntryProperty(std::string const& key,
-                                    std::string const& propertyName);
+  cmProp GetCacheEntryProperty(std::string const& key,
+                               std::string const& propertyName);
   bool GetCacheEntryPropertyAsBool(std::string const& key,
                                    std::string const& propertyName);
   void AppendCacheEntryProperty(std::string const& key,
@@ -173,7 +174,7 @@ public:
   void SetGlobalProperty(const std::string& prop, const char* value);
   void AppendGlobalProperty(const std::string& prop, const std::string& value,
                             bool asString = false);
-  const char* GetGlobalProperty(const std::string& prop);
+  cmProp GetGlobalProperty(const std::string& prop);
   bool GetGlobalPropertyAsBool(const std::string& prop);
 
   std::string const& GetSourceDirectory() const;

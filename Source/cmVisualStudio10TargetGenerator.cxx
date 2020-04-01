@@ -6,6 +6,7 @@
 #include <set>
 
 #include <cm/memory>
+#include <cm/string_view>
 #include <cm/vector>
 
 #include "windows.h"
@@ -22,6 +23,7 @@
 #include "cmLocalVisualStudio10Generator.h"
 #include "cmMakefile.h"
 #include "cmSourceFile.h"
+#include "cmStringAlgorithms.h"
 #include "cmSystemTools.h"
 #include "cmVisualStudioGeneratorOptions.h"
 
@@ -61,10 +63,10 @@ struct cmVisualStudio10TargetGenerator::Elem
     this->StartElement();
   }
   Elem(const Elem&) = delete;
-  Elem(Elem& par, const std::string& tag)
+  Elem(Elem& par, cm::string_view tag)
     : S(par.S)
     , Indent(par.Indent + 1)
-    , Tag(tag)
+    , Tag(std::string(tag))
   {
     par.SetHasElements();
     this->StartElement();
@@ -78,22 +80,22 @@ struct cmVisualStudio10TargetGenerator::Elem
   }
   std::ostream& WriteString(const char* line);
   void StartElement() { this->WriteString("<") << this->Tag; }
-  void Element(const std::string& tag, const std::string& val)
+  void Element(cm::string_view tag, std::string val)
   {
-    Elem(*this, tag).Content(val);
+    Elem(*this, tag).Content(std::move(val));
   }
-  Elem& Attribute(const char* an, const std::string& av)
+  Elem& Attribute(const char* an, std::string av)
   {
-    this->S << " " << an << "=\"" << cmVS10EscapeAttr(av) << "\"";
+    this->S << " " << an << "=\"" << cmVS10EscapeAttr(std::move(av)) << "\"";
     return *this;
   }
-  void Content(const std::string& val)
+  void Content(std::string val)
   {
     if (!this->HasContent) {
       this->S << ">";
       this->HasContent = true;
     }
-    this->S << cmVS10EscapeXML(val);
+    this->S << cmVS10EscapeXML(std::move(val));
   }
   ~Elem()
   {
@@ -556,10 +558,11 @@ void cmVisualStudio10TargetGenerator::Generate()
 
       std::vector<std::string> keys = this->GeneratorTarget->GetPropertyKeys();
       for (std::string const& keyIt : keys) {
-        static const char* prefix = "VS_GLOBAL_";
-        if (keyIt.find(prefix) != 0)
+        static const cm::string_view prefix = "VS_GLOBAL_";
+        if (!cmHasPrefix(keyIt, prefix))
           continue;
-        std::string globalKey = keyIt.substr(strlen(prefix));
+        cm::string_view globalKey =
+          cm::string_view(keyIt).substr(prefix.length());
         // Skip invalid or separately-handled properties.
         if (globalKey.empty() || globalKey == "PROJECT_TYPES" ||
             globalKey == "ROOTNAMESPACE" || globalKey == "KEYWORD") {
@@ -790,19 +793,12 @@ void cmVisualStudio10TargetGenerator::WritePackageReferences(Elem& e0)
     for (std::string const& ri : packageReferences) {
       size_t versionIndex = ri.find_last_of('_');
       if (versionIndex != std::string::npos) {
-        WritePackageReference(e1, ri.substr(0, versionIndex),
-                              ri.substr(versionIndex + 1));
+        Elem e2(e1, "PackageReference");
+        e2.Attribute("Include", ri.substr(0, versionIndex));
+        e2.Attribute("Version", ri.substr(versionIndex + 1));
       }
     }
   }
-}
-
-void cmVisualStudio10TargetGenerator::WritePackageReference(
-  Elem& e1, std::string const& ref, std::string const& version)
-{
-  Elem e2(e1, "PackageReference");
-  e2.Attribute("Include", ref);
-  e2.Attribute("Version", version);
 }
 
 void cmVisualStudio10TargetGenerator::WriteDotNetReferences(Elem& e0)
@@ -814,17 +810,15 @@ void cmVisualStudio10TargetGenerator::WriteDotNetReferences(Elem& e0)
   }
   cmPropertyMap const& props = this->GeneratorTarget->Target->GetProperties();
   for (auto const& i : props.GetList()) {
-    if (i.first.find("VS_DOTNET_REFERENCE_") == 0) {
-      std::string name = i.first.substr(20);
-      if (!name.empty()) {
-        std::string path = i.second;
-        if (!cmsys::SystemTools::FileIsFullPath(path)) {
-          path = this->Makefile->GetCurrentSourceDirectory() + "/" + path;
-        }
-        ConvertToWindowsSlash(path);
-        this->DotNetHintReferences[""].push_back(
-          DotNetHintReference(name, path));
+    static const cm::string_view vsDnRef = "VS_DOTNET_REFERENCE_";
+    if (cmHasPrefix(i.first, vsDnRef)) {
+      std::string path = i.second;
+      if (!cmsys::SystemTools::FileIsFullPath(path)) {
+        path = this->Makefile->GetCurrentSourceDirectory() + "/" + path;
       }
+      ConvertToWindowsSlash(path);
+      this->DotNetHintReferences[""].emplace_back(
+        DotNetHintReference(i.first.substr(vsDnRef.length()), path));
     }
   }
   if (!references.empty() || !this->DotNetHintReferences.empty()) {
@@ -837,7 +831,7 @@ void cmVisualStudio10TargetGenerator::WriteDotNetReferences(Elem& e0)
           cmsys::SystemTools::GetFilenameWithoutLastExtension(ri);
         std::string path = ri;
         ConvertToWindowsSlash(path);
-        this->DotNetHintReferences[""].push_back(
+        this->DotNetHintReferences[""].emplace_back(
           DotNetHintReference(name, path));
       } else {
         this->WriteDotNetReference(e1, ri, "", "");
@@ -883,11 +877,10 @@ void cmVisualStudio10TargetGenerator::WriteDotNetReference(
 
 void cmVisualStudio10TargetGenerator::WriteImports(Elem& e0)
 {
-  const char* imports =
+  cmProp imports =
     this->GeneratorTarget->Target->GetProperty("VS_PROJECT_IMPORT");
   if (imports) {
-    std::vector<std::string> argsSplit =
-      cmExpandedList(std::string(imports), false);
+    std::vector<std::string> argsSplit = cmExpandedList(*imports, false);
     for (auto& path : argsSplit) {
       if (!cmsys::SystemTools::FileIsFullPath(path)) {
         path = this->Makefile->GetCurrentSourceDirectory() + "/" + path;
@@ -910,12 +903,8 @@ void cmVisualStudio10TargetGenerator::WriteDotNetReferenceCustomTags(
   CustomTags tags;
   cmPropertyMap const& props = this->GeneratorTarget->Target->GetProperties();
   for (const auto& i : props.GetList()) {
-    if (i.first.find(refPropFullPrefix) == 0) {
-      std::string refTag = i.first.substr(refPropFullPrefix.length());
-      std::string refVal = i.second;
-      if (!refTag.empty() && !refVal.empty()) {
-        tags[refTag] = refVal;
-      }
+    if (cmHasPrefix(i.first, refPropFullPrefix) && !i.second.empty()) {
+      tags[i.first.substr(refPropFullPrefix.length())] = i.second;
     }
   }
   for (auto const& tag : tags) {
@@ -952,7 +941,7 @@ void cmVisualStudio10TargetGenerator::WriteEmbeddedResourceGroup(Elem& e0)
         // subdirectory
         // of the .csproj file, we have to use relative pathnames, otherwise
         // visual studio does not show the file in the IDE. Sorry.
-        if (obj.find(srcDir) == 0) {
+        if (cmHasPrefix(obj, srcDir)) {
           obj = this->ConvertPath(obj, true);
           ConvertToWindowsSlash(obj);
           useRelativePath = true;
@@ -999,10 +988,10 @@ void cmVisualStudio10TargetGenerator::WriteEmbeddedResourceGroup(Elem& e0)
           }
           if (!generator.empty()) {
             e2.Element("Generator", generator);
-            if (designerResource.find(srcDir) == 0) {
-              designerResource = designerResource.substr(srcDir.length() + 1);
-            } else if (designerResource.find(binDir) == 0) {
-              designerResource = designerResource.substr(binDir.length() + 1);
+            if (cmHasPrefix(designerResource, srcDir)) {
+              designerResource.erase(0, srcDir.length());
+            } else if (cmHasPrefix(designerResource, binDir)) {
+              designerResource.erase(0, binDir.length());
             } else {
               designerResource =
                 cmsys::SystemTools::GetFilenameName(designerResource);
@@ -1013,9 +1002,10 @@ void cmVisualStudio10TargetGenerator::WriteEmbeddedResourceGroup(Elem& e0)
         }
         const cmPropertyMap& props = oi->GetProperties();
         for (const std::string& p : props.GetKeys()) {
-          static const std::string propNamePrefix = "VS_CSHARP_";
-          if (p.find(propNamePrefix) == 0) {
-            std::string tagName = p.substr(propNamePrefix.length());
+          static const cm::string_view propNamePrefix = "VS_CSHARP_";
+          if (cmHasPrefix(p, propNamePrefix)) {
+            cm::string_view tagName =
+              cm::string_view(p).substr(propNamePrefix.length());
             if (!tagName.empty()) {
               const std::string& value = *props.GetPropertyValue(p);
               if (!value.empty()) {
@@ -1749,9 +1739,63 @@ void cmVisualStudio10TargetGenerator::WriteHeaderSource(Elem& e1,
   if (this->IsResxHeader(fileName)) {
     e2.Element("FileType", "CppForm");
   } else if (this->IsXamlHeader(fileName)) {
-    std::string xamlFileName = fileName.substr(0, fileName.find_last_of("."));
-    e2.Element("DependentUpon", xamlFileName);
+    e2.Element("DependentUpon",
+               fileName.substr(0, fileName.find_last_of(".")));
   }
+}
+
+void cmVisualStudio10TargetGenerator::ParseSettingsProperty(
+  const char* settingsPropertyValue, ConfigToSettings& toolSettings)
+{
+  if (settingsPropertyValue) {
+    cmGeneratorExpression ge;
+
+    std::unique_ptr<cmCompiledGeneratorExpression> cge =
+      ge.Parse(settingsPropertyValue);
+
+    for (const std::string& config : this->Configurations) {
+      std::string evaluated = cge->Evaluate(this->LocalGenerator, config);
+
+      std::vector<std::string> settings = cmExpandedList(evaluated);
+      for (const std::string& setting : settings) {
+        const std::string::size_type assignment = setting.find('=');
+        if (assignment != std::string::npos) {
+          const std::string propName = setting.substr(0, assignment);
+          const std::string propValue = setting.substr(assignment + 1);
+
+          if (!propValue.empty()) {
+            toolSettings[config][propName] = propValue;
+          }
+        }
+      }
+    }
+  }
+}
+
+bool cmVisualStudio10TargetGenerator::PropertyIsSameInAllConfigs(
+  const ConfigToSettings& toolSettings, const std::string& propName)
+{
+  std::string firstPropValue = "";
+  for (const auto& configToSettings : toolSettings) {
+    const std::unordered_map<std::string, std::string>& settings =
+      configToSettings.second;
+
+    if (firstPropValue.empty()) {
+      if (settings.find(propName) != settings.end()) {
+        firstPropValue = settings.find(propName)->second;
+      }
+    }
+
+    if (settings.find(propName) == settings.end()) {
+      return false;
+    }
+
+    if (settings.find(propName)->second != firstPropValue) {
+      return false;
+    }
+  }
+
+  return true;
 }
 
 void cmVisualStudio10TargetGenerator::WriteExtraSource(Elem& e1,
@@ -1759,15 +1803,6 @@ void cmVisualStudio10TargetGenerator::WriteExtraSource(Elem& e1,
 {
   bool toolHasSettings = false;
   const char* tool = "None";
-  std::string shaderType;
-  std::string shaderEntryPoint;
-  std::string shaderModel;
-  std::string shaderAdditionalFlags;
-  std::string shaderDisableOptimizations;
-  std::string shaderEnableDebug;
-  std::string shaderObjectFileName;
-  std::string outputHeaderFile;
-  std::string variableName;
   std::string settingsGenerator;
   std::string settingsLastGenOutput;
   std::string sourceLink;
@@ -1775,6 +1810,11 @@ void cmVisualStudio10TargetGenerator::WriteExtraSource(Elem& e1,
   std::string copyToOutDir;
   std::string includeInVsix;
   std::string ext = cmSystemTools::LowerCase(sf->GetExtension());
+  ConfigToSettings toolSettings;
+  for (const auto& config : this->Configurations) {
+    toolSettings[config];
+  }
+
   if (this->ProjectType == csproj && !this->InSourceBuild) {
     toolHasSettings = true;
   }
@@ -1782,47 +1822,72 @@ void cmVisualStudio10TargetGenerator::WriteExtraSource(Elem& e1,
     tool = "FXCompile";
     // Figure out the type of shader compiler to use.
     if (const char* st = sf->GetProperty("VS_SHADER_TYPE")) {
-      shaderType = st;
-      toolHasSettings = true;
+      for (const std::string& config : this->Configurations) {
+        toolSettings[config]["ShaderType"] = st;
+      }
     }
     // Figure out which entry point to use if any
     if (const char* se = sf->GetProperty("VS_SHADER_ENTRYPOINT")) {
-      shaderEntryPoint = se;
-      toolHasSettings = true;
+      for (const std::string& config : this->Configurations) {
+        toolSettings[config]["EntryPointName"] = se;
+      }
     }
     // Figure out which shader model to use if any
     if (const char* sm = sf->GetProperty("VS_SHADER_MODEL")) {
-      shaderModel = sm;
-      toolHasSettings = true;
+      for (const std::string& config : this->Configurations) {
+        toolSettings[config]["ShaderModel"] = sm;
+      }
     }
     // Figure out which output header file to use if any
     if (const char* ohf = sf->GetProperty("VS_SHADER_OUTPUT_HEADER_FILE")) {
-      outputHeaderFile = ohf;
-      toolHasSettings = true;
+      for (const std::string& config : this->Configurations) {
+        toolSettings[config]["HeaderFileOutput"] = ohf;
+      }
     }
     // Figure out which variable name to use if any
     if (const char* vn = sf->GetProperty("VS_SHADER_VARIABLE_NAME")) {
-      variableName = vn;
-      toolHasSettings = true;
+      for (const std::string& config : this->Configurations) {
+        toolSettings[config]["VariableName"] = vn;
+      }
     }
     // Figure out if there's any additional flags to use
     if (const char* saf = sf->GetProperty("VS_SHADER_FLAGS")) {
-      shaderAdditionalFlags = saf;
-      toolHasSettings = true;
+      for (const std::string& config : this->Configurations) {
+        toolSettings[config]["AdditionalOptions"] = saf;
+      }
     }
     // Figure out if debug information should be generated
     if (const char* sed = sf->GetProperty("VS_SHADER_ENABLE_DEBUG")) {
-      shaderEnableDebug = sed;
-      toolHasSettings = true;
+      cmGeneratorExpression ge;
+      std::unique_ptr<cmCompiledGeneratorExpression> cge = ge.Parse(sed);
+
+      for (const std::string& config : this->Configurations) {
+        std::string evaluated = cge->Evaluate(this->LocalGenerator, config);
+
+        if (!evaluated.empty()) {
+          toolSettings[config]["EnableDebuggingInformation"] =
+            cmIsOn(evaluated) ? "true" : "false";
+        }
+      }
     }
     // Figure out if optimizations should be disabled
     if (const char* sdo = sf->GetProperty("VS_SHADER_DISABLE_OPTIMIZATIONS")) {
-      shaderDisableOptimizations = sdo;
-      toolHasSettings = true;
+      cmGeneratorExpression ge;
+      std::unique_ptr<cmCompiledGeneratorExpression> cge = ge.Parse(sdo);
+
+      for (const std::string& config : this->Configurations) {
+        std::string evaluated = cge->Evaluate(this->LocalGenerator, config);
+
+        if (!evaluated.empty()) {
+          toolSettings[config]["DisableOptimizations"] =
+            cmIsOn(evaluated) ? "true" : "false";
+        }
+      }
     }
     if (const char* sofn = sf->GetProperty("VS_SHADER_OBJECT_FILE_NAME")) {
-      shaderObjectFileName = sofn;
-      toolHasSettings = true;
+      for (const std::string& config : this->Configurations) {
+        toolSettings[config]["ObjectFileOutput"] = sofn;
+      }
     }
   } else if (ext == "jpg" || ext == "png") {
     tool = "Image";
@@ -1892,10 +1957,55 @@ void cmVisualStudio10TargetGenerator::WriteExtraSource(Elem& e1,
     }
   }
 
+  if (ParsedToolTargetSettings.find(tool) == ParsedToolTargetSettings.end()) {
+    cmProp toolTargetProperty = this->GeneratorTarget->Target->GetProperty(
+      "VS_SOURCE_SETTINGS_" + std::string(tool));
+    ConfigToSettings toolTargetSettings;
+    if (toolTargetProperty) {
+      ParseSettingsProperty(toolTargetProperty->c_str(), toolTargetSettings);
+    }
+
+    ParsedToolTargetSettings[tool] = toolTargetSettings;
+  }
+
+  for (const auto& configToSetting : ParsedToolTargetSettings[tool]) {
+    for (const auto& setting : configToSetting.second) {
+      toolSettings[configToSetting.first][setting.first] = setting.second;
+    }
+  }
+
+  ParseSettingsProperty(sf->GetProperty("VS_SETTINGS"), toolSettings);
+
+  if (!toolSettings.empty()) {
+    toolHasSettings = true;
+  }
+
   Elem e2(e1, tool);
   this->WriteSource(e2, sf);
   if (toolHasSettings) {
     e2.SetHasElements();
+
+    std::vector<std::string> writtenSettings;
+    for (const auto& configSettings : toolSettings) {
+      for (const auto& setting : configSettings.second) {
+
+        if (std::find(writtenSettings.begin(), writtenSettings.end(),
+                      setting.first) != writtenSettings.end()) {
+          continue;
+        }
+
+        if (PropertyIsSameInAllConfigs(toolSettings, setting.first)) {
+          e2.Element(setting.first, setting.second);
+          writtenSettings.push_back(setting.first);
+        } else {
+          e2.WritePlatformConfigTag(setting.first,
+                                    "'$(Configuration)|$(Platform)'=='" +
+                                      configSettings.first + "|" +
+                                      this->Platform + "'",
+                                    setting.second);
+        }
+      }
+    }
 
     if (!deployContent.empty()) {
       cmGeneratorExpression ge;
@@ -1922,73 +2032,7 @@ void cmVisualStudio10TargetGenerator::WriteExtraSource(Elem& e1,
         }
       }
     }
-    if (!shaderType.empty()) {
-      e2.Element("ShaderType", shaderType);
-    }
-    if (!shaderEntryPoint.empty()) {
-      e2.Element("EntryPointName", shaderEntryPoint);
-    }
-    if (!shaderModel.empty()) {
-      e2.Element("ShaderModel", shaderModel);
-    }
-    if (!outputHeaderFile.empty()) {
-      for (size_t i = 0; i != this->Configurations.size(); ++i) {
-        e2.WritePlatformConfigTag("HeaderFileOutput",
-                                  "'$(Configuration)|$(Platform)'=='" +
-                                    this->Configurations[i] + "|" +
-                                    this->Platform + "'",
-                                  outputHeaderFile);
-      }
-    }
-    if (!variableName.empty()) {
-      for (size_t i = 0; i != this->Configurations.size(); ++i) {
-        e2.WritePlatformConfigTag("VariableName",
-                                  "'$(Configuration)|$(Platform)'=='" +
-                                    this->Configurations[i] + "|" +
-                                    this->Platform + "'",
-                                  variableName);
-      }
-    }
-    if (!shaderEnableDebug.empty()) {
-      cmGeneratorExpression ge;
-      std::unique_ptr<cmCompiledGeneratorExpression> cge =
-        ge.Parse(shaderEnableDebug);
 
-      for (size_t i = 0; i != this->Configurations.size(); ++i) {
-        const std::string& enableDebug =
-          cge->Evaluate(this->LocalGenerator, this->Configurations[i]);
-        if (!enableDebug.empty()) {
-          e2.WritePlatformConfigTag("EnableDebuggingInformation",
-                                    "'$(Configuration)|$(Platform)'=='" +
-                                      this->Configurations[i] + "|" +
-                                      this->Platform + "'",
-                                    cmIsOn(enableDebug) ? "true" : "false");
-        }
-      }
-    }
-    if (!shaderDisableOptimizations.empty()) {
-      cmGeneratorExpression ge;
-      std::unique_ptr<cmCompiledGeneratorExpression> cge =
-        ge.Parse(shaderDisableOptimizations);
-
-      for (size_t i = 0; i != this->Configurations.size(); ++i) {
-        const std::string& disableOptimizations =
-          cge->Evaluate(this->LocalGenerator, this->Configurations[i]);
-        if (!disableOptimizations.empty()) {
-          e2.WritePlatformConfigTag(
-            "DisableOptimizations",
-            "'$(Configuration)|$(Platform)'=='" + this->Configurations[i] +
-              "|" + this->Platform + "'",
-            (cmIsOn(disableOptimizations) ? "true" : "false"));
-        }
-      }
-    }
-    if (!shaderObjectFileName.empty()) {
-      e2.Element("ObjectFileOutput", shaderObjectFileName);
-    }
-    if (!shaderAdditionalFlags.empty()) {
-      e2.Element("AdditionalOptions", shaderAdditionalFlags);
-    }
     if (!settingsGenerator.empty()) {
       e2.Element("Generator", settingsGenerator);
     }
@@ -2413,8 +2457,8 @@ void cmVisualStudio10TargetGenerator::OutputSourceSpecificFlags(
   }
   if (this->IsXamlSource(source->GetFullPath())) {
     const std::string& fileName = source->GetFullPath();
-    std::string xamlFileName = fileName.substr(0, fileName.find_last_of("."));
-    e2.Element("DependentUpon", xamlFileName);
+    e2.Element("DependentUpon",
+               fileName.substr(0, fileName.find_last_of(".")));
   }
   if (this->ProjectType == csproj) {
     std::string f = source->GetFullPath();
@@ -4798,8 +4842,8 @@ void cmVisualStudio10TargetGenerator::GetCSharpSourceProperties(
   if (this->ProjectType == csproj) {
     const cmPropertyMap& props = sf->GetProperties();
     for (const std::string& p : props.GetKeys()) {
-      static const std::string propNamePrefix = "VS_CSHARP_";
-      if (p.find(propNamePrefix) == 0) {
+      static const cm::string_view propNamePrefix = "VS_CSHARP_";
+      if (cmHasPrefix(p, propNamePrefix)) {
         std::string tagName = p.substr(propNamePrefix.length());
         if (!tagName.empty()) {
           const std::string& val = *props.GetPropertyValue(p);
@@ -4840,9 +4884,9 @@ std::string cmVisualStudio10TargetGenerator::GetCSharpSourceLink(
   if (sourceGroup && !sourceGroup->GetFullName().empty()) {
     link = sourceGroup->GetFullName() + "/" +
       cmsys::SystemTools::GetFilenameName(fullFileName);
-  } else if (fullFileName.find(srcDir) == 0) {
+  } else if (cmHasPrefix(fullFileName, srcDir)) {
     link = fullFileName.substr(srcDir.length() + 1);
-  } else if (fullFileName.find(binDir) == 0) {
+  } else if (cmHasPrefix(fullFileName, binDir)) {
     link = fullFileName.substr(binDir.length() + 1);
   } else if (const char* l = source->GetProperty("VS_CSHARP_Link")) {
     link = l;

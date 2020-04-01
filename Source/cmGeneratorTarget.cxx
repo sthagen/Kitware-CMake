@@ -383,7 +383,8 @@ const char* cmGeneratorTarget::GetProperty(const std::string& prop) const
   if (cmSystemTools::GetFatalErrorOccured()) {
     return nullptr;
   }
-  return this->Target->GetProperty(prop);
+  cmProp retval = this->Target->GetProperty(prop);
+  return retval ? retval->c_str() : nullptr;
 }
 
 const char* cmGeneratorTarget::GetSafeProperty(const std::string& prop) const
@@ -2023,7 +2024,7 @@ bool cmGeneratorTarget::HasMacOSXRpathInstallNameDir(
     if (cmGeneratorTarget::ImportInfo const* info =
           this->GetImportInfo(config)) {
       if (!info->NoSOName && !info->SOName.empty()) {
-        if (info->SOName.find("@rpath/") == 0) {
+        if (cmHasLiteralPrefix(info->SOName, "@rpath/")) {
           install_name_is_rpath = true;
         }
       } else {
@@ -2140,7 +2141,7 @@ std::string cmGeneratorTarget::GetSOName(const std::string& config) const
         return cmSystemTools::GetFilenameName(info->Location);
       }
       // Use the soname given if any.
-      if (info->SOName.find("@rpath/") == 0) {
+      if (cmHasLiteralPrefix(info->SOName, "@rpath/")) {
         return info->SOName.substr(6);
       }
       return info->SOName;
@@ -3781,9 +3782,16 @@ std::string cmGeneratorTarget::GetPchCreateCompileOptions(
   if (inserted.second) {
     std::string& createOptionList = inserted.first->second;
 
+    if (this->GetPropertyAsBool("PCH_WARN_INVALID")) {
+      createOptionList = this->Makefile->GetSafeDefinition(
+        cmStrCat("CMAKE_", language, "_COMPILE_OPTIONS_INVALID_PCH"));
+    }
+
     const std::string createOptVar =
       cmStrCat("CMAKE_", language, "_COMPILE_OPTIONS_CREATE_PCH");
-    createOptionList = this->Makefile->GetSafeDefinition(createOptVar);
+
+    createOptionList = cmStrCat(
+      createOptionList, ";", this->Makefile->GetSafeDefinition(createOptVar));
 
     const std::string pchHeader = this->GetPchHeader(config, language);
     const std::string pchFile = this->GetPchFile(config, language);
@@ -3802,9 +3810,16 @@ std::string cmGeneratorTarget::GetPchUseCompileOptions(
   if (inserted.second) {
     std::string& useOptionList = inserted.first->second;
 
+    if (this->GetPropertyAsBool("PCH_WARN_INVALID")) {
+      useOptionList = this->Makefile->GetSafeDefinition(
+        cmStrCat("CMAKE_", language, "_COMPILE_OPTIONS_INVALID_PCH"));
+    }
+
     const std::string useOptVar =
       cmStrCat("CMAKE_", language, "_COMPILE_OPTIONS_USE_PCH");
-    useOptionList = this->Makefile->GetSafeDefinition(useOptVar);
+
+    useOptionList = cmStrCat(useOptionList, ";",
+                             this->Makefile->GetSafeDefinition(useOptVar));
 
     const std::string pchHeader = this->GetPchHeader(config, language);
     const std::string pchFile = this->GetPchFile(config, language);
@@ -6335,8 +6350,8 @@ void cmGeneratorTarget::ComputeImportInfo(std::string const& desired_config,
   // Initialize members.
   info.NoSOName = false;
 
-  const char* loc = nullptr;
-  const char* imp = nullptr;
+  cmProp loc = nullptr;
+  cmProp imp = nullptr;
   std::string suffix;
   if (!this->Target->GetMappedConfig(desired_config, loc, imp, suffix)) {
     return;
@@ -6365,7 +6380,7 @@ void cmGeneratorTarget::ComputeImportInfo(std::string const& desired_config,
   }
   if (this->GetType() == cmStateEnums::INTERFACE_LIBRARY) {
     if (loc) {
-      info.LibName = loc;
+      info.LibName = *loc;
     }
     return;
   }
@@ -6375,7 +6390,7 @@ void cmGeneratorTarget::ComputeImportInfo(std::string const& desired_config,
 
   // Get the location.
   if (loc) {
-    info.Location = loc;
+    info.Location = *loc;
   } else {
     std::string impProp = cmStrCat("IMPORTED_LOCATION", suffix);
     if (const char* config_location = this->GetProperty(impProp)) {
@@ -6408,7 +6423,7 @@ void cmGeneratorTarget::ComputeImportInfo(std::string const& desired_config,
 
   // Get the import library.
   if (imp) {
-    info.ImportLibrary = imp;
+    info.ImportLibrary = *imp;
   } else if (this->GetType() == cmStateEnums::SHARED_LIBRARY ||
              this->IsExecutableWithExports()) {
     std::string impProp = cmStrCat("IMPORTED_IMPLIB", suffix);

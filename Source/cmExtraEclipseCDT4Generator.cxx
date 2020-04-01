@@ -187,10 +187,10 @@ void cmExtraEclipseCDT4Generator::CreateSettingsResourcePrefsFile()
     return;
   }
 
-  fout << "eclipse.preferences.version=1" << std::endl;
+  fout << "eclipse.preferences.version=1\n";
   const char* encoding = mf->GetDefinition("CMAKE_ECLIPSE_RESOURCE_ENCODING");
   if (encoding) {
-    fout << "encoding/<project>=" << encoding << std::endl;
+    fout << "encoding/<project>=" << encoding << '\n';
   }
 }
 
@@ -415,9 +415,9 @@ void cmExtraEclipseCDT4Generator::CreateProjectFile()
     xml.Element("nature", n);
   }
 
-  if (const char* extraNaturesProp =
+  if (cmProp extraNaturesProp =
         mf->GetState()->GetGlobalProperty("ECLIPSE_EXTRA_NATURES")) {
-    std::vector<std::string> extraNatures = cmExpandedList(extraNaturesProp);
+    std::vector<std::string> extraNatures = cmExpandedList(*extraNaturesProp);
     for (std::string const& n : extraNatures) {
       xml.Element("nature", n);
     }
@@ -936,11 +936,11 @@ void cmExtraEclipseCDT4Generator::CreateCProjectFile() const
         case cmStateEnums::UTILITY:
           // Add all utility targets, except the Nightly/Continuous/
           // Experimental-"sub"targets as e.g. NightlyStart
-          if (((targetName.find("Nightly") == 0) &&
+          if ((cmHasLiteralPrefix(targetName, "Nightly") &&
                (targetName != "Nightly")) ||
-              ((targetName.find("Continuous") == 0) &&
+              (cmHasLiteralPrefix(targetName, "Continuous") &&
                (targetName != "Continuous")) ||
-              ((targetName.find("Experimental") == 0) &&
+              (cmHasLiteralPrefix(targetName, "Experimental") &&
                (targetName != "Experimental"))) {
             break;
           }
@@ -1033,9 +1033,9 @@ void cmExtraEclipseCDT4Generator::CreateCProjectFile() const
   xml.EndElement(); // storageModule
 
   // Append additional cproject contents without applying any XML formatting
-  if (const char* extraCProjectContents =
+  if (cmProp extraCProjectContents =
         mf->GetState()->GetGlobalProperty("ECLIPSE_EXTRA_CPROJECT_CONTENTS")) {
-    fout << extraCProjectContents;
+    fout << *extraCProjectContents;
   }
 
   xml.EndElement(); // cproject

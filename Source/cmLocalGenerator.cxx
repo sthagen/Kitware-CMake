@@ -288,21 +288,23 @@ void cmLocalGenerator::GenerateTestFiles()
   cmGeneratedFileStream fout(file);
   fout.SetCopyIfDifferent(true);
 
-  fout << "# CMake generated Testfile for " << std::endl
-       << "# Source directory: "
-       << this->StateSnapshot.GetDirectory().GetCurrentSource() << std::endl
-       << "# Build directory: "
-       << this->StateSnapshot.GetDirectory().GetCurrentBinary() << std::endl
-       << "# " << std::endl
-       << "# This file includes the relevant testing commands "
-       << "required for " << std::endl
-       << "# testing this directory and lists subdirectories to "
-       << "be tested as well." << std::endl;
+  fout << "# CMake generated Testfile for \n"
+          "# Source directory: "
+       << this->StateSnapshot.GetDirectory().GetCurrentSource()
+       << "\n"
+          "# Build directory: "
+       << this->StateSnapshot.GetDirectory().GetCurrentBinary()
+       << "\n"
+          "# \n"
+          "# This file includes the relevant testing commands "
+          "required for \n"
+          "# testing this directory and lists subdirectories to "
+          "be tested as well.\n";
 
   const char* testIncludeFile =
     this->Makefile->GetProperty("TEST_INCLUDE_FILE");
   if (testIncludeFile) {
-    fout << "include(\"" << testIncludeFile << "\")" << std::endl;
+    fout << "include(\"" << testIncludeFile << "\")\n";
   }
 
   const char* testIncludeFiles =
@@ -310,7 +312,7 @@ void cmLocalGenerator::GenerateTestFiles()
   if (testIncludeFiles) {
     std::vector<std::string> includesList = cmExpandedList(testIncludeFiles);
     for (std::string const& i : includesList) {
-      fout << "include(\"" << i << "\")" << std::endl;
+      fout << "include(\"" << i << "\")\n";
     }
   }
 
@@ -327,7 +329,7 @@ void cmLocalGenerator::GenerateTestFiles()
     std::string outP = i.GetDirectory().GetCurrentBinary();
     outP = this->MaybeConvertToRelativePath(parentBinDir, outP);
     outP = cmOutputConverter::EscapeForCMake(outP);
-    fout << "subdirs(" << outP << ")" << std::endl;
+    fout << "subdirs(" << outP << ")\n";
   }
 
   // Add directory labels property
@@ -346,7 +348,7 @@ void cmLocalGenerator::GenerateTestFiles()
     if (directoryLabels) {
       fout << cmOutputConverter::EscapeForCMake(directoryLabels);
     }
-    fout << ")" << std::endl;
+    fout << ")\n";
   }
 }
 
@@ -467,16 +469,17 @@ void cmLocalGenerator::GenerateInstallRules()
   fout.SetCopyIfDifferent(true);
 
   // Write the header.
+  /* clang-format off */
   fout << "# Install script for directory: "
-       << this->StateSnapshot.GetDirectory().GetCurrentSource() << std::endl
-       << std::endl;
-  fout << "# Set the install prefix" << std::endl
-       << "if(NOT DEFINED CMAKE_INSTALL_PREFIX)" << std::endl
-       << "  set(CMAKE_INSTALL_PREFIX \"" << prefix << "\")" << std::endl
-       << "endif()" << std::endl
+       << this->StateSnapshot.GetDirectory().GetCurrentSource()
+       << "\n\n"
+          "# Set the install prefix\n"
+          "if(NOT DEFINED CMAKE_INSTALL_PREFIX)\n"
+          "  set(CMAKE_INSTALL_PREFIX \"" << prefix << "\")\n"
+          "endif()\n"
        << R"(string(REGEX REPLACE "/$" "" CMAKE_INSTALL_PREFIX )"
-       << "\"${CMAKE_INSTALL_PREFIX}\")" << std::endl
-       << std::endl;
+       << "\"${CMAKE_INSTALL_PREFIX}\")\n\n";
+  /* clang-format on */
 
   // Write support code for generating per-configuration install rules.
   /* clang-format off */
@@ -591,8 +594,7 @@ void cmLocalGenerator::GenerateInstallRules()
           if (!c.GetDirectory().GetPropertyAsBool("EXCLUDE_FROM_ALL")) {
             std::string odir = c.GetDirectory().GetCurrentBinary();
             cmSystemTools::ConvertToUnixSlashes(odir);
-            fout << "  include(\"" << odir << "/cmake_install.cmake\")"
-                 << std::endl;
+            fout << "  include(\"" << odir << "/cmake_install.cmake\")\n";
           }
         }
         fout << "\n";
@@ -877,7 +879,7 @@ std::string cmLocalGenerator::GetIncludeFlags(
   if ((sep[0] != ' ') && !flags.empty() && flags.back() == sep[0]) {
     flags.back() = ' ';
   }
-  return flags;
+  return cmTrimWhitespace(flags);
 }
 
 void cmLocalGenerator::AddCompileOptions(std::string& flags,
@@ -949,8 +951,7 @@ void cmLocalGenerator::AddCompileOptions(std::vector<BT<std::string>>& flags,
         << "\".  "
            "This is not permitted. The COMPILE_FEATURES may not both depend "
            "on "
-           "and be depended on by the link implementation."
-        << std::endl;
+           "and be depended on by the link implementation.\n";
       this->IssueMessage(MessageType::FATAL_ERROR, e.str());
       return;
     }
@@ -1390,8 +1391,8 @@ void cmLocalGenerator::GetTargetFlags(
           for (cmSourceFile* sf : sources) {
             if (sf->GetExtension() == "def") {
               sharedLibFlags += defFlag;
-              sharedLibFlags += this->ConvertToOutputFormat(
-                cmSystemTools::CollapseFullPath(sf->ResolveFullPath()), SHELL);
+              sharedLibFlags +=
+                this->ConvertToOutputFormat(sf->ResolveFullPath(), SHELL);
               sharedLibFlags += " ";
             }
           }
@@ -2396,7 +2397,9 @@ void cmLocalGenerator::AddConfigVariableFlags(std::string& flags,
 void cmLocalGenerator::AppendFlags(std::string& flags,
                                    const std::string& newFlags) const
 {
-  if (!newFlags.empty()) {
+  bool allSpaces = std::all_of(newFlags.begin(), newFlags.end(), cmIsSpace);
+
+  if (!newFlags.empty() && !allSpaces) {
     if (!flags.empty()) {
       flags += " ";
     }
@@ -2429,11 +2432,9 @@ void cmLocalGenerator::AddPchDependencies(cmGeneratorTarget* target)
   }
 
   for (std::string const& config : configsList) {
-    const std::string buildType = cmSystemTools::UpperCase(config);
-
     // FIXME: Refactor collection of sources to not evaluate object libraries.
     std::vector<cmSourceFile*> sources;
-    target->GetSourceFiles(sources, buildType);
+    target->GetSourceFiles(sources, config);
 
     for (const std::string& lang : { "C", "CXX", "OBJC", "OBJCXX" }) {
       auto langSources = std::count_if(
@@ -2602,15 +2603,13 @@ void cmLocalGenerator::AddUnityBuild(cmGeneratorTarget* target)
     config = this->Makefile->GetSafeDefinition("CMAKE_BUILD_TYPE");
   }
 
-  const std::string buildType = cmSystemTools::UpperCase(config);
-
   std::string filename_base =
     cmStrCat(this->GetCurrentBinaryDirectory(), "/CMakeFiles/",
              target->GetName(), ".dir/Unity/");
 
   // FIXME: Refactor collection of sources to not evaluate object libraries.
   std::vector<cmSourceFile*> sources;
-  target->GetSourceFiles(sources, buildType);
+  target->GetSourceFiles(sources, config);
 
   auto batchSizeString = target->GetProperty("UNITY_BUILD_BATCH_SIZE");
   const size_t unityBatchSize =
@@ -2962,8 +2961,8 @@ const char* cmLocalGenerator::GetFeature(const std::string& feature,
   }
   cmStateSnapshot snp = this->StateSnapshot;
   while (snp.IsValid()) {
-    if (const char* value = snp.GetDirectory().GetProperty(featureName)) {
-      return value;
+    if (cmProp value = snp.GetDirectory().GetProperty(featureName)) {
+      return value->c_str();
     }
     snp = snp.GetBuildsystemDirectoryParent();
   }

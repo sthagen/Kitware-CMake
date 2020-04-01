@@ -159,7 +159,7 @@ void cmGlobalUnixMakefileGenerator3::Generate()
   this->WriteMainCMakefile();
 
   if (this->CommandDatabase) {
-    *this->CommandDatabase << std::endl << "]";
+    *this->CommandDatabase << "\n]";
     this->CommandDatabase.reset();
   }
 }
@@ -174,21 +174,20 @@ void cmGlobalUnixMakefileGenerator3::AddCXXCompileCommand(
       "/compile_commands.json";
     this->CommandDatabase =
       cm::make_unique<cmGeneratedFileStream>(commandDatabaseName);
-    *this->CommandDatabase << "[" << std::endl;
+    *this->CommandDatabase << "[\n";
   } else {
-    *this->CommandDatabase << "," << std::endl;
+    *this->CommandDatabase << ",\n";
   }
-  *this->CommandDatabase << "{" << std::endl
+  *this->CommandDatabase << "{\n"
                          << R"(  "directory": ")"
                          << cmGlobalGenerator::EscapeJSON(workingDirectory)
-                         << "\"," << std::endl
+                         << "\",\n"
                          << R"(  "command": ")"
                          << cmGlobalGenerator::EscapeJSON(compileCommand)
-                         << "\"," << std::endl
+                         << "\",\n"
                          << R"(  "file": ")"
-                         << cmGlobalGenerator::EscapeJSON(sourceFile) << "\""
-                         << std::endl
-                         << "}";
+                         << cmGlobalGenerator::EscapeJSON(sourceFile)
+                         << "\"\n}";
 }
 
 void cmGlobalUnixMakefileGenerator3::WriteMainMakefile2()
@@ -674,10 +673,10 @@ void cmGlobalUnixMakefileGenerator3::WriteConvenienceRules2(
       }
 
       bool targetMessages = true;
-      if (const char* tgtMsg =
+      if (cmProp tgtMsg =
             this->GetCMakeInstance()->GetState()->GetGlobalProperty(
               "TARGET_MESSAGES")) {
-        targetMessages = cmIsOn(tgtMsg);
+        targetMessages = cmIsOn(*tgtMsg);
       }
 
       if (targetMessages) {
@@ -697,9 +696,8 @@ void cmGlobalUnixMakefileGenerator3::WriteConvenienceRules2(
         std::ostringstream progCmd;
         progCmd << "$(CMAKE_COMMAND) -E cmake_progress_start ";
         // # in target
-        progCmd << lg.ConvertToOutputFormat(
-          cmSystemTools::CollapseFullPath(progress.Dir),
-          cmOutputConverter::SHELL);
+        progCmd << lg.ConvertToOutputFormat(progress.Dir,
+                                            cmOutputConverter::SHELL);
         //
         std::set<cmGeneratorTarget const*> emitted;
         progCmd << " "
@@ -711,9 +709,8 @@ void cmGlobalUnixMakefileGenerator3::WriteConvenienceRules2(
       {
         std::ostringstream progCmd;
         progCmd << "$(CMAKE_COMMAND) -E cmake_progress_start "; // # 0
-        progCmd << lg.ConvertToOutputFormat(
-          cmSystemTools::CollapseFullPath(progress.Dir),
-          cmOutputConverter::SHELL);
+        progCmd << lg.ConvertToOutputFormat(progress.Dir,
+                                            cmOutputConverter::SHELL);
         progCmd << " 0";
         commands.push_back(progCmd.str());
       }

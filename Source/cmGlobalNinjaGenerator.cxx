@@ -1009,9 +1009,9 @@ void cmGlobalNinjaGenerator::AddCXXCompileCommand(
     // Get a stream where to generate things.
     this->CompileCommandsStream =
       cm::make_unique<cmGeneratedFileStream>(buildFilePath);
-    *this->CompileCommandsStream << "[";
+    *this->CompileCommandsStream << "[\n";
   } else {
-    *this->CompileCommandsStream << "," << std::endl;
+    *this->CompileCommandsStream << ",\n";
   }
 
   std::string sourceFileName = sourceFile;
@@ -1021,7 +1021,7 @@ void cmGlobalNinjaGenerator::AddCXXCompileCommand(
   }
 
   /* clang-format off */
-  *this->CompileCommandsStream << "\n{\n"
+  *this->CompileCommandsStream << "{\n"
      << R"(  "directory": ")"
      << cmGlobalGenerator::EscapeJSON(buildFileDir) << "\",\n"
      << R"(  "command": ")"
