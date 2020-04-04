@@ -301,16 +301,14 @@ void cmLocalGenerator::GenerateTestFiles()
           "# testing this directory and lists subdirectories to "
           "be tested as well.\n";
 
-  const char* testIncludeFile =
-    this->Makefile->GetProperty("TEST_INCLUDE_FILE");
+  cmProp testIncludeFile = this->Makefile->GetProperty("TEST_INCLUDE_FILE");
   if (testIncludeFile) {
-    fout << "include(\"" << testIncludeFile << "\")\n";
+    fout << "include(\"" << *testIncludeFile << "\")\n";
   }
 
-  const char* testIncludeFiles =
-    this->Makefile->GetProperty("TEST_INCLUDE_FILES");
+  cmProp testIncludeFiles = this->Makefile->GetProperty("TEST_INCLUDE_FILES");
   if (testIncludeFiles) {
-    std::vector<std::string> includesList = cmExpandedList(testIncludeFiles);
+    std::vector<std::string> includesList = cmExpandedList(*testIncludeFiles);
     for (std::string const& i : includesList) {
       fout << "include(\"" << i << "\")\n";
     }
@@ -335,12 +333,12 @@ void cmLocalGenerator::GenerateTestFiles()
   // Add directory labels property
   const char* directoryLabels =
     this->Makefile->GetDefinition("CMAKE_DIRECTORY_LABELS");
-  const char* labels = this->Makefile->GetProperty("LABELS");
+  cmProp labels = this->Makefile->GetProperty("LABELS");
 
   if (labels || directoryLabels) {
     fout << "set_directory_properties(PROPERTIES LABELS ";
     if (labels) {
-      fout << cmOutputConverter::EscapeForCMake(labels);
+      fout << cmOutputConverter::EscapeForCMake(*labels);
     }
     if (labels && directoryLabels) {
       fout << ";";
@@ -775,7 +773,8 @@ const char* cmLocalGenerator::GetRuleLauncher(cmGeneratorTarget* target,
   if (target) {
     return target->GetProperty(prop);
   }
-  return this->Makefile->GetProperty(prop);
+  cmProp p = this->Makefile->GetProperty(prop);
+  return p ? p->c_str() : nullptr;
 }
 
 std::string cmLocalGenerator::ConvertToIncludeReference(
@@ -1293,14 +1292,15 @@ std::vector<BT<std::string>> cmLocalGenerator::GetStaticLibraryFlags(
   std::string const& config, std::string const& linkLanguage,
   cmGeneratorTarget* target)
 {
+  const std::string configUpper = cmSystemTools::UpperCase(config);
   std::vector<BT<std::string>> flags;
   if (linkLanguage != "Swift") {
     std::string staticLibFlags;
     this->AppendFlags(
       staticLibFlags,
       this->Makefile->GetSafeDefinition("CMAKE_STATIC_LINKER_FLAGS"));
-    if (!config.empty()) {
-      std::string name = "CMAKE_STATIC_LINKER_FLAGS_" + config;
+    if (!configUpper.empty()) {
+      std::string name = "CMAKE_STATIC_LINKER_FLAGS_" + configUpper;
       this->AppendFlags(staticLibFlags,
                         this->Makefile->GetSafeDefinition(name));
     }
@@ -1312,8 +1312,8 @@ std::vector<BT<std::string>> cmLocalGenerator::GetStaticLibraryFlags(
   std::string staticLibFlags;
   this->AppendFlags(staticLibFlags,
                     target->GetSafeProperty("STATIC_LIBRARY_FLAGS"));
-  if (!config.empty()) {
-    std::string name = "STATIC_LIBRARY_FLAGS_" + config;
+  if (!configUpper.empty()) {
+    std::string name = "STATIC_LIBRARY_FLAGS_" + configUpper;
     this->AppendFlags(staticLibFlags, target->GetSafeProperty(name));
   }
 
@@ -1350,17 +1350,17 @@ void cmLocalGenerator::GetTargetFlags(
   std::vector<BT<std::string>>& linkFlags, std::string& frameworkPath,
   std::vector<BT<std::string>>& linkPath, cmGeneratorTarget* target)
 {
-  const std::string buildType = cmSystemTools::UpperCase(config);
+  const std::string configUpper = cmSystemTools::UpperCase(config);
   cmComputeLinkInformation* pcli = target->GetLinkInformation(config);
   const char* libraryLinkVariable =
     "CMAKE_SHARED_LINKER_FLAGS"; // default to shared library
 
   const std::string linkLanguage =
-    linkLineComputer->GetLinkerLanguage(target, buildType);
+    linkLineComputer->GetLinkerLanguage(target, config);
 
   switch (target->GetType()) {
     case cmStateEnums::STATIC_LIBRARY:
-      linkFlags = this->GetStaticLibraryFlags(buildType, linkLanguage, target);
+      linkFlags = this->GetStaticLibraryFlags(config, linkLanguage, target);
       if (pcli && dynamic_cast<cmLinkLineDeviceComputer*>(linkLineComputer)) {
         // Compute the required cuda device link libraries when
         // resolving cuda device symbols
@@ -1376,8 +1376,8 @@ void cmLocalGenerator::GetTargetFlags(
       if (linkLanguage != "Swift") {
         sharedLibFlags = cmStrCat(
           this->Makefile->GetSafeDefinition(libraryLinkVariable), ' ');
-        if (!buildType.empty()) {
-          std::string build = cmStrCat(libraryLinkVariable, '_', buildType);
+        if (!configUpper.empty()) {
+          std::string build = cmStrCat(libraryLinkVariable, '_', configUpper);
           sharedLibFlags += this->Makefile->GetSafeDefinition(build);
           sharedLibFlags += " ";
         }
@@ -1385,7 +1385,7 @@ void cmLocalGenerator::GetTargetFlags(
             !(this->Makefile->IsOn("CYGWIN") ||
               this->Makefile->IsOn("MINGW"))) {
           std::vector<cmSourceFile*> sources;
-          target->GetSourceFiles(sources, buildType);
+          target->GetSourceFiles(sources, config);
           std::string defFlag =
             this->Makefile->GetSafeDefinition("CMAKE_LINK_DEF_FILE_FLAG");
           for (cmSourceFile* sf : sources) {
@@ -1404,9 +1404,9 @@ void cmLocalGenerator::GetTargetFlags(
         sharedLibFlags += targetLinkFlags;
         sharedLibFlags += " ";
       }
-      if (!buildType.empty()) {
+      if (!configUpper.empty()) {
         targetLinkFlags =
-          target->GetProperty(cmStrCat("LINK_FLAGS_", buildType));
+          target->GetProperty(cmStrCat("LINK_FLAGS_", configUpper));
         if (targetLinkFlags) {
           sharedLibFlags += targetLinkFlags;
           sharedLibFlags += " ";
@@ -1431,9 +1431,9 @@ void cmLocalGenerator::GetTargetFlags(
       if (linkLanguage != "Swift") {
         exeFlags = this->Makefile->GetSafeDefinition("CMAKE_EXE_LINKER_FLAGS");
         exeFlags += " ";
-        if (!buildType.empty()) {
+        if (!configUpper.empty()) {
           exeFlags += this->Makefile->GetSafeDefinition(
-            cmStrCat("CMAKE_EXE_LINKER_FLAGS_", buildType));
+            cmStrCat("CMAKE_EXE_LINKER_FLAGS_", configUpper));
           exeFlags += " ";
         }
         if (linkLanguage.empty()) {
@@ -1460,7 +1460,7 @@ void cmLocalGenerator::GetTargetFlags(
         }
       }
 
-      this->AddLanguageFlagsForLinking(flags, target, linkLanguage, buildType);
+      this->AddLanguageFlagsForLinking(flags, target, linkLanguage, config);
       if (pcli) {
         this->OutputLinkLibraries(pcli, linkLineComputer, linkLibs,
                                   frameworkPath, linkPath);
@@ -1485,9 +1485,9 @@ void cmLocalGenerator::GetTargetFlags(
         exeFlags += targetLinkFlags;
         exeFlags += " ";
       }
-      if (!buildType.empty()) {
+      if (!configUpper.empty()) {
         targetLinkFlags =
-          target->GetProperty(cmStrCat("LINK_FLAGS_", buildType));
+          target->GetProperty(cmStrCat("LINK_FLAGS_", configUpper));
         if (targetLinkFlags) {
           exeFlags += targetLinkFlags;
           exeFlags += " ";
@@ -1520,16 +1520,17 @@ void cmLocalGenerator::GetTargetFlags(
 void cmLocalGenerator::GetTargetCompileFlags(cmGeneratorTarget* target,
                                              std::string const& config,
                                              std::string const& lang,
-                                             std::string& flags)
+                                             std::string& flags,
+                                             std::string const& arch)
 {
   std::vector<BT<std::string>> tmpFlags =
-    this->GetTargetCompileFlags(target, config, lang);
+    this->GetTargetCompileFlags(target, config, lang, arch);
   this->AppendFlags(flags, tmpFlags);
 }
 
 std::vector<BT<std::string>> cmLocalGenerator::GetTargetCompileFlags(
   cmGeneratorTarget* target, std::string const& config,
-  std::string const& lang)
+  std::string const& lang, std::string const& arch)
 {
   std::vector<BT<std::string>> flags;
   std::string compileFlags;
@@ -1543,7 +1544,7 @@ std::vector<BT<std::string>> cmLocalGenerator::GetTargetCompileFlags(
     this->AppendFeatureOptions(compileFlags, lang, "IPO");
   }
 
-  this->AddArchitectureFlags(compileFlags, target, lang, config);
+  this->AddArchitectureFlags(compileFlags, target, lang, config, arch);
 
   if (lang == "Fortran") {
     this->AppendFlags(compileFlags,
@@ -1771,7 +1772,8 @@ std::string cmLocalGenerator::GetLinkLibsCMP0065(
 void cmLocalGenerator::AddArchitectureFlags(std::string& flags,
                                             cmGeneratorTarget const* target,
                                             const std::string& lang,
-                                            const std::string& config)
+                                            const std::string& config,
+                                            const std::string& filterArch)
 {
   // Only add Apple specific flags on Apple platforms
   if (this->Makefile->IsOn("APPLE") && this->EmitUniversalBinaryFlags) {
@@ -1780,8 +1782,10 @@ void cmLocalGenerator::AddArchitectureFlags(std::string& flags,
     if (!archs.empty() && !lang.empty() &&
         (lang[0] == 'C' || lang[0] == 'F' || lang[0] == 'O')) {
       for (std::string const& arch : archs) {
-        flags += " -arch ";
-        flags += arch;
+        if (filterArch.empty() || filterArch == arch) {
+          flags += " -arch ";
+          flags += arch;
+        }
       }
     }
 
@@ -1804,10 +1808,12 @@ void cmLocalGenerator::AddArchitectureFlags(std::string& flags,
           if (arch_sysroots[i].empty()) {
             continue;
           }
-          flags += " -Xarch_" + archs[i] + " ";
-          // Combine sysroot flag and path to work with -Xarch
-          std::string arch_sysroot = sysrootFlag + arch_sysroots[i];
-          flags += this->ConvertToOutputFormat(arch_sysroot, SHELL);
+          if (filterArch.empty() || filterArch == archs[i]) {
+            flags += " -Xarch_" + archs[i] + " ";
+            // Combine sysroot flag and path to work with -Xarch
+            std::string arch_sysroot = sysrootFlag + arch_sysroots[i];
+            flags += this->ConvertToOutputFormat(arch_sysroot, SHELL);
+          }
         }
       } else if (sysroot && *sysroot) {
         flags += " ";
@@ -2446,146 +2452,174 @@ void cmLocalGenerator::AddPchDependencies(cmGeneratorTarget* target)
         continue;
       }
 
-      const std::string pchSource = target->GetPchSource(config, lang);
-      const std::string pchHeader = target->GetPchHeader(config, lang);
-
-      if (pchSource.empty() || pchHeader.empty()) {
-        continue;
-      }
-
-      const std::string pchExtension =
-        this->Makefile->GetSafeDefinition("CMAKE_PCH_EXTENSION");
-
-      if (pchExtension.empty()) {
-        continue;
-      }
-
-      const char* pchReuseFrom =
-        target->GetProperty("PRECOMPILE_HEADERS_REUSE_FROM");
-
-      auto pch_sf = this->Makefile->GetOrCreateSource(
-        pchSource, false, cmSourceFileLocationKind::Known);
-
+      std::vector<std::string> architectures;
       if (!this->GetGlobalGenerator()->IsXcode()) {
-        if (!pchReuseFrom) {
-          target->AddSource(pchSource, true);
-        }
-
-        const std::string pchFile = target->GetPchFile(config, lang);
-
-        // Exclude the pch files from linking
-        if (this->Makefile->IsOn("CMAKE_LINK_PCH")) {
-          if (!pchReuseFrom) {
-            pch_sf->SetProperty("OBJECT_OUTPUTS", pchFile.c_str());
-          } else {
-            auto reuseTarget =
-              this->GlobalGenerator->FindGeneratorTarget(pchReuseFrom);
-
-            if (this->Makefile->IsOn("CMAKE_PCH_COPY_COMPILE_PDB")) {
-
-              const std::string pdb_prefix =
-                this->GetGlobalGenerator()->IsMultiConfig()
-                ? cmStrCat(this->GlobalGenerator->GetCMakeCFGIntDir(), "/")
-                : "";
-
-              const std::string target_compile_pdb_dir = cmStrCat(
-                target->GetLocalGenerator()->GetCurrentBinaryDirectory(), "/",
-                target->GetName(), ".dir/");
-
-              const std::string copy_script =
-                cmStrCat(target_compile_pdb_dir, "copy_idb_pdb.cmake");
-              cmGeneratedFileStream file(copy_script);
-
-              file << "# CMake generated file\n";
-              for (auto extension : { ".pdb", ".idb" }) {
-                const std::string from_file =
-                  cmStrCat(reuseTarget->GetLocalGenerator()
-                             ->GetCurrentBinaryDirectory(),
-                           "/", pchReuseFrom, ".dir/${PDB_PREFIX}",
-                           pchReuseFrom, extension);
-
-                const std::string to_dir = cmStrCat(
-                  target->GetLocalGenerator()->GetCurrentBinaryDirectory(),
-                  "/", target->GetName(), ".dir/${PDB_PREFIX}");
-
-                const std::string to_file =
-                  cmStrCat(to_dir, pchReuseFrom, extension);
-
-                std::string dest_file = to_file;
-
-                const std::string prefix = target->GetSafeProperty("PREFIX");
-                if (!prefix.empty()) {
-                  dest_file =
-                    cmStrCat(to_dir, prefix, pchReuseFrom, extension);
-                }
-
-                file << "if (EXISTS \"" << from_file << "\" AND \""
-                     << from_file << "\" IS_NEWER_THAN \"" << dest_file
-                     << "\")\n";
-                file << "  file(COPY \"" << from_file << "\""
-                     << " DESTINATION \"" << to_dir << "\")\n";
-                if (!prefix.empty()) {
-                  file << "  file(REMOVE \"" << dest_file << "\")\n";
-                  file << "  file(RENAME \"" << to_file << "\" \"" << dest_file
-                       << "\")\n";
-                }
-                file << "endif()\n";
-              }
-
-              cmCustomCommandLines commandLines = cmMakeSingleCommandLine(
-                { cmSystemTools::GetCMakeCommand(),
-                  cmStrCat("-DPDB_PREFIX=", pdb_prefix), "-P", copy_script });
-
-              const std::string no_main_dependency;
-              const std::vector<std::string> no_deps;
-              const char* no_message = "";
-              const char* no_current_dir = nullptr;
-              std::vector<std::string> no_byproducts;
-
-              std::vector<std::string> outputs;
-              outputs.push_back(cmStrCat(target_compile_pdb_dir, pdb_prefix,
-                                         pchReuseFrom, ".pdb"));
-
-              if (this->GetGlobalGenerator()->IsVisualStudio()) {
-                this->AddCustomCommandToTarget(
-                  target->GetName(), outputs, no_deps, commandLines,
-                  cmCustomCommandType::PRE_BUILD, no_message, no_current_dir);
-              } else {
-                cmImplicitDependsList no_implicit_depends;
-                cmSourceFile* copy_rule = this->AddCustomCommandToOutput(
-                  outputs, no_byproducts, no_deps, no_main_dependency,
-                  no_implicit_depends, commandLines, no_message,
-                  no_current_dir);
-
-                if (copy_rule) {
-                  target->AddSource(copy_rule->ResolveFullPath());
-                }
-              }
-
-              target->Target->SetProperty("COMPILE_PDB_OUTPUT_DIRECTORY",
-                                          target_compile_pdb_dir);
-            }
-
-            std::string pchSourceObj =
-              reuseTarget->GetPchFileObject(config, lang);
-
-            // Link to the pch object file
-            target->Target->AppendProperty(
-              "LINK_FLAGS",
-              cmStrCat(" ", this->ConvertToOutputFormat(pchSourceObj, SHELL)),
-              true);
+        target->GetAppleArchs(config, architectures);
+      }
+      if (architectures.empty()) {
+        architectures.emplace_back();
+      } else {
+        std::string useMultiArchPch;
+        for (const std::string& arch : architectures) {
+          const std::string pchHeader =
+            target->GetPchHeader(config, lang, arch);
+          if (!pchHeader.empty()) {
+            useMultiArchPch = cmStrCat(useMultiArchPch, ";-Xarch_", arch,
+                                       ";-include", pchHeader);
           }
-        } else {
-          pch_sf->SetProperty("PCH_EXTENSION", pchExtension.c_str());
         }
 
-        // Add pchHeader to source files, which will
-        // be grouped as "Precompile Header File"
-        auto pchHeader_sf = this->Makefile->GetOrCreateSource(
-          pchHeader, false, cmSourceFileLocationKind::Known);
-        std::string err;
-        pchHeader_sf->ResolveFullPath(&err);
-        target->AddSource(pchHeader);
+        if (!useMultiArchPch.empty()) {
+          target->Target->SetProperty(
+            cmStrCat(lang, "_COMPILE_OPTIONS_USE_PCH"), useMultiArchPch);
+        }
+      }
+
+      for (const std::string& arch : architectures) {
+        const std::string pchSource = target->GetPchSource(config, lang, arch);
+        const std::string pchHeader = target->GetPchHeader(config, lang, arch);
+
+        if (pchSource.empty() || pchHeader.empty()) {
+          continue;
+        }
+
+        const std::string pchExtension =
+          this->Makefile->GetSafeDefinition("CMAKE_PCH_EXTENSION");
+
+        if (pchExtension.empty()) {
+          continue;
+        }
+
+        const char* pchReuseFrom =
+          target->GetProperty("PRECOMPILE_HEADERS_REUSE_FROM");
+
+        auto pch_sf = this->Makefile->GetOrCreateSource(
+          pchSource, false, cmSourceFileLocationKind::Known);
+
+        if (!this->GetGlobalGenerator()->IsXcode()) {
+          if (!pchReuseFrom) {
+            target->AddSource(pchSource, true);
+          }
+
+          const std::string pchFile = target->GetPchFile(config, lang, arch);
+
+          // Exclude the pch files from linking
+          if (this->Makefile->IsOn("CMAKE_LINK_PCH")) {
+            if (!pchReuseFrom) {
+              pch_sf->SetProperty("OBJECT_OUTPUTS", pchFile.c_str());
+            } else {
+              auto reuseTarget =
+                this->GlobalGenerator->FindGeneratorTarget(pchReuseFrom);
+
+              if (this->Makefile->IsOn("CMAKE_PCH_COPY_COMPILE_PDB")) {
+
+                const std::string pdb_prefix =
+                  this->GetGlobalGenerator()->IsMultiConfig()
+                  ? cmStrCat(this->GlobalGenerator->GetCMakeCFGIntDir(), "/")
+                  : "";
+
+                const std::string target_compile_pdb_dir = cmStrCat(
+                  target->GetLocalGenerator()->GetCurrentBinaryDirectory(),
+                  "/", target->GetName(), ".dir/");
+
+                const std::string copy_script =
+                  cmStrCat(target_compile_pdb_dir, "copy_idb_pdb.cmake");
+                cmGeneratedFileStream file(copy_script);
+
+                file << "# CMake generated file\n";
+                for (auto extension : { ".pdb", ".idb" }) {
+                  const std::string from_file =
+                    cmStrCat(reuseTarget->GetLocalGenerator()
+                               ->GetCurrentBinaryDirectory(),
+                             "/", pchReuseFrom, ".dir/${PDB_PREFIX}",
+                             pchReuseFrom, extension);
+
+                  const std::string to_dir = cmStrCat(
+                    target->GetLocalGenerator()->GetCurrentBinaryDirectory(),
+                    "/", target->GetName(), ".dir/${PDB_PREFIX}");
+
+                  const std::string to_file =
+                    cmStrCat(to_dir, pchReuseFrom, extension);
+
+                  std::string dest_file = to_file;
+
+                  const std::string prefix = target->GetSafeProperty("PREFIX");
+                  if (!prefix.empty()) {
+                    dest_file =
+                      cmStrCat(to_dir, prefix, pchReuseFrom, extension);
+                  }
+
+                  file << "if (EXISTS \"" << from_file << "\" AND \""
+                       << from_file << "\" IS_NEWER_THAN \"" << dest_file
+                       << "\")\n";
+                  file << "  file(COPY \"" << from_file << "\""
+                       << " DESTINATION \"" << to_dir << "\")\n";
+                  if (!prefix.empty()) {
+                    file << "  file(REMOVE \"" << dest_file << "\")\n";
+                    file << "  file(RENAME \"" << to_file << "\" \""
+                         << dest_file << "\")\n";
+                  }
+                  file << "endif()\n";
+                }
+
+                cmCustomCommandLines commandLines = cmMakeSingleCommandLine(
+                  { cmSystemTools::GetCMakeCommand(),
+                    cmStrCat("-DPDB_PREFIX=", pdb_prefix), "-P",
+                    copy_script });
+
+                const std::string no_main_dependency;
+                const std::vector<std::string> no_deps;
+                const char* no_message = "";
+                const char* no_current_dir = nullptr;
+                std::vector<std::string> no_byproducts;
+
+                std::vector<std::string> outputs;
+                outputs.push_back(cmStrCat(target_compile_pdb_dir, pdb_prefix,
+                                           pchReuseFrom, ".pdb"));
+
+                if (this->GetGlobalGenerator()->IsVisualStudio()) {
+                  this->AddCustomCommandToTarget(
+                    target->GetName(), outputs, no_deps, commandLines,
+                    cmCustomCommandType::PRE_BUILD, no_message,
+                    no_current_dir);
+                } else {
+                  cmImplicitDependsList no_implicit_depends;
+                  cmSourceFile* copy_rule = this->AddCustomCommandToOutput(
+                    outputs, no_byproducts, no_deps, no_main_dependency,
+                    no_implicit_depends, commandLines, no_message,
+                    no_current_dir);
+
+                  if (copy_rule) {
+                    target->AddSource(copy_rule->ResolveFullPath());
+                  }
+                }
+
+                target->Target->SetProperty("COMPILE_PDB_OUTPUT_DIRECTORY",
+                                            target_compile_pdb_dir);
+              }
+
+              std::string pchSourceObj =
+                reuseTarget->GetPchFileObject(config, lang, arch);
+
+              // Link to the pch object file
+              target->Target->AppendProperty(
+                "LINK_FLAGS",
+                cmStrCat(" ",
+                         this->ConvertToOutputFormat(pchSourceObj, SHELL)),
+                true);
+            }
+          } else {
+            pch_sf->SetProperty("PCH_EXTENSION", pchExtension.c_str());
+          }
+
+          // Add pchHeader to source files, which will
+          // be grouped as "Precompile Header File"
+          auto pchHeader_sf = this->Makefile->GetOrCreateSource(
+            pchHeader, false, cmSourceFileLocationKind::Known);
+          std::string err;
+          pchHeader_sf->ResolveFullPath(&err);
+          target->AddSource(pchHeader);
+        }
       }
     }
   }
