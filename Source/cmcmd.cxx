@@ -8,7 +8,6 @@
 
 #include "cm_uv.h"
 
-#include "cmAlgorithms.h"
 #include "cmDuration.h"
 #include "cmGlobalGenerator.h"
 #include "cmLocalGenerator.h"
@@ -90,6 +89,7 @@ void CMakeCommandUsage(const char* program)
     << "Available commands: \n"
     << "  capabilities              - Report capabilities built into cmake "
        "in JSON format\n"
+    << "  cat <files>...            - concat the files and print them to the standard output\n"
     << "  chdir dir cmd [args...]   - run command in a given directory\n"
     << "  compare_files [--ignore-eol] file1 file2\n"
     << "                              - check if file1 is same as file2\n"
@@ -178,6 +178,13 @@ static bool cmTarFilesFrom(std::string const& file,
     }
   }
   return true;
+}
+
+static void cmCatFile(const std::string& fileToAppend)
+{
+  cmsys::ifstream source(fileToAppend.c_str(),
+                         (std::ios::binary | std::ios::in));
+  std::cout << source.rdbuf();
 }
 
 static bool cmRemoveDirectory(const std::string& dir, bool recursive = true)
@@ -927,6 +934,33 @@ int cmcmd::ExecuteCMakeCommand(std::vector<std::string> const& args)
       return HashSumFile(args, cmCryptoHash::AlgoSHA512);
     }
 
+    // Command to concat files into one
+    if (args[1] == "cat" && args.size() >= 3) {
+      int return_value = 0;
+      for (auto const& arg : cmMakeRange(args).advance(2)) {
+        if (cmHasLiteralPrefix(arg, "-")) {
+          if (arg != "--") {
+            cmSystemTools::Error(arg + ": option not handled");
+            return_value = 1;
+          }
+        } else if (!cmSystemTools::TestFileAccess(arg,
+                                                  cmsys::TEST_FILE_READ) &&
+                   cmSystemTools::TestFileAccess(arg, cmsys::TEST_FILE_OK)) {
+          cmSystemTools::Error(arg + ": permission denied (ignoring)");
+          return_value = 1;
+        } else if (cmSystemTools::FileIsDirectory(arg)) {
+          cmSystemTools::Error(arg + ": is a directory (ignoring)");
+          return_value = 1;
+        } else if (!cmSystemTools::FileExists(arg)) {
+          cmSystemTools::Error(arg + ": no such file or directory (ignoring)");
+          return_value = 1;
+        } else {
+          cmCatFile(arg);
+        }
+      }
+      return return_value;
+    }
+
     // Command to change directory and run a program.
     if (args[1] == "chdir" && args.size() >= 4) {
       std::string const& directory = args[2];
@@ -1185,7 +1219,7 @@ int cmcmd::ExecuteCMakeCommand(std::vector<std::string> const& args)
             }
           } else if (cmHasLiteralPrefix(arg, "--format=")) {
             format = arg.substr(9);
-            if (!cmContains(knownFormats, format)) {
+            if (!cm::contains(knownFormats, format)) {
               cmSystemTools::Error("Unknown -E tar --format= argument: " +
                                    format);
               return 1;
@@ -1714,23 +1748,33 @@ int cmcmd::RunLLVMRC(std::vector<std::string> const& args)
   // The arguments are
   //   args[0] == <cmake-executable>
   //   args[1] == cmake_llvm_rc
-  //   args[2] == intermediate_file
-  //   args[3..n] == preprocess+args
+  //   args[2] == source_file_path
+  //   args[3] == intermediate_file
+  //   args[4..n] == preprocess+args
   //   args[n+1] == --
   //   args[n+2...] == llvm-rc+args
   if (args.size() < 3) {
     std::cerr << "Invalid cmake_llvm_rc arguments";
     return 1;
   }
-  const std::string& intermediate_file = args[2];
+  const std::string& intermediate_file = args[3];
+  const std::string& source_file = args[2];
   std::vector<std::string> preprocess;
   std::vector<std::string> resource_compile;
   std::vector<std::string>* pArgTgt = &preprocess;
-  for (std::string const& arg : cmMakeRange(args).advance(3)) {
+  for (std::string const& arg : cmMakeRange(args).advance(4)) {
     if (arg == "--") {
       pArgTgt = &resource_compile;
     } else {
-      pArgTgt->push_back(arg);
+      if (arg.find("SOURCE_DIR") != std::string::npos) {
+        std::string sourceDirArg = arg;
+        cmSystemTools::ReplaceString(
+          sourceDirArg, "SOURCE_DIR",
+          cmSystemTools::GetFilenamePath(source_file));
+        pArgTgt->push_back(sourceDirArg);
+      } else {
+        pArgTgt->push_back(arg);
+      }
     }
   }
   if (preprocess.empty()) {
@@ -1962,9 +2006,8 @@ bool cmVSLink::Parse(std::vector<std::string>::const_iterator argBeg,
 
   // Parse the link command to extract information we need.
   for (; arg != argEnd; ++arg) {
-    if (cmSystemTools::Strucmp(arg->c_str(), "/INCREMENTAL:YES") == 0) {
-      this->Incremental = true;
-    } else if (cmSystemTools::Strucmp(arg->c_str(), "/INCREMENTAL") == 0) {
+    if (cmSystemTools::Strucmp(arg->c_str(), "/INCREMENTAL:YES") == 0 ||
+        cmSystemTools::Strucmp(arg->c_str(), "/INCREMENTAL") == 0) {
       this->Incremental = true;
     } else if (cmSystemTools::Strucmp(arg->c_str(), "/MANIFEST:NO") == 0) {
       this->LinkGeneratesManifest = false;

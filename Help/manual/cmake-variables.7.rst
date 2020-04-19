@@ -488,6 +488,7 @@ Variables for Languages
    /variable/CMAKE_COMPILER_IS_GNUCC
    /variable/CMAKE_COMPILER_IS_GNUCXX
    /variable/CMAKE_COMPILER_IS_GNUG77
+   /variable/CMAKE_CUDA_ARCHITECTURES
    /variable/CMAKE_CUDA_COMPILE_FEATURES
    /variable/CMAKE_CUDA_HOST_COMPILER
    /variable/CMAKE_CUDA_EXTENSIONS
@@ -623,6 +624,7 @@ Variables for CTest
    /variable/CTEST_P4_COMMAND
    /variable/CTEST_P4_OPTIONS
    /variable/CTEST_P4_UPDATE_OPTIONS
+   /variable/CTEST_RESOURCE_SPEC_FILE
    /variable/CTEST_RUN_CURRENT_SCRIPT
    /variable/CTEST_SCP_COMMAND
    /variable/CTEST_SITE

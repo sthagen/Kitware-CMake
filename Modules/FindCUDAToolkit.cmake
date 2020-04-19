@@ -473,9 +473,9 @@ Result variables
 #
 ###############################################################################
 
-if(CMAKE_CUDA_COMPILER_LOADED AND NOT CUDAToolkit_BIN_DIR)
+# For NVCC we can easily deduce the SDK binary directory from the compiler path.
+if(CMAKE_CUDA_COMPILER_LOADED AND NOT CUDAToolkit_BIN_DIR AND CMAKE_CUDA_COMPILER_ID STREQUAL "NVIDIA")
   get_filename_component(cuda_dir "${CMAKE_CUDA_COMPILER}" DIRECTORY)
-  # use the already detected cuda compiler
   set(CUDAToolkit_BIN_DIR "${cuda_dir}" CACHE PATH "")
   mark_as_advanced(CUDAToolkit_BIN_DIR)
   unset(cuda_dir)
@@ -711,8 +711,15 @@ find_path(CUDAToolkit_INCLUDE_DIR
 # And find the CUDA Runtime Library libcudart
 find_library(CUDA_CUDART
   NAMES cudart
-  PATH_SUFFIXES lib64 lib64/stubs lib/x64
+  PATH_SUFFIXES lib64 lib/x64
 )
+if (NOT CUDA_CUDART)
+  find_library(CUDA_CUDART
+    NAMES cudart
+    PATH_SUFFIXES lib64/stubs lib/x64/stubs
+  )
+endif()
+
 if (NOT CUDA_CUDART AND NOT CUDAToolkit_FIND_QUIETLY)
   message(STATUS "Unable to find cudart library.")
 endif()
@@ -759,9 +766,20 @@ if(CUDAToolkit_FOUND)
       NAMES ${search_names}
       HINTS ${CUDAToolkit_LIBRARY_DIR}
             ENV CUDA_PATH
-      PATH_SUFFIXES nvidia/current lib64 lib64/stubs lib/x64 lib lib/stubs
+      PATH_SUFFIXES nvidia/current lib64 lib/x64 lib
                     ${arg_EXTRA_PATH_SUFFIXES}
     )
+    # Don't try any stub directories intil we have exhausted all other
+    # search locations.
+    if(NOT CUDA_${lib_name}_LIBRARY)
+      find_library(CUDA_${lib_name}_LIBRARY
+        NAMES ${search_names}
+        HINTS ${CUDAToolkit_LIBRARY_DIR}
+              ENV CUDA_PATH
+        PATH_SUFFIXES lib64/stubs lib/x64/stubs lib/stubs stubs
+      )
+    endif()
+
     mark_as_advanced(CUDA_${lib_name}_LIBRARY)
 
     if (NOT TARGET CUDA::${lib_name} AND CUDA_${lib_name}_LIBRARY)

@@ -12,7 +12,7 @@
 
 #include "cmFortranParser.h" /* Interface to parser object.  */
 #include "cmGeneratedFileStream.h"
-#include "cmLocalGenerator.h"
+#include "cmLocalUnixMakefileGenerator3.h"
 #include "cmMakefile.h"
 #include "cmOutputConverter.h"
 #include "cmStateDirectory.h"
@@ -29,12 +29,10 @@ static void cmFortranModuleAppendUpperLower(std::string const& mod,
                                             std::string& mod_lower)
 {
   std::string::size_type ext_len = 0;
-  if (cmHasLiteralSuffix(mod, ".mod")) {
+  if (cmHasLiteralSuffix(mod, ".mod") || cmHasLiteralSuffix(mod, ".sub")) {
     ext_len = 4;
   } else if (cmHasLiteralSuffix(mod, ".smod")) {
     ext_len = 5;
-  } else if (cmHasLiteralSuffix(mod, ".sub")) {
-    ext_len = 4;
   }
   std::string const& name = mod.substr(0, mod.size() - ext_len);
   std::string const& ext = mod.substr(mod.size() - ext_len);
@@ -72,7 +70,7 @@ public:
 
 cmDependsFortran::cmDependsFortran() = default;
 
-cmDependsFortran::cmDependsFortran(cmLocalGenerator* lg)
+cmDependsFortran::cmDependsFortran(cmLocalUnixMakefileGenerator3* lg)
   : cmDepends(lg)
   , Internal(new cmDependsFortranInternals)
 {

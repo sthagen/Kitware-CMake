@@ -27,7 +27,6 @@
 #include "cm_static_string_view.hxx"
 #include "cm_sys_stat.h"
 
-#include "cmAlgorithms.h"
 #include "cmCommands.h"
 #include "cmDocumentation.h"
 #include "cmDocumentationEntry.h"
@@ -642,6 +641,8 @@ void cmake::SetArgs(const std::vector<std::string>& args)
       path = cmSystemTools::CollapseFullPath(path);
       cmSystemTools::ConvertToUnixSlashes(path);
       this->SetHomeDirectory(path);
+      // XXX(clang-tidy): https://bugs.llvm.org/show_bug.cgi?id=44165
+      // NOLINTNEXTLINE(bugprone-branch-clone)
     } else if (cmHasLiteralPrefix(arg, "-O")) {
       // There is no local generate anymore.  Ignore -O option.
     } else if (cmHasLiteralPrefix(arg, "-B")) {
@@ -681,27 +682,16 @@ void cmake::SetArgs(const std::vector<std::string>& args)
       this->VSSolutionFile = args[++i];
     }
 #endif
-    else if (cmHasLiteralPrefix(arg, "-D")) {
+    else if (cmHasLiteralPrefix(arg, "-D") || cmHasLiteralPrefix(arg, "-U") ||
+             cmHasLiteralPrefix(arg, "-C")) {
       // skip for now
-      // in case '-D var=val' is given, also skip the next
-      // in case '-Dvar=val' is given, don't skip the next
+      // in case '-[DUC] argval' var' is given, also skip the next
+      // in case '-[DUC]argval' is given, don't skip the next
       if (arg.size() == 2) {
         ++i;
       }
-    } else if (cmHasLiteralPrefix(arg, "-U")) {
-      // skip for now
-      // in case '-U var' is given, also skip the next
-      // in case '-Uvar' is given, don't skip the next
-      if (arg.size() == 2) {
-        ++i;
-      }
-    } else if (cmHasLiteralPrefix(arg, "-C")) {
-      // skip for now
-      // in case '-C path' is given, also skip the next
-      // in case '-Cpath' is given, don't skip the next
-      if (arg.size() == 2) {
-        ++i;
-      }
+      // XXX(clang-tidy): https://bugs.llvm.org/show_bug.cgi?id=44165
+      // NOLINTNEXTLINE(bugprone-branch-clone)
     } else if (cmHasLiteralPrefix(arg, "-P")) {
       // skip for now
       i++;
@@ -2872,7 +2862,7 @@ void cmake::WatchUnusedCli(const std::string& var)
 {
 #ifndef CMAKE_BOOTSTRAP
   this->VariableWatch->AddWatch(var, cmWarnUnusedCliWarning, this);
-  if (!cmContains(this->UsedCliVariables, var)) {
+  if (!cm::contains(this->UsedCliVariables, var)) {
     this->UsedCliVariables[var] = false;
   }
 #endif

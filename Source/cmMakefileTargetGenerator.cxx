@@ -341,12 +341,16 @@ void cmMakefileTargetGenerator::WriteTargetLanguageFlags()
                           << "\n";
   }
 
+  bool const escapeOctothorpe = this->GlobalGenerator->CanEscapeOctothorpe();
+
   for (std::string const& language : languages) {
     std::string defines = this->GetDefines(language, this->GetConfigName());
     std::string includes = this->GetIncludes(language, this->GetConfigName());
-    // Escape comment characters so they do not terminate assignment.
-    cmSystemTools::ReplaceString(defines, "#", "\\#");
-    cmSystemTools::ReplaceString(includes, "#", "\\#");
+    if (escapeOctothorpe) {
+      // Escape comment characters so they do not terminate assignment.
+      cmSystemTools::ReplaceString(defines, "#", "\\#");
+      cmSystemTools::ReplaceString(includes, "#", "\\#");
+    }
     *this->FlagFileStream << language << "_DEFINES = " << defines << "\n\n";
     *this->FlagFileStream << language << "_INCLUDES = " << includes << "\n\n";
 
@@ -357,7 +361,9 @@ void cmMakefileTargetGenerator::WriteTargetLanguageFlags()
     for (const std::string& arch : architectures) {
       std::string flags =
         this->GetFlags(language, this->GetConfigName(), arch);
-      cmSystemTools::ReplaceString(flags, "#", "\\#");
+      if (escapeOctothorpe) {
+        cmSystemTools::ReplaceString(flags, "#", "\\#");
+      }
       *this->FlagFileStream << language << "_FLAGS" << arch << " = " << flags
                             << "\n\n";
     }
@@ -527,9 +533,9 @@ void cmMakefileTargetGenerator::WriteObjectRuleFiles(
 
   // Add flags from source file properties.
   const std::string COMPILE_FLAGS("COMPILE_FLAGS");
-  if (const char* cflags = source.GetProperty(COMPILE_FLAGS)) {
+  if (cmProp cflags = source.GetProperty(COMPILE_FLAGS)) {
     const std::string& evaluatedFlags =
-      genexInterpreter.Evaluate(cflags, COMPILE_FLAGS);
+      genexInterpreter.Evaluate(*cflags, COMPILE_FLAGS);
     this->LocalGenerator->AppendFlags(flags, evaluatedFlags);
     *this->FlagFileStream << "# Custom flags: " << relativeObj
                           << "_FLAGS = " << evaluatedFlags << "\n"
@@ -537,9 +543,9 @@ void cmMakefileTargetGenerator::WriteObjectRuleFiles(
   }
 
   const std::string COMPILE_OPTIONS("COMPILE_OPTIONS");
-  if (const char* coptions = source.GetProperty(COMPILE_OPTIONS)) {
+  if (cmProp coptions = source.GetProperty(COMPILE_OPTIONS)) {
     const std::string& evaluatedOptions =
-      genexInterpreter.Evaluate(coptions, COMPILE_OPTIONS);
+      genexInterpreter.Evaluate(*coptions, COMPILE_OPTIONS);
     this->LocalGenerator->AppendCompileOptions(flags, evaluatedOptions);
     *this->FlagFileStream << "# Custom options: " << relativeObj
                           << "_OPTIONS = " << evaluatedOptions << "\n"
@@ -571,9 +577,9 @@ void cmMakefileTargetGenerator::WriteObjectRuleFiles(
   std::vector<std::string> includes;
 
   const std::string INCLUDE_DIRECTORIES("INCLUDE_DIRECTORIES");
-  if (const char* cincludes = source.GetProperty(INCLUDE_DIRECTORIES)) {
+  if (cmProp cincludes = source.GetProperty(INCLUDE_DIRECTORIES)) {
     const std::string& evaluatedIncludes =
-      genexInterpreter.Evaluate(cincludes, INCLUDE_DIRECTORIES);
+      genexInterpreter.Evaluate(*cincludes, INCLUDE_DIRECTORIES);
     this->LocalGenerator->AppendIncludeDirectories(includes, evaluatedIncludes,
                                                    source);
     *this->FlagFileStream << "# Custom include directories: " << relativeObj
@@ -587,18 +593,18 @@ void cmMakefileTargetGenerator::WriteObjectRuleFiles(
 
   // Add source-specific preprocessor definitions.
   const std::string COMPILE_DEFINITIONS("COMPILE_DEFINITIONS");
-  if (const char* compile_defs = source.GetProperty(COMPILE_DEFINITIONS)) {
+  if (cmProp compile_defs = source.GetProperty(COMPILE_DEFINITIONS)) {
     const std::string& evaluatedDefs =
-      genexInterpreter.Evaluate(compile_defs, COMPILE_DEFINITIONS);
+      genexInterpreter.Evaluate(*compile_defs, COMPILE_DEFINITIONS);
     this->LocalGenerator->AppendDefines(defines, evaluatedDefs);
     *this->FlagFileStream << "# Custom defines: " << relativeObj
                           << "_DEFINES = " << evaluatedDefs << "\n"
                           << "\n";
   }
   std::string defPropName = cmStrCat("COMPILE_DEFINITIONS_", configUpper);
-  if (const char* config_compile_defs = source.GetProperty(defPropName)) {
+  if (cmProp config_compile_defs = source.GetProperty(defPropName)) {
     const std::string& evaluatedDefs =
-      genexInterpreter.Evaluate(config_compile_defs, COMPILE_DEFINITIONS);
+      genexInterpreter.Evaluate(*config_compile_defs, COMPILE_DEFINITIONS);
     this->LocalGenerator->AppendDefines(defines, evaluatedDefs);
     *this->FlagFileStream << "# Custom defines: " << relativeObj << "_DEFINES_"
                           << configUpper << " = " << evaluatedDefs << "\n"
@@ -876,9 +882,9 @@ void cmMakefileTargetGenerator::WriteObjectRuleFiles(
 
   // Check for extra outputs created by the compilation.
   std::vector<std::string> outputs(1, relativeObj);
-  if (const char* extra_outputs_str = source.GetProperty("OBJECT_OUTPUTS")) {
+  if (cmProp extra_outputs_str = source.GetProperty("OBJECT_OUTPUTS")) {
     // Register these as extra files to clean.
-    cmExpandList(extra_outputs_str, outputs);
+    cmExpandList(*extra_outputs_str, outputs);
     this->CleanFiles.insert(outputs.begin() + 1, outputs.end());
   }
 
@@ -1229,8 +1235,8 @@ void cmMakefileTargetGenerator::WriteObjectDependRules(
   // Create the list of dependencies known at cmake time.  These are
   // shared between the object file and dependency scanning rule.
   depends.push_back(source.GetFullPath());
-  if (const char* objectDeps = source.GetProperty("OBJECT_DEPENDS")) {
-    cmExpandList(objectDeps, depends);
+  if (cmProp objectDeps = source.GetProperty("OBJECT_DEPENDS")) {
+    cmExpandList(*objectDeps, depends);
   }
 }
 

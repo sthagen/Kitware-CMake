@@ -18,7 +18,6 @@
 #include "cm_jsoncpp_value.h"
 #include "cm_jsoncpp_writer.h"
 
-#include "cmAlgorithms.h"
 #include "cmDocumentationEntry.h"
 #include "cmFortranParser.h"
 #include "cmGeneratedFileStream.h"
@@ -436,8 +435,6 @@ cmGlobalNinjaGenerator::cmGlobalNinjaGenerator(cmake* cm)
 #ifdef _WIN32
   cm->GetState()->SetWindowsShell(true);
 #endif
-  // // Ninja is not ported to non-Unix OS yet.
-  // this->ForceUnixPaths = true;
   this->FindMakeProgramFile = "CMakeNinjaFindMake.cmake";
 }
 
@@ -687,10 +684,10 @@ void cmGlobalNinjaGenerator::CheckNinjaFeatures()
 bool cmGlobalNinjaGenerator::CheckLanguages(
   std::vector<std::string> const& languages, cmMakefile* mf) const
 {
-  if (cmContains(languages, "Fortran")) {
+  if (cm::contains(languages, "Fortran")) {
     return this->CheckFortran(mf);
   }
-  if (cmContains(languages, "Swift")) {
+  if (cm::contains(languages, "Swift")) {
     const std::string architectures =
       mf->GetSafeDefinition("CMAKE_OSX_ARCHITECTURES");
     if (architectures.find_first_of(';') != std::string::npos) {
@@ -1067,7 +1064,7 @@ std::string cmGlobalNinjaGenerator::OrderDependsTargetForTarget(
   cmGeneratorTarget const* target, const std::string& config)
 {
   return cmStrCat("cmake_object_order_depends_target_", target->GetName(), '_',
-                  config);
+                  cmSystemTools::UpperCase(config));
 }
 
 void cmGlobalNinjaGenerator::AppendTargetOutputs(

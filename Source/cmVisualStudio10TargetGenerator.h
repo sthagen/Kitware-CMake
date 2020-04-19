@@ -184,6 +184,8 @@ private:
     Elem& e2, const std::map<std::string, std::string>& tags);
   std::string GetCSharpSourceLink(cmSourceFile const* source);
 
+  void WriteStdOutEncodingUtf8(Elem& e1);
+
 private:
   friend class cmVS10GeneratorOptions;
   using Options = cmVS10GeneratorOptions;
@@ -242,7 +244,7 @@ private:
   std::unordered_map<std::string, ConfigToSettings> ParsedToolTargetSettings;
   bool PropertyIsSameInAllConfigs(const ConfigToSettings& toolSettings,
                                   const std::string& propName);
-  void ParseSettingsProperty(const char* settingsPropertyValue,
+  void ParseSettingsProperty(const std::string& settingsPropertyValue,
                              ConfigToSettings& toolSettings);
   std::string GetCMakeFilePath(const char* name) const;
 };

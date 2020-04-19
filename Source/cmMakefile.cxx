@@ -24,9 +24,9 @@
 
 #include "cm_jsoncpp_value.h"
 #include "cm_jsoncpp_writer.h"
+#include "cm_static_string_view.hxx"
 #include "cm_sys_stat.h"
 
-#include "cmAlgorithms.h"
 #include "cmCommandArgumentParserHelper.h"
 #include "cmCustomCommand.h"
 #include "cmCustomCommandLines.h"
@@ -1021,7 +1021,7 @@ cmTarget* cmMakefile::AddCustomCommandToTarget(
   const cmCustomCommandLines& commandLines, cmCustomCommandType type,
   const char* comment, const char* workingDir, bool escapeOldStyle,
   bool uses_terminal, const std::string& depfile, const std::string& job_pool,
-  bool command_expand_lists)
+  bool command_expand_lists, bool stdPipesUTF8)
 {
   cmTarget* t = this->GetCustomCommandTarget(
     target, cmObjectLibraryCommands::Reject, this->Backtrace);
@@ -1039,14 +1039,15 @@ cmTarget* cmMakefile::AddCustomCommandToTarget(
   cm::optional<std::string> workingStr = MakeOptionalString(workingDir);
 
   // Dispatch command creation to allow generator expressions in outputs.
-  this->AddGeneratorAction([=](cmLocalGenerator& lg,
-                               const cmListFileBacktrace& lfbt) {
-    BacktraceGuard guard(this->Backtrace, lfbt);
-    detail::AddCustomCommandToTarget(
-      lg, lfbt, cmCommandOrigin::Project, t, byproducts, depends, commandLines,
-      type, GetCStrOrNull(commentStr), GetCStrOrNull(workingStr),
-      escapeOldStyle, uses_terminal, depfile, job_pool, command_expand_lists);
-  });
+  this->AddGeneratorAction(
+    [=](cmLocalGenerator& lg, const cmListFileBacktrace& lfbt) {
+      BacktraceGuard guard(this->Backtrace, lfbt);
+      detail::AddCustomCommandToTarget(
+        lg, lfbt, cmCommandOrigin::Project, t, byproducts, depends,
+        commandLines, type, GetCStrOrNull(commentStr),
+        GetCStrOrNull(workingStr), escapeOldStyle, uses_terminal, depfile,
+        job_pool, command_expand_lists, stdPipesUTF8);
+    });
 
   return t;
 }
@@ -1057,14 +1058,14 @@ void cmMakefile::AddCustomCommandToOutput(
   const char* comment, const char* workingDir,
   const CommandSourceCallback& callback, bool replace, bool escapeOldStyle,
   bool uses_terminal, bool command_expand_lists, const std::string& depfile,
-  const std::string& job_pool)
+  const std::string& job_pool, bool stdPipesUTF8)
 {
   std::vector<std::string> no_byproducts;
   cmImplicitDependsList no_implicit_depends;
   this->AddCustomCommandToOutput(
     { output }, no_byproducts, depends, main_dependency, no_implicit_depends,
     commandLines, comment, workingDir, callback, replace, escapeOldStyle,
-    uses_terminal, command_expand_lists, depfile, job_pool);
+    uses_terminal, command_expand_lists, depfile, job_pool, stdPipesUTF8);
 }
 
 void cmMakefile::AddCustomCommandToOutput(
@@ -1075,7 +1076,7 @@ void cmMakefile::AddCustomCommandToOutput(
   const cmCustomCommandLines& commandLines, const char* comment,
   const char* workingDir, const CommandSourceCallback& callback, bool replace,
   bool escapeOldStyle, bool uses_terminal, bool command_expand_lists,
-  const std::string& depfile, const std::string& job_pool)
+  const std::string& depfile, const std::string& job_pool, bool stdPipesUTF8)
 {
   // Make sure there is at least one output.
   if (outputs.empty()) {
@@ -1097,18 +1098,19 @@ void cmMakefile::AddCustomCommandToOutput(
   cm::optional<std::string> workingStr = MakeOptionalString(workingDir);
 
   // Dispatch command creation to allow generator expressions in outputs.
-  this->AddGeneratorAction([=](cmLocalGenerator& lg,
-                               const cmListFileBacktrace& lfbt) {
-    BacktraceGuard guard(this->Backtrace, lfbt);
-    cmSourceFile* sf = detail::AddCustomCommandToOutput(
-      lg, lfbt, cmCommandOrigin::Project, outputs, byproducts, depends,
-      main_dependency, implicit_depends, commandLines,
-      GetCStrOrNull(commentStr), GetCStrOrNull(workingStr), replace,
-      escapeOldStyle, uses_terminal, command_expand_lists, depfile, job_pool);
-    if (callback && sf) {
-      callback(sf);
-    }
-  });
+  this->AddGeneratorAction(
+    [=](cmLocalGenerator& lg, const cmListFileBacktrace& lfbt) {
+      BacktraceGuard guard(this->Backtrace, lfbt);
+      cmSourceFile* sf = detail::AddCustomCommandToOutput(
+        lg, lfbt, cmCommandOrigin::Project, outputs, byproducts, depends,
+        main_dependency, implicit_depends, commandLines,
+        GetCStrOrNull(commentStr), GetCStrOrNull(workingStr), replace,
+        escapeOldStyle, uses_terminal, command_expand_lists, depfile, job_pool,
+        stdPipesUTF8);
+      if (callback && sf) {
+        callback(sf);
+      }
+    });
 }
 
 void cmMakefile::AddCustomCommandOldStyle(
@@ -1224,7 +1226,7 @@ cmTarget* cmMakefile::AddUtilityCommand(
   const std::vector<std::string>& depends,
   const cmCustomCommandLines& commandLines, bool escapeOldStyle,
   const char* comment, bool uses_terminal, bool command_expand_lists,
-  const std::string& job_pool)
+  const std::string& job_pool, bool stdPipesUTF8)
 {
   cmTarget* target = this->AddNewUtilityTarget(utilityName, excludeFromAll);
 
@@ -1253,7 +1255,7 @@ cmTarget* cmMakefile::AddUtilityCommand(
                                 force, GetCStrOrNull(workingStr), byproducts,
                                 depends, commandLines, escapeOldStyle,
                                 GetCStrOrNull(commentStr), uses_terminal,
-                                command_expand_lists, job_pool);
+                                command_expand_lists, job_pool, stdPipesUTF8);
     });
 
   return target;
@@ -1642,7 +1644,7 @@ void cmMakefile::Configure()
         allowedCommands.insert("message");
         isProblem = false;
         for (cmListFileFunction const& func : listFile.Functions) {
-          if (!cmContains(allowedCommands, func.Name.Lower)) {
+          if (!cm::contains(allowedCommands, func.Name.Lower)) {
             isProblem = true;
             break;
           }
@@ -2513,10 +2515,7 @@ void cmMakefile::ExpandVariablesCMP0019()
 
     for (auto l = linkLibs.begin(); l != linkLibs.end(); ++l) {
       std::string libName = *l;
-      if (libName == "optimized") {
-        ++l;
-        libName = *l;
-      } else if (libName == "debug") {
+      if (libName == "optimized"_s || libName == "debug"_s) {
         ++l;
         libName = *l;
       }
@@ -4294,7 +4293,7 @@ cmTarget* cmMakefile::FindTargetToUse(const std::string& name,
 
 bool cmMakefile::IsAlias(const std::string& name) const
 {
-  if (cmContains(this->AliasTargets, name)) {
+  if (cm::contains(this->AliasTargets, name)) {
     return true;
   }
   return this->GetGlobalGenerator()->IsAlias(name);
@@ -4664,7 +4663,7 @@ bool cmMakefile::AddRequiredTargetFeature(cmTarget* target,
   }
 
   std::vector<std::string> availableFeatures = cmExpandedList(features);
-  if (!cmContains(availableFeatures, feature)) {
+  if (!cm::contains(availableFeatures, feature)) {
     std::ostringstream e;
     e << "The compiler feature \"" << feature << "\" is not known to " << lang
       << " compiler\n\""
@@ -4961,27 +4960,27 @@ void cmMakefile::CheckNeededCxxLanguage(const std::string& feature,
   if (const char* propCxx98 =
         this->GetDefinition(cmStrCat("CMAKE_", lang, "98_COMPILE_FEATURES"))) {
     std::vector<std::string> props = cmExpandedList(propCxx98);
-    needCxx98 = cmContains(props, feature);
+    needCxx98 = cm::contains(props, feature);
   }
   if (const char* propCxx11 =
         this->GetDefinition(cmStrCat("CMAKE_", lang, "11_COMPILE_FEATURES"))) {
     std::vector<std::string> props = cmExpandedList(propCxx11);
-    needCxx11 = cmContains(props, feature);
+    needCxx11 = cm::contains(props, feature);
   }
   if (const char* propCxx14 =
         this->GetDefinition(cmStrCat("CMAKE_", lang, "14_COMPILE_FEATURES"))) {
     std::vector<std::string> props = cmExpandedList(propCxx14);
-    needCxx14 = cmContains(props, feature);
+    needCxx14 = cm::contains(props, feature);
   }
   if (const char* propCxx17 =
         this->GetDefinition(cmStrCat("CMAKE_", lang, "17_COMPILE_FEATURES"))) {
     std::vector<std::string> props = cmExpandedList(propCxx17);
-    needCxx17 = cmContains(props, feature);
+    needCxx17 = cm::contains(props, feature);
   }
   if (const char* propCxx20 =
         this->GetDefinition(cmStrCat("CMAKE_", lang, "20_COMPILE_FEATURES"))) {
     std::vector<std::string> props = cmExpandedList(propCxx20);
-    needCxx20 = cmContains(props, feature);
+    needCxx20 = cm::contains(props, feature);
   }
 }
 
@@ -5120,27 +5119,27 @@ void cmMakefile::CheckNeededCudaLanguage(const std::string& feature,
   if (const char* propCuda03 =
         this->GetDefinition(cmStrCat("CMAKE_", lang, "03_COMPILE_FEATURES"))) {
     std::vector<std::string> props = cmExpandedList(propCuda03);
-    needCuda03 = cmContains(props, feature);
+    needCuda03 = cm::contains(props, feature);
   }
   if (const char* propCuda11 =
         this->GetDefinition(cmStrCat("CMAKE_", lang, "11_COMPILE_FEATURES"))) {
     std::vector<std::string> props = cmExpandedList(propCuda11);
-    needCuda11 = cmContains(props, feature);
+    needCuda11 = cm::contains(props, feature);
   }
   if (const char* propCuda14 =
         this->GetDefinition(cmStrCat("CMAKE_", lang, "14_COMPILE_FEATURES"))) {
     std::vector<std::string> props = cmExpandedList(propCuda14);
-    needCuda14 = cmContains(props, feature);
+    needCuda14 = cm::contains(props, feature);
   }
   if (const char* propCuda17 =
         this->GetDefinition(cmStrCat("CMAKE_", lang, "17_COMPILE_FEATURES"))) {
     std::vector<std::string> props = cmExpandedList(propCuda17);
-    needCuda17 = cmContains(props, feature);
+    needCuda17 = cm::contains(props, feature);
   }
   if (const char* propCuda20 =
         this->GetDefinition(cmStrCat("CMAKE_", lang, "20_COMPILE_FEATURES"))) {
     std::vector<std::string> props = cmExpandedList(propCuda20);
-    needCuda20 = cmContains(props, feature);
+    needCuda20 = cm::contains(props, feature);
   }
 }
 
@@ -5214,17 +5213,17 @@ void cmMakefile::CheckNeededCLanguage(const std::string& feature,
   if (const char* propC90 =
         this->GetDefinition(cmStrCat("CMAKE_", lang, "90_COMPILE_FEATURES"))) {
     std::vector<std::string> props = cmExpandedList(propC90);
-    needC90 = cmContains(props, feature);
+    needC90 = cm::contains(props, feature);
   }
   if (const char* propC99 =
         this->GetDefinition(cmStrCat("CMAKE_", lang, "99_COMPILE_FEATURES"))) {
     std::vector<std::string> props = cmExpandedList(propC99);
-    needC99 = cmContains(props, feature);
+    needC99 = cm::contains(props, feature);
   }
   if (const char* propC11 =
         this->GetDefinition(cmStrCat("CMAKE_", lang, "11_COMPILE_FEATURES"))) {
     std::vector<std::string> props = cmExpandedList(propC11);
-    needC11 = cmContains(props, feature);
+    needC11 = cm::contains(props, feature);
   }
 }
 

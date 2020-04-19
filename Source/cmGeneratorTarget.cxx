@@ -1227,7 +1227,6 @@ std::string cmGeneratorTarget::EvaluateInterfaceProperty(
       return result;
     case cmGeneratorExpressionDAGChecker::CYCLIC_REFERENCE:
       // No error. We just skip cyclic references.
-      return result;
     case cmGeneratorExpressionDAGChecker::ALREADY_SEEN:
       // No error. We have already seen this transitive property.
       return result;
@@ -1295,10 +1294,9 @@ std::string AddSwiftInterfaceIncludeDirectories(
       dag.ReportError(nullptr,
                       "$<TARGET_PROPERTY:" + target->GetName() +
                         ",Swift_MODULE_DIRECTORY>");
-      return "";
+      CM_FALLTHROUGH;
     case cmGeneratorExpressionDAGChecker::CYCLIC_REFERENCE:
       // No error. We just skip cyclic references.
-      return "";
     case cmGeneratorExpressionDAGChecker::ALREADY_SEEN:
       // No error. We have already seen this transitive property.
       return "";
@@ -1311,7 +1309,8 @@ std::string AddSwiftInterfaceIncludeDirectories(
         target->GetLinkInterfaceLibraries(config, root, true)) {
     for (const cmLinkItem& library : interface->Libraries) {
       if (const cmGeneratorTarget* dependency = library.Target) {
-        if (cmContains(dependency->GetAllConfigCompileLanguages(), "Swift")) {
+        if (cm::contains(dependency->GetAllConfigCompileLanguages(),
+                         "Swift")) {
           std::string value =
             dependency->GetSafeProperty("Swift_MODULE_DIRECTORY");
           if (value.empty()) {
@@ -1341,7 +1340,8 @@ void AddSwiftImplicitIncludeDirectories(
 
     for (const cmLinkImplItem& library : libraries->Libraries) {
       if (const cmGeneratorTarget* dependency = library.Target) {
-        if (cmContains(dependency->GetAllConfigCompileLanguages(), "Swift")) {
+        if (cm::contains(dependency->GetAllConfigCompileLanguages(),
+                         "Swift")) {
           EvaluatedTargetPropertyEntry entry{ library, library.Backtrace };
 
           if (const char* val =
@@ -1524,7 +1524,7 @@ std::vector<BT<std::string>> cmGeneratorTarget::GetSourceFilePaths(
   }
 
   bool debugSources =
-    !this->DebugSourcesDone && cmContains(debugProperties, "SOURCES");
+    !this->DebugSourcesDone && cm::contains(debugProperties, "SOURCES");
 
   if (this->LocalGenerator->GetGlobalGenerator()->GetConfigureDoneCMP0026()) {
     this->DebugSourcesDone = true;
@@ -1689,10 +1689,14 @@ void cmGeneratorTarget::ComputeKindedSources(KindedSources& files,
     std::string ext = cmSystemTools::LowerCase(sf->GetExtension());
     if (sf->GetCustomCommand()) {
       kind = SourceKindCustomCommand;
+      // XXX(clang-tidy): https://bugs.llvm.org/show_bug.cgi?id=44165
+      // NOLINTNEXTLINE(bugprone-branch-clone)
     } else if (this->Target->GetType() == cmStateEnums::UTILITY) {
       kind = SourceKindExtra;
     } else if (this->IsSourceFilePartOfUnityBatch(sf->ResolveFullPath())) {
       kind = SourceKindUnityBatched;
+      // XXX(clang-tidy): https://bugs.llvm.org/show_bug.cgi?id=44165
+      // NOLINTNEXTLINE(bugprone-branch-clone)
     } else if (sf->GetPropertyAsBool("HEADER_FILE_ONLY")) {
       kind = SourceKindHeader;
     } else if (sf->GetPropertyAsBool("EXTERNAL_OBJECT")) {
@@ -2804,7 +2808,7 @@ cmTargetTraceDependencies::cmTargetTraceDependencies(cmGeneratorTarget* target)
       for (cmSourceFile* sf : sources) {
         const std::set<cmGeneratorTarget const*> tgts =
           this->GlobalGenerator->GetFilenameTargetDepends(sf);
-        if (cmContains(tgts, this->GeneratorTarget)) {
+        if (cm::contains(tgts, this->GeneratorTarget)) {
           std::ostringstream e;
           e << "Evaluation output file\n  \"" << sf->ResolveFullPath()
             << "\"\ndepends on the sources of a target it is used in.  This "
@@ -2837,8 +2841,8 @@ void cmTargetTraceDependencies::Trace()
     this->CurrentEntry = &this->GeneratorTarget->SourceDepends[sf];
 
     // Queue dependencies added explicitly by the user.
-    if (const char* additionalDeps = sf->GetProperty("OBJECT_DEPENDS")) {
-      std::vector<std::string> objDeps = cmExpandedList(additionalDeps);
+    if (cmProp additionalDeps = sf->GetProperty("OBJECT_DEPENDS")) {
+      std::vector<std::string> objDeps = cmExpandedList(*additionalDeps);
       for (std::string& objDep : objDeps) {
         if (cmSystemTools::FileIsFullPath(objDep)) {
           objDep = cmSystemTools::CollapseFullPath(objDep);
@@ -3083,6 +3087,95 @@ void cmGeneratorTarget::GetAppleArchs(const std::string& config,
   }
 }
 
+void cmGeneratorTarget::AddCUDAArchitectureFlags(std::string& flags) const
+{
+  struct CudaArchitecture
+  {
+    std::string name;
+    bool real{ true };
+    bool virtual_{ true };
+  };
+  std::vector<CudaArchitecture> architectures;
+
+  {
+    std::vector<std::string> options;
+    cmExpandList(this->GetSafeProperty("CUDA_ARCHITECTURES"), options);
+
+    if (options.empty()) {
+      switch (this->GetPolicyStatusCMP0104()) {
+        case cmPolicies::WARN:
+          if (!this->LocalGenerator->GetCMakeInstance()->GetIsInTryCompile()) {
+            this->Makefile->IssueMessage(
+              MessageType::AUTHOR_WARNING,
+              cmPolicies::GetPolicyWarning(cmPolicies::CMP0104) +
+                "\nCUDA_ARCHITECTURES is empty for target \"" +
+                this->GetName() + "\".");
+          }
+          CM_FALLTHROUGH;
+        case cmPolicies::OLD:
+          break;
+        default:
+          this->Makefile->IssueMessage(
+            MessageType::FATAL_ERROR,
+            "CUDA_ARCHITECTURES is empty for target \"" + this->GetName() +
+              "\".");
+      }
+    }
+
+    for (std::string& option : options) {
+      CudaArchitecture architecture;
+
+      // Architecture name is up to the first specifier.
+      std::size_t pos = option.find_first_of('-');
+      architecture.name = option.substr(0, pos);
+
+      if (pos != std::string::npos) {
+        cm::string_view specifier{ option.c_str() + pos + 1,
+                                   option.length() - pos - 1 };
+
+        if (specifier == "real") {
+          architecture.real = true;
+          architecture.virtual_ = false;
+        } else if (specifier == "virtual") {
+          architecture.real = false;
+          architecture.virtual_ = true;
+        } else {
+          this->Makefile->IssueMessage(
+            MessageType::FATAL_ERROR,
+            "Uknown CUDA architecture specifier \"" + std::string(specifier) +
+              "\".");
+        }
+      }
+
+      architectures.emplace_back(architecture);
+    }
+  }
+
+  std::string const& compiler =
+    this->Makefile->GetSafeDefinition("CMAKE_CUDA_COMPILER_ID");
+
+  if (compiler == "NVIDIA") {
+    for (CudaArchitecture& architecture : architectures) {
+      flags +=
+        " --generate-code=arch=compute_" + architecture.name + ",code=[";
+
+      if (architecture.virtual_) {
+        flags += "compute_" + architecture.name;
+
+        if (architecture.real) {
+          flags += ",";
+        }
+      }
+
+      if (architecture.real) {
+        flags += "sm_" + architecture.name;
+      }
+
+      flags += "]";
+    }
+  }
+}
+
 //----------------------------------------------------------------------------
 std::string cmGeneratorTarget::GetFeatureSpecificLinkRuleVariable(
   std::string const& var, std::string const& lang,
@@ -3248,7 +3341,7 @@ std::vector<BT<std::string>> cmGeneratorTarget::GetIncludeDirectories(
   }
 
   bool debugIncludes = !this->DebugIncludesDone &&
-    cmContains(debugProperties, "INCLUDE_DIRECTORIES");
+    cm::contains(debugProperties, "INCLUDE_DIRECTORIES");
 
   if (this->GlobalGenerator->GetConfigureDoneCMP0026()) {
     this->DebugIncludesDone = true;
@@ -3363,7 +3456,7 @@ std::vector<BT<std::string>> cmGeneratorTarget::GetCompileOptions(
   }
 
   bool debugOptions = !this->DebugCompileOptionsDone &&
-    cmContains(debugProperties, "COMPILE_OPTIONS");
+    cm::contains(debugProperties, "COMPILE_OPTIONS");
 
   if (this->GlobalGenerator->GetConfigureDoneCMP0026()) {
     this->DebugCompileOptionsDone = true;
@@ -3409,7 +3502,7 @@ std::vector<BT<std::string>> cmGeneratorTarget::GetCompileFeatures(
   }
 
   bool debugFeatures = !this->DebugCompileFeaturesDone &&
-    cmContains(debugProperties, "COMPILE_FEATURES");
+    cm::contains(debugProperties, "COMPILE_FEATURES");
 
   if (this->GlobalGenerator->GetConfigureDoneCMP0026()) {
     this->DebugCompileFeaturesDone = true;
@@ -3457,7 +3550,7 @@ std::vector<BT<std::string>> cmGeneratorTarget::GetCompileDefinitions(
   }
 
   bool debugDefines = !this->DebugCompileDefinitionsDone &&
-    cmContains(debugProperties, "COMPILE_DEFINITIONS");
+    cm::contains(debugProperties, "COMPILE_DEFINITIONS");
 
   if (this->GlobalGenerator->GetConfigureDoneCMP0026()) {
     this->DebugCompileDefinitionsDone = true;
@@ -3888,8 +3981,8 @@ std::vector<BT<std::string>> cmGeneratorTarget::GetLinkOptions(
     cmExpandList(debugProp, debugProperties);
   }
 
-  bool debugOptions =
-    !this->DebugLinkOptionsDone && cmContains(debugProperties, "LINK_OPTIONS");
+  bool debugOptions = !this->DebugLinkOptionsDone &&
+    cm::contains(debugProperties, "LINK_OPTIONS");
 
   if (this->GlobalGenerator->GetConfigureDoneCMP0026()) {
     this->DebugLinkOptionsDone = true;
@@ -4145,7 +4238,7 @@ std::vector<BT<std::string>> cmGeneratorTarget::GetLinkDirectories(
   }
 
   bool debugDirectories = !this->DebugLinkDirectoriesDone &&
-    cmContains(debugProperties, "LINK_DIRECTORIES");
+    cm::contains(debugProperties, "LINK_DIRECTORIES");
 
   if (this->GlobalGenerator->GetConfigureDoneCMP0026()) {
     this->DebugLinkDirectoriesDone = true;
@@ -4705,16 +4798,16 @@ cmGeneratorTarget::GetTargetSourceFileFlags(const cmSourceFile* sf) const
   } else {
     // Handle the MACOSX_PACKAGE_LOCATION property on source files that
     // were not listed in one of the other lists.
-    if (const char* location = sf->GetProperty("MACOSX_PACKAGE_LOCATION")) {
-      flags.MacFolder = location;
+    if (cmProp location = sf->GetProperty("MACOSX_PACKAGE_LOCATION")) {
+      flags.MacFolder = location->c_str();
       const bool stripResources =
         this->GlobalGenerator->ShouldStripResourcePath(this->Makefile);
-      if (strcmp(location, "Resources") == 0) {
+      if (*location == "Resources") {
         flags.Type = cmGeneratorTarget::SourceFileTypeResource;
         if (stripResources) {
           flags.MacFolder = "";
         }
-      } else if (cmHasLiteralPrefix(location, "Resources/")) {
+      } else if (cmHasLiteralPrefix(*location, "Resources/")) {
         flags.Type = cmGeneratorTarget::SourceFileTypeDeepResource;
         if (stripResources) {
           flags.MacFolder += strlen("Resources/");
@@ -5306,7 +5399,7 @@ PropertyType checkInterfacePropertyCompatibility(cmGeneratorTarget const* tgt,
   PropertyType propContent = getTypedProperty<PropertyType>(tgt, p);
 
   std::vector<std::string> headPropKeys = tgt->GetPropertyKeys();
-  const bool explicitlySet = cmContains(headPropKeys, p);
+  const bool explicitlySet = cm::contains(headPropKeys, p);
 
   const bool impliedByUse = tgt->IsNullImpliedByLinkLibraries(p);
   assert((impliedByUse ^ explicitlySet) || (!impliedByUse && !explicitlySet));
@@ -5346,7 +5439,7 @@ PropertyType checkInterfacePropertyCompatibility(cmGeneratorTarget const* tgt,
 
     std::vector<std::string> propKeys = theTarget->GetPropertyKeys();
 
-    const bool ifaceIsSet = cmContains(propKeys, interfaceProperty);
+    const bool ifaceIsSet = cm::contains(propKeys, interfaceProperty);
     PropertyType ifacePropContent = getTypedProperty<PropertyType>(
       theTarget, interfaceProperty, genexInterpreter.get());
 
@@ -5637,8 +5730,8 @@ void cmGeneratorTarget::ReportPropertyOrigin(
     cmExpandList(debugProp, debugProperties);
   }
 
-  bool debugOrigin =
-    !this->DebugCompatiblePropertiesDone[p] && cmContains(debugProperties, p);
+  bool debugOrigin = !this->DebugCompatiblePropertiesDone[p] &&
+    cm::contains(debugProperties, p);
 
   if (this->GlobalGenerator->GetConfigureDoneCMP0026()) {
     this->DebugCompatiblePropertiesDone[p] = true;
@@ -6804,7 +6897,7 @@ cmGeneratorTarget::GetLinkImplementationLibrariesInternal(
 bool cmGeneratorTarget::IsNullImpliedByLinkLibraries(
   const std::string& p) const
 {
-  return cmContains(this->LinkImplicitNullProperties, p);
+  return cm::contains(this->LinkImplicitNullProperties, p);
 }
 
 void cmGeneratorTarget::ComputeLinkImplementationLibraries(

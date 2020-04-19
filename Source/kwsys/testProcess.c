@@ -631,7 +631,8 @@ int main(int argc, const char* argv[])
     }
     fprintf(stderr, "Invalid test number %d.\n", n);
     return 1;
-  } else if (n >= 1 && n <= 10) {
+  }
+  if (n >= 1 && n <= 10) {
     /* This is the parent process for a requested test number.  */
     int states[10] = {
       kwsysProcess_State_Exited,   kwsysProcess_State_Exited,
@@ -709,7 +710,8 @@ int main(int argc, const char* argv[])
     free(argv0);
 #endif
     return r;
-  } else if (argc > 2 && strcmp(argv[1], "0") == 0) {
+  }
+  if (argc > 2 && strcmp(argv[1], "0") == 0) {
     /* This is the special debugging test to run a given command
        line.  */
     const char** cmd = argv + 2;

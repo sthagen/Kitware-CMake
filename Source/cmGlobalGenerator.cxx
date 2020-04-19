@@ -14,6 +14,7 @@
 #include <utility>
 
 #include <cm/memory>
+#include <cmext/algorithm>
 
 #include "cmsys/Directory.hxx"
 #include "cmsys/FStream.hxx"
@@ -403,7 +404,7 @@ bool cmGlobalGenerator::IsExportedTargetsFile(
   if (it == this->BuildExportSets.end()) {
     return false;
   }
-  return !cmContains(this->BuildExportExportSets, filename);
+  return !cm::contains(this->BuildExportExportSets, filename);
 }
 
 // Find the make program for the generator, required for try compiles
@@ -529,7 +530,7 @@ void cmGlobalGenerator::EnableLanguage(
       if (lang == "NONE") {
         this->SetLanguageEnabled("NONE", mf);
       } else {
-        if (!cmContains(this->LanguagesReady, lang)) {
+        if (!cm::contains(this->LanguagesReady, lang)) {
           std::ostringstream e;
           e << "The test project needs language " << lang
             << " which is not enabled.";
@@ -1094,7 +1095,7 @@ void cmGlobalGenerator::SetLanguageEnabledMaps(const std::string& l,
 {
   // use LanguageToLinkerPreference to detect whether this functions has
   // run before
-  if (cmContains(this->LanguageToLinkerPreference, l)) {
+  if (cm::contains(this->LanguageToLinkerPreference, l)) {
     return;
   }
 
@@ -2227,7 +2228,7 @@ void cmGlobalGenerator::AddAlias(const std::string& name,
 
 bool cmGlobalGenerator::IsAlias(const std::string& name) const
 {
-  return cmContains(this->AliasTargets, name);
+  return cm::contains(this->AliasTargets, name);
 }
 
 void cmGlobalGenerator::IndexTarget(cmTarget* t)
@@ -2253,10 +2254,12 @@ std::string cmGlobalGenerator::IndexGeneratorTargetUniquely(
   // Use a ":" prefix to avoid conflict with project-defined targets.
   // We must satisfy cmGeneratorExpression::IsValidTargetName so use no
   // other special characters.
-  char buf[1 + sizeof(gt) * 2];
+  constexpr size_t sizeof_ptr =
+    sizeof(gt); // NOLINT(bugprone-sizeof-expression)
+  char buf[1 + sizeof_ptr * 2];
   char* b = buf;
   *b++ = ':';
-  for (size_t i = 0; i < sizeof(gt); ++i) {
+  for (size_t i = 0; i < sizeof_ptr; ++i) {
     unsigned char const c = reinterpret_cast<unsigned char const*>(&gt)[i];
     *b++ = hexDigits[(c & 0xf0) >> 4];
     *b++ = hexDigits[(c & 0x0f)];
@@ -2543,6 +2546,7 @@ void cmGlobalGenerator::AddGlobalTarget_EditCache(
     singleLine.push_back("No interactive CMake dialog available.");
     gti.Message = "No interactive CMake dialog available...";
     gti.UsesTerminal = false;
+    gti.StdPipesUTF8 = true;
   }
   gti.CommandLines.push_back(std::move(singleLine));
 
@@ -2567,6 +2571,7 @@ void cmGlobalGenerator::AddGlobalTarget_RebuildCache(
   singleLine.push_back("-S$(CMAKE_SOURCE_DIR)");
   singleLine.push_back("-B$(CMAKE_BINARY_DIR)");
   gti.CommandLines.push_back(std::move(singleLine));
+  gti.StdPipesUTF8 = true;
   targets.push_back(std::move(gti));
 }
 
@@ -2603,6 +2608,7 @@ void cmGlobalGenerator::AddGlobalTarget_Install(
     gti.Name = this->GetInstallTargetName();
     gti.Message = "Install the project...";
     gti.UsesTerminal = true;
+    gti.StdPipesUTF8 = true;
     cmCustomCommandLine singleLine;
     if (this->GetPreinstallTargetName()) {
       gti.Depends.emplace_back(this->GetPreinstallTargetName());
@@ -2714,7 +2720,8 @@ cmTarget cmGlobalGenerator::CreateGlobalTarget(GlobalTargetInfo const& gti,
   std::vector<std::string> no_depends;
   // Store the custom command in the target.
   cmCustomCommand cc(no_outputs, no_byproducts, no_depends, gti.CommandLines,
-                     cmListFileBacktrace(), nullptr, gti.WorkingDir.c_str());
+                     cmListFileBacktrace(), nullptr, gti.WorkingDir.c_str(),
+                     gti.StdPipesUTF8);
   cc.SetUsesTerminal(gti.UsesTerminal);
   target.AddPostBuildCommand(std::move(cc));
   if (!gti.Message.empty()) {
@@ -2786,7 +2793,7 @@ bool cmGlobalGenerator::IsReservedTarget(std::string const& name)
                                     "clean",     "edit_cache", "rebuild_cache",
                                     "ZERO_CHECK" };
 
-  return cmContains(reservedTargets, name);
+  return cm::contains(reservedTargets, name);
 }
 
 void cmGlobalGenerator::SetExternalMakefileProjectGenerator(
@@ -3103,10 +3110,10 @@ void cmGlobalGenerator::WriteSummary(cmGeneratorTarget* target)
       std::string const& sfp = sf->ResolveFullPath();
       fout << sfp << "\n";
       lj_source["file"] = sfp;
-      if (const char* svalue = sf->GetProperty("LABELS")) {
+      if (cmProp svalue = sf->GetProperty("LABELS")) {
         labels.clear();
         Json::Value& lj_source_labels = lj_source["labels"] = Json::arrayValue;
-        cmExpandList(svalue, labels);
+        cmExpandList(*svalue, labels);
         for (std::string const& label : labels) {
           fout << " " << label << "\n";
           lj_source_labels.append(label);

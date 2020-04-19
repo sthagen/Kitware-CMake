@@ -15,7 +15,6 @@
 
 #include "cmsys/RegularExpression.hxx"
 
-#include "cmAlgorithms.h"
 #include "cmComputeLinkInformation.h"
 #include "cmCustomCommand.h"
 #include "cmCustomCommandGenerator.h"
@@ -363,7 +362,7 @@ cmGlobalXCodeGenerator::GenerateBuildCommand(
     std::string projectArg = cmStrCat(projectName, ".xcodeproj");
     makeCommand.Add(projectArg);
   }
-  if (cmContains(targetNames, "clean")) {
+  if (cm::contains(targetNames, "clean")) {
     makeCommand.Add("clean");
     makeCommand.Add("-target", "ALL_BUILD");
   } else {
@@ -770,9 +769,13 @@ public:
   XCodeGeneratorExpressionInterpreter& operator=(
     XCodeGeneratorExpressionInterpreter const&) = delete;
 
-  using cmGeneratorExpressionInterpreter::Evaluate;
-
   const std::string& Evaluate(const char* expression,
+                              const std::string& property)
+  {
+    return this->Evaluate(std::string(expression ? expression : ""), property);
+  }
+
+  const std::string& Evaluate(const std::string& expression,
                               const std::string& property)
   {
     const std::string& processed =
@@ -805,8 +808,9 @@ cmXCodeObject* cmGlobalXCodeGenerator::CreateXCodeSourceFile(
 
   // Add flags from target and source file properties.
   std::string flags;
-  const char* srcfmt = sf->GetProperty("Fortran_FORMAT");
-  switch (cmOutputConverter::GetFortranFormat(srcfmt)) {
+  cmProp srcfmt = sf->GetProperty("Fortran_FORMAT");
+  switch (
+    cmOutputConverter::GetFortranFormat(srcfmt ? srcfmt->c_str() : nullptr)) {
     case cmOutputConverter::FortranFormatFixed:
       flags = "-fixed " + flags;
       break;
@@ -817,22 +821,22 @@ cmXCodeObject* cmGlobalXCodeGenerator::CreateXCodeSourceFile(
       break;
   }
   const std::string COMPILE_FLAGS("COMPILE_FLAGS");
-  if (const char* cflags = sf->GetProperty(COMPILE_FLAGS)) {
-    lg->AppendFlags(flags, genexInterpreter.Evaluate(cflags, COMPILE_FLAGS));
+  if (cmProp cflags = sf->GetProperty(COMPILE_FLAGS)) {
+    lg->AppendFlags(flags, genexInterpreter.Evaluate(*cflags, COMPILE_FLAGS));
   }
   const std::string COMPILE_OPTIONS("COMPILE_OPTIONS");
-  if (const char* coptions = sf->GetProperty(COMPILE_OPTIONS)) {
+  if (cmProp coptions = sf->GetProperty(COMPILE_OPTIONS)) {
     lg->AppendCompileOptions(
-      flags, genexInterpreter.Evaluate(coptions, COMPILE_OPTIONS));
+      flags, genexInterpreter.Evaluate(*coptions, COMPILE_OPTIONS));
   }
 
   // Add per-source definitions.
   BuildObjectListOrString flagsBuild(this, false);
   const std::string COMPILE_DEFINITIONS("COMPILE_DEFINITIONS");
-  if (const char* compile_defs = sf->GetProperty(COMPILE_DEFINITIONS)) {
+  if (cmProp compile_defs = sf->GetProperty(COMPILE_DEFINITIONS)) {
     this->AppendDefines(
       flagsBuild,
-      genexInterpreter.Evaluate(compile_defs, COMPILE_DEFINITIONS).c_str(),
+      genexInterpreter.Evaluate(*compile_defs, COMPILE_DEFINITIONS).c_str(),
       true);
   }
 
@@ -850,9 +854,9 @@ cmXCodeObject* cmGlobalXCodeGenerator::CreateXCodeSourceFile(
   // Add per-source include directories.
   std::vector<std::string> includes;
   const std::string INCLUDE_DIRECTORIES("INCLUDE_DIRECTORIES");
-  if (const char* cincludes = sf->GetProperty(INCLUDE_DIRECTORIES)) {
+  if (cmProp cincludes = sf->GetProperty(INCLUDE_DIRECTORIES)) {
     lg->AppendIncludeDirectories(
-      includes, genexInterpreter.Evaluate(cincludes, INCLUDE_DIRECTORIES),
+      includes, genexInterpreter.Evaluate(*cincludes, INCLUDE_DIRECTORIES),
       *sf);
   }
   lg->AppendFlags(flags, lg->GetIncludeFlags(includes, gtgt, lang, true));
@@ -881,10 +885,10 @@ cmXCodeObject* cmGlobalXCodeGenerator::CreateXCodeSourceFile(
   }
 
   // Add user-specified file attributes.
-  const char* extraFileAttributes = sf->GetProperty("XCODE_FILE_ATTRIBUTES");
+  cmProp extraFileAttributes = sf->GetProperty("XCODE_FILE_ATTRIBUTES");
   if (extraFileAttributes) {
     // Expand the list of attributes.
-    std::vector<std::string> attributes = cmExpandedList(extraFileAttributes);
+    std::vector<std::string> attributes = cmExpandedList(*extraFileAttributes);
 
     // Store the attributes.
     for (const auto& attribute : attributes) {
@@ -906,7 +910,7 @@ void cmGlobalXCodeGenerator::AddXCodeProjBuildRule(
              "/CMakeLists.txt");
   cmSourceFile* srcCMakeLists = target->Makefile->GetOrCreateSource(
     listfile, false, cmSourceFileLocationKind::Known);
-  if (!cmContains(sources, srcCMakeLists)) {
+  if (!cm::contains(sources, srcCMakeLists)) {
     sources.push_back(srcCMakeLists);
   }
 }
@@ -995,11 +999,11 @@ cmXCodeObject* cmGlobalXCodeGenerator::CreateXCodeFileReferenceFromPath(
   bool useLastKnownFileType = false;
   std::string fileType;
   if (sf) {
-    if (const char* e = sf->GetProperty("XCODE_EXPLICIT_FILE_TYPE")) {
-      fileType = e;
-    } else if (const char* l = sf->GetProperty("XCODE_LAST_KNOWN_FILE_TYPE")) {
+    if (cmProp e = sf->GetProperty("XCODE_EXPLICIT_FILE_TYPE")) {
+      fileType = *e;
+    } else if (cmProp l = sf->GetProperty("XCODE_LAST_KNOWN_FILE_TYPE")) {
       useLastKnownFileType = true;
-      fileType = l;
+      fileType = *l;
     }
   }
   if (fileType.empty()) {
@@ -1422,8 +1426,8 @@ void cmGlobalXCodeGenerator::ForceLinkerLanguage(cmGeneratorTarget* gtgt)
 
 bool cmGlobalXCodeGenerator::IsHeaderFile(cmSourceFile* sf)
 {
-  return cmContains(this->CMakeInstance->GetHeaderExtensions(),
-                    sf->GetExtension());
+  return cm::contains(this->CMakeInstance->GetHeaderExtensions(),
+                      sf->GetExtension());
 }
 
 cmXCodeObject* cmGlobalXCodeGenerator::CreateBuildPhase(
@@ -1464,6 +1468,7 @@ void cmGlobalXCodeGenerator::CreateCustomCommands(
       cmStrCat("$<TARGET_SONAME_FILE:", gtgt->GetName(), '>');
     std::string str_link_file =
       cmStrCat("$<TARGET_LINKER_FILE:", gtgt->GetName(), '>');
+    bool stdPipesUTF8 = true;
     cmCustomCommandLines cmd = cmMakeSingleCommandLine(
       { cmSystemTools::GetCMakeCommand(), "-E", "cmake_symlink_library",
         str_file, str_so_file, str_link_file });
@@ -1471,7 +1476,7 @@ void cmGlobalXCodeGenerator::CreateCustomCommands(
     cmCustomCommand command(
       std::vector<std::string>(), std::vector<std::string>(),
       std::vector<std::string>(), cmd, this->CurrentMakefile->GetBacktrace(),
-      "Creating symlinks", "");
+      "Creating symlinks", "", stdPipesUTF8);
 
     postbuild.push_back(std::move(command));
   }
@@ -3550,7 +3555,7 @@ std::string cmGlobalXCodeGenerator::RelativeToBinary(const std::string& p)
 
 std::string cmGlobalXCodeGenerator::XCodeEscapePath(const std::string& p)
 {
-  if (p.find(' ') != std::string::npos) {
+  if (p.find_first_of(" []") != std::string::npos) {
     std::string t = cmStrCat('"', p, '"');
     return t;
   }

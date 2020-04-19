@@ -242,10 +242,12 @@ Options
  :command:`message(SEND_ERROR)` calls.
 
 ``--debug-find``
- Put cmake find in a debug mode.
+ Put cmake find commands in a debug mode.
 
  Print extra find call information during the cmake run to standard
  error. Output is designed for human consumption and not for parsing.
+ See also the :variable:`CMAKE_FIND_DEBUG_MODE` variable for debugging
+ a more local part of the project.
 
 ``--trace``
  Put cmake in trace mode.
@@ -551,6 +553,9 @@ Available commands are:
 
   ``serverMode``
     ``true`` if cmake supports server-mode and ``false`` otherwise.
+
+``cat <files>...``
+  Concatenate files and print on the standard output.
 
 ``chdir <dir> <cmd> [<arg>...]``
   Change the current working directory and run a command.
