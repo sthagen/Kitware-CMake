@@ -119,6 +119,7 @@ add_RunCMake_test(CMP0102)
 if(CMake_TEST_CUDA)
   add_RunCMake_test(CMP0104)
 endif()
+add_RunCMake_test(CMP0106)
 
 # The test for Policy 65 requires the use of the
 # CMAKE_SHARED_LIBRARY_LINK_CXX_FLAGS variable, which both the VS and Xcode
@@ -471,7 +472,8 @@ add_RunCMake_test(ExportWithoutLanguage)
 add_RunCMake_test(target_link_directories)
 add_RunCMake_test(target_link_libraries)
 add_RunCMake_test(add_link_options -DCMAKE_C_COMPILER_ID=${CMAKE_C_COMPILER_ID})
-add_RunCMake_test(target_link_options -DCMAKE_C_COMPILER_ID=${CMAKE_C_COMPILER_ID})
+add_RunCMake_test(target_link_options -DCMAKE_C_COMPILER_ID=${CMAKE_C_COMPILER_ID}
+                                      -DCMake_TEST_CUDA=${CMake_TEST_CUDA})
 
 add_RunCMake_test(target_compile_definitions)
 add_RunCMake_test(target_compile_features)

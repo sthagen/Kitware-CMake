@@ -421,6 +421,11 @@ public:
 
   /** Fill out these strings for the given target.  Libraries to link,
    *  flags, and linkflags. */
+  void GetDeviceLinkFlags(cmLinkLineComputer* linkLineComputer,
+                          const std::string& config, std::string& linkLibs,
+                          std::string& linkFlags, std::string& frameworkPath,
+                          std::string& linkPath, cmGeneratorTarget* target);
+
   void GetTargetFlags(cmLinkLineComputer* linkLineComputer,
                       const std::string& config, std::string& linkLibs,
                       std::string& flags, std::string& linkFlags,
@@ -533,6 +538,8 @@ private:
                                    int targetType);
 
   void ComputeObjectMaxPath();
+  bool AllAppleArchSysrootsAreTheSame(const std::vector<std::string>& archs,
+                                      const char* sysroot);
 };
 
 #if !defined(CMAKE_BOOTSTRAP)
