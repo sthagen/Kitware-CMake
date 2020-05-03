@@ -339,21 +339,18 @@ bool cmQtAutoGenInitializer::InitCustomTargets()
 
   // Targets FOLDER
   {
-    cmProp prop =
+    cmProp folder =
       this->Makefile->GetState()->GetGlobalProperty("AUTOMOC_TARGETS_FOLDER");
-    if (prop == nullptr) {
-      prop = this->Makefile->GetState()->GetGlobalProperty(
+    if (folder == nullptr) {
+      folder = this->Makefile->GetState()->GetGlobalProperty(
         "AUTOGEN_TARGETS_FOLDER");
     }
-    const char* folder;
     // Inherit FOLDER property from target (#13688)
-    if (prop == nullptr) {
+    if (folder == nullptr) {
       folder = this->GenTarget->GetProperty("FOLDER");
-    } else {
-      folder = prop->c_str();
     }
     if (folder != nullptr) {
-      this->TargetsFolder = folder;
+      this->TargetsFolder = *folder;
     }
   }
 
@@ -443,7 +440,8 @@ bool cmQtAutoGenInitializer::InitCustomTargets()
 
     // Autogen target parallel processing
     {
-      std::string prop = this->GenTarget->GetSafeProperty("AUTOGEN_PARALLEL");
+      std::string const& prop =
+        this->GenTarget->GetSafeProperty("AUTOGEN_PARALLEL");
       if (prop.empty() || (prop == "AUTO")) {
         // Autodetect number of CPUs
         this->AutogenTarget.Parallel = GetParallelCPUCount();
@@ -474,7 +472,7 @@ bool cmQtAutoGenInitializer::InitCustomTargets()
       this->AutogenTarget.DependOrigin =
         this->GenTarget->GetPropertyAsBool("AUTOGEN_ORIGIN_DEPENDS");
 
-      std::string const deps =
+      std::string const& deps =
         this->GenTarget->GetSafeProperty("AUTOGEN_TARGET_DEPENDS");
       if (!deps.empty()) {
         for (std::string const& depName : cmExpandedList(deps)) {
@@ -657,7 +655,7 @@ bool cmQtAutoGenInitializer::InitUic()
 {
   // Uic search paths
   {
-    std::string const usp =
+    std::string const& usp =
       this->GenTarget->GetSafeProperty("AUTOUIC_SEARCH_PATHS");
     if (!usp.empty()) {
       this->Uic.SearchPaths =
@@ -1797,7 +1795,7 @@ bool cmQtAutoGenInitializer::GetQtExecutable(GenVarsT& genVars,
   // Custom executable
   {
     std::string const prop = cmStrCat(genVars.GenNameUpper, "_EXECUTABLE");
-    std::string const val = this->GenTarget->Target->GetSafeProperty(prop);
+    std::string const& val = this->GenTarget->Target->GetSafeProperty(prop);
     if (!val.empty()) {
       // Evaluate generator expression
       {

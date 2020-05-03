@@ -1414,6 +1414,7 @@ ${CMake_SOURCE_DIR}/Utilities/Release/push.bash --dir dev -- '${CMake_BUILD_NIGH
   foreach(_mod IN ITEMS
             ALSA
             Boost
+            BLAS
             BZip2
             CURL
             Cups
@@ -1433,12 +1434,14 @@ ${CMake_SOURCE_DIR}/Utilities/Release/push.bash --dir dev -- '${CMake_BUILD_NIGH
             ICU
             JPEG
             JsonCpp
+            LAPACK
             LibArchive
             LibLZMA
             LibRHash
             Libinput
             LibUV
             LibXml2
+            LibXslt
             LTTngUST
             ODBC
             OpenACC
@@ -2692,9 +2695,6 @@ ${CMake_SOURCE_DIR}/Utilities/Release/push.bash --dir dev -- '${CMake_BUILD_NIGH
     -S "${CMake_BINARY_DIR}/Tests/CTestCoverageCollectGCOV/test.cmake" -VV
     --output-log "${CMake_BINARY_DIR}/Tests/CTestCoverageCollectGCOV/testOut.log"
     )
-  set_tests_properties(CTestCoverageCollectGCOV PROPERTIES
-    PASS_REGULAR_EXPRESSION
-    "PASSED with correct output.*Testing/CoverageInfo/main.cpp.gcov")
   set_property(TEST CTestCoverageCollectGCOV PROPERTY ENVIRONMENT CTEST_PARALLEL_LEVEL=)
 
   configure_file(

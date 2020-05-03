@@ -5,7 +5,7 @@
 #include <algorithm>
 #include <chrono>
 #include <cmath>
-#include <cstddef>
+#include <cstddef> // IWYU pragma: keep
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
@@ -20,13 +20,13 @@
 #include <cm/memory>
 #include <cm/string_view>
 #include <cmext/algorithm>
+#include <cmext/string_view>
 
 #include "cmsys/FStream.hxx"
 #include <cmsys/Base64.h>
 #include <cmsys/Directory.hxx>
 #include <cmsys/RegularExpression.hxx>
 
-#include "cm_static_string_view.hxx"
 #include "cm_utf8.h"
 
 #include "cmCTest.h"

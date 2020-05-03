@@ -31,6 +31,8 @@ class cmTarget;
 struct cmGeneratorExpressionContext;
 struct cmGeneratorExpressionDAGChecker;
 
+using cmProp = const std::string*;
+
 class cmGeneratorTarget
 {
 public:
@@ -76,9 +78,9 @@ public:
 
   std::vector<std::string> GetPropertyKeys() const;
   //! Might return a nullptr if the property is not set or invalid
-  const char* GetProperty(const std::string& prop) const;
+  cmProp GetProperty(const std::string& prop) const;
   //! Always returns a valid pointer
-  const char* GetSafeProperty(const std::string& prop) const;
+  std::string const& GetSafeProperty(std::string const& prop) const;
   bool GetPropertyAsBool(const std::string& prop) const;
   void GetSourceFiles(std::vector<cmSourceFile*>& files,
                       const std::string& config) const;

@@ -73,11 +73,12 @@ void cmCommonTargetGenerator::AddModuleDefinitionFlag(
 void cmCommonTargetGenerator::AppendFortranFormatFlags(
   std::string& flags, cmSourceFile const& source)
 {
-  cmProp srcfmt = source.GetProperty("Fortran_FORMAT");
+  const std::string srcfmt = source.GetSafeProperty("Fortran_FORMAT");
   cmOutputConverter::FortranFormat format =
-    cmOutputConverter::GetFortranFormat(srcfmt ? srcfmt->c_str() : nullptr);
+    cmOutputConverter::GetFortranFormat(srcfmt);
   if (format == cmOutputConverter::FortranFormatNone) {
-    const char* tgtfmt = this->GeneratorTarget->GetProperty("Fortran_FORMAT");
+    std::string const& tgtfmt =
+      this->GeneratorTarget->GetSafeProperty("Fortran_FORMAT");
     format = cmOutputConverter::GetFortranFormat(tgtfmt);
   }
   const char* var = nullptr;
@@ -224,9 +225,9 @@ std::string cmCommonTargetGenerator::GetAIXExports(std::string const&)
 {
   std::string aixExports;
   if (this->GeneratorTarget->Target->IsAIX()) {
-    if (const char* exportAll =
+    if (cmProp exportAll =
           this->GeneratorTarget->GetProperty("AIX_EXPORT_ALL_SYMBOLS")) {
-      if (cmIsOff(exportAll)) {
+      if (cmIsOff(*exportAll)) {
         aixExports = "-n";
       }
     }
