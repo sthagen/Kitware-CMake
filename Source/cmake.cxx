@@ -57,7 +57,7 @@
 #if !defined(CMAKE_BOOTSTRAP)
 #  include <unordered_map>
 
-#  include "cm_jsoncpp_writer.h"
+#  include <cm3p/json/writer.h>
 
 #  include "cmFileAPI.h"
 #  include "cmGraphVizWriter.h"
@@ -138,6 +138,7 @@ using JsonValueMapType = std::unordered_map<std::string, Json::Value>;
 static bool cmakeCheckStampFile(const std::string& stampName);
 static bool cmakeCheckStampList(const std::string& stampList);
 
+#ifndef CMAKE_BOOTSTRAP
 static void cmWarnUnusedCliWarning(const std::string& variable, int /*unused*/,
                                    void* ctx, const char* /*unused*/,
                                    const cmMakefile* /*unused*/)
@@ -145,6 +146,7 @@ static void cmWarnUnusedCliWarning(const std::string& variable, int /*unused*/,
   cmake* cm = reinterpret_cast<cmake*>(ctx);
   cm->MarkCliAsUsed(variable);
 }
+#endif
 
 cmake::cmake(Role role, cmState::Mode mode)
   : FileTimeCache(cm::make_unique<cmFileTimeCache>())
@@ -289,7 +291,8 @@ void cmake::CleanupCommandsAndMacros()
 // Parse the args
 bool cmake::SetCacheArgs(const std::vector<std::string>& args)
 {
-  bool findPackageMode = false;
+  auto findPackageMode = false;
+  auto seenScriptOption = false;
   for (unsigned int i = 1; i < args.size(); ++i) {
     std::string const& arg = args[i];
     if (cmHasLiteralPrefix(arg, "-D")) {
@@ -444,6 +447,11 @@ bool cmake::SetCacheArgs(const std::vector<std::string>& args)
       this->SetHomeOutputDirectory(
         cmSystemTools::GetCurrentWorkingDirectory());
       this->ReadListFile(args, path);
+      seenScriptOption = true;
+    } else if (arg == "--" && seenScriptOption) {
+      // Stop processing CMake args and avoid possible errors
+      // when arbitrary args are given to CMake script.
+      break;
     } else if (cmHasLiteralPrefix(arg, "--find-package")) {
       findPackageMode = true;
     }

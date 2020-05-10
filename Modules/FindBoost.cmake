@@ -754,7 +754,11 @@ function(_Boost_GUESS_COMPILER_PREFIX _ret)
         set(_boost_COMPILER "-mgw") # no GCC version encoding prior to 1.34
     else()
       _Boost_COMPILER_DUMPVERSION(_boost_COMPILER_VERSION _boost_COMPILER_VERSION_MAJOR _boost_COMPILER_VERSION_MINOR)
-      set(_boost_COMPILER "-mgw${_boost_COMPILER_VERSION}")
+      if(Boost_VERSION_STRING VERSION_GREATER_EQUAL 1.73 AND _boost_COMPILER_VERSION_MAJOR VERSION_GREATER_EQUAL 5)
+        set(_boost_COMPILER "-mgw${_boost_COMPILER_VERSION_MAJOR}")
+      else()
+        set(_boost_COMPILER "-mgw${_boost_COMPILER_VERSION}")
+      endif()
     endif()
   elseif (UNIX)
     _Boost_COMPILER_DUMPVERSION(_boost_COMPILER_VERSION _boost_COMPILER_VERSION_MAJOR _boost_COMPILER_VERSION_MINOR)
@@ -1453,7 +1457,7 @@ else()
   # _Boost_COMPONENT_HEADERS.  See the instructions at the top of
   # _Boost_COMPONENT_DEPENDENCIES.
   set(_Boost_KNOWN_VERSIONS ${Boost_ADDITIONAL_VERSIONS}
-    "1.72.0" "1.72" "1.71.0" "1.71" "1.70.0" "1.70" "1.69.0" "1.69"
+    "1.73.0" "1.73" "1.72.0" "1.72" "1.71.0" "1.71" "1.70.0" "1.70" "1.69.0" "1.69"
     "1.68.0" "1.68" "1.67.0" "1.67" "1.66.0" "1.66" "1.65.1" "1.65.0" "1.65"
     "1.64.0" "1.64" "1.63.0" "1.63" "1.62.0" "1.62" "1.61.0" "1.61" "1.60.0" "1.60"
     "1.59.0" "1.59" "1.58.0" "1.58" "1.57.0" "1.57" "1.56.0" "1.56" "1.55.0" "1.55"
