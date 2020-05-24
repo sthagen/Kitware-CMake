@@ -2081,11 +2081,11 @@ cmTarget* cmMakefile::AddExecutable(const std::string& exeName,
 cmTarget* cmMakefile::AddNewTarget(cmStateEnums::TargetType type,
                                    const std::string& name)
 {
-  auto it =
-    this->Targets
-      .emplace(name,
-               cmTarget(name, type, cmTarget::VisibilityNormal, this, true))
-      .first;
+  auto it = this->Targets
+              .emplace(name,
+                       cmTarget(name, type, cmTarget::VisibilityNormal, this,
+                                cmTarget::PerConfig::Yes))
+              .first;
   this->OrderedTargets.push_back(&it->second);
   this->GetGlobalGenerator()->IndexTarget(&it->second);
   this->GetStateSnapshot().GetDirectory().AddNormalTargetName(name);
@@ -2404,11 +2404,11 @@ cmSourceGroup* cmMakefile::GetOrCreateSourceGroup(
 
 cmSourceGroup* cmMakefile::GetOrCreateSourceGroup(const std::string& name)
 {
-  const char* delimiter = this->GetDefinition("SOURCE_GROUP_DELIMITER");
-  if (delimiter == nullptr) {
-    delimiter = "\\";
+  const char* delimiters = this->GetDefinition("SOURCE_GROUP_DELIMITER");
+  if (delimiters == nullptr) {
+    delimiters = "/\\";
   }
-  return this->GetOrCreateSourceGroup(cmTokenize(name, delimiter));
+  return this->GetOrCreateSourceGroup(cmTokenize(name, delimiters));
 }
 
 /**
@@ -4261,7 +4261,7 @@ cmTarget* cmMakefile::AddImportedTarget(const std::string& name,
     new cmTarget(name, type,
                  global ? cmTarget::VisibilityImportedGlobally
                         : cmTarget::VisibilityImported,
-                 this, true));
+                 this, cmTarget::PerConfig::Yes));
 
   // Add to the set of available imported targets.
   this->ImportedTargets[name] = target.get();

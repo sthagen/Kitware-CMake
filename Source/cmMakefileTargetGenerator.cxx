@@ -541,6 +541,7 @@ void cmMakefileTargetGenerator::WriteObjectRuleFiles(
   // Add Fortran format flags.
   if (lang == "Fortran") {
     this->AppendFortranFormatFlags(flags, source);
+    this->AppendFortranPreprocessFlags(flags, source);
   }
 
   // Add flags from source file properties.
@@ -895,9 +896,14 @@ void cmMakefileTargetGenerator::WriteObjectRuleFiles(
   // Check for extra outputs created by the compilation.
   std::vector<std::string> outputs(1, relativeObj);
   if (cmProp extra_outputs_str = source.GetProperty("OBJECT_OUTPUTS")) {
-    // Register these as extra files to clean.
-    cmExpandList(*extra_outputs_str, outputs);
-    this->CleanFiles.insert(outputs.begin() + 1, outputs.end());
+    std::string evaluated_outputs = cmGeneratorExpression::Evaluate(
+      *extra_outputs_str, this->LocalGenerator, config);
+
+    if (!evaluated_outputs.empty()) {
+      // Register these as extra files to clean.
+      cmExpandList(evaluated_outputs, outputs);
+      this->CleanFiles.insert(outputs.begin() + 1, outputs.end());
+    }
   }
 
   // Write the rule.

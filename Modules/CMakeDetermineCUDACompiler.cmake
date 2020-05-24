@@ -2,7 +2,7 @@
 # file Copyright.txt or https://cmake.org/licensing for details.
 
 include(${CMAKE_ROOT}/Modules/CMakeDetermineCompiler.cmake)
-include(${CMAKE_ROOT}/Modules//CMakeParseImplicitLinkInfo.cmake)
+include(${CMAKE_ROOT}/Modules/CMakeParseImplicitLinkInfo.cmake)
 
 if( NOT ( ("${CMAKE_GENERATOR}" MATCHES "Make") OR
           ("${CMAKE_GENERATOR}" MATCHES "Ninja") OR
@@ -57,16 +57,39 @@ if(NOT CMAKE_CUDA_COMPILER_ID_RUN)
   file(READ ${CMAKE_ROOT}/Modules/CMakePlatformId.h.in
     CMAKE_CUDA_COMPILER_ID_PLATFORM_CONTENT)
 
-  list(APPEND CMAKE_CUDA_COMPILER_ID_MATCH_VENDORS NVIDIA)
-  set(CMAKE_CUDA_COMPILER_ID_MATCH_VENDOR_REGEX_NVIDIA "nvcc: NVIDIA \(R\) Cuda compiler driver")
+  list(APPEND CMAKE_CUDA_COMPILER_ID_VENDORS NVIDIA Clang)
+  set(CMAKE_CUDA_COMPILER_ID_VENDOR_REGEX_NVIDIA "nvcc: NVIDIA \\(R\\) Cuda compiler driver")
+  set(CMAKE_CUDA_COMPILER_ID_VENDOR_REGEX_Clang "(clang version)")
 
   set(CMAKE_CXX_COMPILER_ID_TOOL_MATCH_REGEX "\nLd[^\n]*(\n[ \t]+[^\n]*)*\n[ \t]+([^ \t\r\n]+)[^\r\n]*-o[^\r\n]*CompilerIdCUDA/(\\./)?(CompilerIdCUDA.xctest/)?CompilerIdCUDA[ \t\n\\\"]")
   set(CMAKE_CXX_COMPILER_ID_TOOL_MATCH_INDEX 2)
+  set(CMAKE_CUDA_COMPILER_ID_FLAGS_ALWAYS "-v")
 
-  set(CMAKE_CUDA_COMPILER_ID_FLAGS_ALWAYS -v --keep --keep-dir tmp)
+  # nvcc
+  set(nvcc_test_flags "--keep --keep-dir tmp")
   if(CMAKE_CUDA_HOST_COMPILER)
-      list(APPEND CMAKE_CUDA_COMPILER_ID_FLAGS_ALWAYS "-ccbin=${CMAKE_CUDA_HOST_COMPILER}")
+    string(APPEND nvcc_test_flags " -ccbin=${CMAKE_CUDA_HOST_COMPILER}")
   endif()
+  list(APPEND CMAKE_CUDA_COMPILER_ID_TEST_FLAGS_FIRST ${nvcc_test_flags})
+
+  # Clang
+  if(CMAKE_CROSSCOMPILING)
+    # Need to pass the host target and include directories if we're crosscompiling.
+    set(clang_test_flags "--sysroot=\"${CMAKE_SYSROOT}\" --target=${CMAKE_CUDA_COMPILER_TARGET}")
+  else()
+    set(clang_test_flags)
+  endif()
+
+  # Clang doesn't automatically select an architecture supported by the SDK.
+  # Try in reverse order of deprecation with the most recent at front (i.e. the most likely to work for new setups).
+  foreach(arch ${CMAKE_CUDA_ARCHITECTURES} "20" "30" "52")
+    # Strip specifiers.
+    string(REGEX MATCH "[0-9]+" arch_name "${arch}")
+    list(APPEND CMAKE_CUDA_COMPILER_ID_TEST_FLAGS_FIRST "${clang_test_flags} --cuda-gpu-arch=sm_${arch_name}")
+  endforeach()
+
+  # Finally also try the default.
+  list(APPEND CMAKE_CUDA_COMPILER_ID_TEST_FLAGS_FIRST "${clang_test_flags}")
 
   include(${CMAKE_ROOT}/Modules/CMakeDetermineCompilerId.cmake)
   CMAKE_DETERMINE_COMPILER_ID(CUDA CUDAFLAGS CMakeCUDACompilerId.cu)
@@ -89,6 +112,47 @@ if(${CMAKE_GENERATOR} MATCHES "Visual Studio")
   set(CMAKE_CUDA_HOST_IMPLICIT_LINK_LIBRARIES "")
   set(CMAKE_CUDA_HOST_IMPLICIT_LINK_DIRECTORIES "")
   set(CMAKE_CUDA_HOST_IMPLICIT_LINK_FRAMEWORK_DIRECTORIES "")
+
+  # We do not currently detect CMAKE_CUDA_HOST_IMPLICIT_LINK_LIBRARIES but we
+  # do need to detect CMAKE_CUDA_RUNTIME_LIBRARY_DEFAULT from the compiler by
+  # looking at which cudart library exists in the implicit link libraries passed
+  # to the host linker.
+  if(CMAKE_CUDA_COMPILER_PRODUCED_OUTPUT MATCHES "link\\.exe [^\n]*cudart_static\\.lib")
+    set(CMAKE_CUDA_RUNTIME_LIBRARY_DEFAULT "STATIC")
+  elseif(CMAKE_CUDA_COMPILER_PRODUCED_OUTPUT MATCHES "link\\.exe [^\n]*cudart\\.lib")
+    set(CMAKE_CUDA_RUNTIME_LIBRARY_DEFAULT "SHARED")
+  else()
+    set(CMAKE_CUDA_RUNTIME_LIBRARY_DEFAULT "NONE")
+  endif()
+  set(_SET_CMAKE_CUDA_RUNTIME_LIBRARY_DEFAULT
+    "set(CMAKE_CUDA_RUNTIME_LIBRARY_DEFAULT \"${CMAKE_CUDA_RUNTIME_LIBRARY_DEFAULT}\")")
+elseif(CMAKE_CUDA_COMPILER_ID STREQUAL "Clang")
+  # Parse default CUDA architecture.
+  if(NOT CMAKE_CUDA_ARCHITECTURES)
+    string(REGEX MATCH "-target-cpu sm_([0-9]+)" dont_care "${CMAKE_CUDA_COMPILER_PRODUCED_OUTPUT}")
+    set(CMAKE_CUDA_ARCHITECTURES "${CMAKE_MATCH_1}" CACHE STRING "CUDA architectures")
+
+    if(NOT CMAKE_CUDA_ARCHITECTURES)
+      message(FATAL_ERROR "Failed to find default CUDA architecture.")
+    endif()
+  endif()
+
+  # Parsing implicit host linker info is as simple as for regular Clang.
+  CMAKE_PARSE_IMPLICIT_LINK_INFO("${CMAKE_CUDA_COMPILER_PRODUCED_OUTPUT}"
+                                 CMAKE_CUDA_HOST_IMPLICIT_LINK_LIBRARIES
+                                 CMAKE_CUDA_HOST_IMPLICIT_LINK_DIRECTORIES
+                                 CMAKE_CUDA_HOST_IMPLICIT_LINK_FRAMEWORK_DIRECTORIES
+                                 log
+                                 "${CMAKE_CUDA_IMPLICIT_OBJECT_REGEX}")
+
+  # Get SDK directory.
+  string(REGEX MATCH "Found CUDA installation: (.+), version" dont_care "${CMAKE_CUDA_COMPILER_PRODUCED_OUTPUT}")
+  set(__cuda_directory "${CMAKE_MATCH_1}")
+
+  # Clang doesn't add the SDK library directory to the implicit link path. Do it ourselves, so stuff works.
+  include(Internal/CUDAToolkit)
+  set(CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES "${CUDAToolkit_INCLUDE_DIR}")
+  list(APPEND CMAKE_CUDA_HOST_IMPLICIT_LINK_DIRECTORIES "${CUDAToolkit_LIBRARY_DIR}")
 elseif(CMAKE_CUDA_COMPILER_ID STREQUAL "NVIDIA")
   set(_nvcc_log "")
   string(REPLACE "\r" "" _nvcc_output_orig "${CMAKE_CUDA_COMPILER_PRODUCED_OUTPUT}")
@@ -181,6 +245,20 @@ elseif(CMAKE_CUDA_COMPILER_ID STREQUAL "NVIDIA")
                                    CMAKE_CUDA_HOST_IMPLICIT_LINK_FRAMEWORK_DIRECTORIES
                                    log
                                    "${CMAKE_CUDA_IMPLICIT_OBJECT_REGEX}")
+
+    # Detect CMAKE_CUDA_RUNTIME_LIBRARY_DEFAULT from the compiler by looking at which
+    # cudart library exists in the implicit link libraries passed to the host linker.
+    # This is required when a project sets the cuda runtime library as part of the
+    # initial flags.
+    if(";${CMAKE_CUDA_HOST_IMPLICIT_LINK_LIBRARIES};" MATCHES [[;cudart_static(\.lib)?;]])
+      set(CMAKE_CUDA_RUNTIME_LIBRARY_DEFAULT "STATIC")
+    elseif(";${CMAKE_CUDA_HOST_IMPLICIT_LINK_LIBRARIES};" MATCHES [[;cudart(\.lib)?;]])
+      set(CMAKE_CUDA_RUNTIME_LIBRARY_DEFAULT "SHARED")
+    else()
+      set(CMAKE_CUDA_RUNTIME_LIBRARY_DEFAULT "NONE")
+    endif()
+    set(_SET_CMAKE_CUDA_RUNTIME_LIBRARY_DEFAULT
+      "set(CMAKE_CUDA_RUNTIME_LIBRARY_DEFAULT \"${CMAKE_CUDA_RUNTIME_LIBRARY_DEFAULT}\")")
 
     file(APPEND ${CMAKE_BINARY_DIR}${CMAKE_FILES_DIRECTORY}/CMakeOutput.log
       "Parsed CUDA nvcc implicit link information from above output:\n${_nvcc_log}\n${log}\n\n")
