@@ -80,12 +80,23 @@ if(NOT CMAKE_CUDA_COMPILER_ID_RUN)
     set(clang_test_flags)
   endif()
 
+  # First try with the user-specified architectures.
+  if(CMAKE_CUDA_ARCHITECTURES)
+    set(clang_archs "${clang_test_flags}")
+
+    foreach(arch ${CMAKE_CUDA_ARCHITECTURES})
+      # Strip specifiers as PTX vs binary doesn't matter.
+      string(REGEX MATCH "[0-9]+" arch_name "${arch}")
+      string(APPEND clang_archs " --cuda-gpu-arch=sm_${arch_name}")
+    endforeach()
+
+    list(APPEND CMAKE_CUDA_COMPILER_ID_TEST_FLAGS_FIRST "${clang_archs}")
+  endif()
+
   # Clang doesn't automatically select an architecture supported by the SDK.
   # Try in reverse order of deprecation with the most recent at front (i.e. the most likely to work for new setups).
-  foreach(arch ${CMAKE_CUDA_ARCHITECTURES} "20" "30" "52")
-    # Strip specifiers.
-    string(REGEX MATCH "[0-9]+" arch_name "${arch}")
-    list(APPEND CMAKE_CUDA_COMPILER_ID_TEST_FLAGS_FIRST "${clang_test_flags} --cuda-gpu-arch=sm_${arch_name}")
+  foreach(arch "20" "30" "52")
+    list(APPEND CMAKE_CUDA_COMPILER_ID_TEST_FLAGS_FIRST "${clang_test_flags} --cuda-gpu-arch=sm_${arch}")
   endforeach()
 
   # Finally also try the default.
@@ -127,32 +138,40 @@ if(${CMAKE_GENERATOR} MATCHES "Visual Studio")
   set(_SET_CMAKE_CUDA_RUNTIME_LIBRARY_DEFAULT
     "set(CMAKE_CUDA_RUNTIME_LIBRARY_DEFAULT \"${CMAKE_CUDA_RUNTIME_LIBRARY_DEFAULT}\")")
 elseif(CMAKE_CUDA_COMPILER_ID STREQUAL "Clang")
-  # Parse default CUDA architecture.
   if(NOT CMAKE_CUDA_ARCHITECTURES)
+    # Find the architecture that we successfully compiled using and set it as the default.
     string(REGEX MATCH "-target-cpu sm_([0-9]+)" dont_care "${CMAKE_CUDA_COMPILER_PRODUCED_OUTPUT}")
     set(CMAKE_CUDA_ARCHITECTURES "${CMAKE_MATCH_1}" CACHE STRING "CUDA architectures")
 
     if(NOT CMAKE_CUDA_ARCHITECTURES)
-      message(FATAL_ERROR "Failed to find default CUDA architecture.")
+      message(FATAL_ERROR "Failed to find a working CUDA architecture.")
+    endif()
+  else()
+    string(REGEX MATCHALL "-target-cpu sm_([0-9]+)" target_cpus "${CMAKE_CUDA_COMPILER_PRODUCED_OUTPUT}")
+
+    foreach(cpu ${target_cpus})
+      string(REGEX MATCH "-target-cpu sm_([0-9]+)" dont_care "${cpu}")
+      list(APPEND architectures "${CMAKE_MATCH_1}")
+    endforeach()
+
+    if(NOT "${architectures}" STREQUAL "${CMAKE_CUDA_ARCHITECTURES}")
+      message(FATAL_ERROR
+        "The CMAKE_CUDA_ARCHITECTURES:\n"
+        "  ${CMAKE_CUDA_ARCHITECTURES}\n"
+        "do not all work with this compiler.  Try:\n"
+        "  ${architectures}\n"
+        "instead.")
     endif()
   endif()
 
-  # Parsing implicit host linker info is as simple as for regular Clang.
-  CMAKE_PARSE_IMPLICIT_LINK_INFO("${CMAKE_CUDA_COMPILER_PRODUCED_OUTPUT}"
-                                 CMAKE_CUDA_HOST_IMPLICIT_LINK_LIBRARIES
-                                 CMAKE_CUDA_HOST_IMPLICIT_LINK_DIRECTORIES
-                                 CMAKE_CUDA_HOST_IMPLICIT_LINK_FRAMEWORK_DIRECTORIES
-                                 log
-                                 "${CMAKE_CUDA_IMPLICIT_OBJECT_REGEX}")
-
-  # Get SDK directory.
-  string(REGEX MATCH "Found CUDA installation: (.+), version" dont_care "${CMAKE_CUDA_COMPILER_PRODUCED_OUTPUT}")
-  set(__cuda_directory "${CMAKE_MATCH_1}")
-
-  # Clang doesn't add the SDK library directory to the implicit link path. Do it ourselves, so stuff works.
+  # Clang does not add any CUDA SDK libraries or directories when invoking the host linker.
+  # Add the CUDA toolkit library directory ourselves so that linking works.
+  # The CUDA runtime libraries are handled elsewhere by CMAKE_CUDA_RUNTIME_LIBRARY.
   include(Internal/CUDAToolkit)
   set(CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES "${CUDAToolkit_INCLUDE_DIR}")
-  list(APPEND CMAKE_CUDA_HOST_IMPLICIT_LINK_DIRECTORIES "${CUDAToolkit_LIBRARY_DIR}")
+  set(CMAKE_CUDA_HOST_IMPLICIT_LINK_DIRECTORIES "${CUDAToolkit_LIBRARY_DIR}")
+  set(CMAKE_CUDA_HOST_IMPLICIT_LINK_LIBRARIES "")
+  set(CMAKE_CUDA_HOST_IMPLICIT_LINK_FRAMEWORK_DIRECTORIES "")
 elseif(CMAKE_CUDA_COMPILER_ID STREQUAL "NVIDIA")
   set(_nvcc_log "")
   string(REPLACE "\r" "" _nvcc_output_orig "${CMAKE_CUDA_COMPILER_PRODUCED_OUTPUT}")
@@ -268,6 +287,24 @@ elseif(CMAKE_CUDA_COMPILER_ID STREQUAL "NVIDIA")
     message(FATAL_ERROR "Failed to extract nvcc implicit link line.")
   endif()
 endif()
+
+# CMAKE_CUDA_HOST_IMPLICIT_LINK_LIBRARIES is detected above as the list of
+# libraries that the CUDA compiler implicitly passes to the host linker.
+# CMake invokes the host linker directly and so needs to pass these libraries.
+# We filter out those that should not be passed unconditionally both here
+# and from CMAKE_CUDA_IMPLICIT_LINK_LIBRARIES in CMakeTestCUDACompiler.
+set(CMAKE_CUDA_IMPLICIT_LINK_LIBRARIES_EXCLUDE
+  # The CUDA runtime libraries are controlled by CMAKE_CUDA_RUNTIME_LIBRARY.
+  cudart        cudart.lib
+  cudart_static cudart_static.lib
+  cudadevrt     cudadevrt.lib
+
+  # Dependencies of the CUDA static runtime library on Linux hosts.
+  rt
+  pthread
+  dl
+  )
+list(REMOVE_ITEM CMAKE_CUDA_HOST_IMPLICIT_LINK_LIBRARIES ${CMAKE_CUDA_IMPLICIT_LINK_LIBRARIES_EXCLUDE})
 
 if(CMAKE_CUDA_COMPILER_SYSROOT)
   string(CONCAT _SET_CMAKE_CUDA_COMPILER_SYSROOT
