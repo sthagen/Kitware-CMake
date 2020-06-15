@@ -18,6 +18,7 @@
 #include "cmLinkItem.h"
 #include "cmListFileCache.h"
 #include "cmPolicies.h"
+#include "cmProperty.h"
 #include "cmStateTypes.h"
 
 class cmComputeLinkInformation;
@@ -30,8 +31,6 @@ class cmTarget;
 
 struct cmGeneratorExpressionContext;
 struct cmGeneratorExpressionDAGChecker;
-
-using cmProp = const std::string*;
 
 class cmGeneratorTarget
 {
@@ -427,6 +426,7 @@ public:
                      std::vector<std::string>& archVec) const;
 
   void AddCUDAArchitectureFlags(std::string& flags) const;
+  void AddCUDAToolkitFlags(std::string& flags) const;
 
   std::string GetFeatureSpecificLinkRuleVariable(
     std::string const& var, std::string const& lang,

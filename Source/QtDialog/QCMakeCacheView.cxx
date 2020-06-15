@@ -155,11 +155,7 @@ QModelIndex QCMakeCacheView::moveCursor(CursorAction act,
 
 void QCMakeCacheView::setShowAdvanced(bool s)
 {
-#if QT_VERSION >= 040300
-  // new 4.3 API that needs to be called.  what about an older Qt?
   this->SearchFilter->invalidate();
-#endif
-
   this->AdvancedFilter->setShowAdvanced(s);
 }
 
@@ -209,18 +205,33 @@ void QCMakeCacheModel::clear()
 
 void QCMakeCacheModel::setProperties(const QCMakePropertyList& props)
 {
+  this->beginResetModel();
+
   QSet<QCMakeProperty> newProps;
   QSet<QCMakeProperty> newProps2;
 
   if (this->ShowNewProperties) {
+#if QT_VERSION < QT_VERSION_CHECK(5, 14, 0)
     newProps = props.toSet();
+#else
+    newProps = QSet(props.begin(), props.end());
+#endif
     newProps2 = newProps;
+#if QT_VERSION < QT_VERSION_CHECK(5, 14, 0)
     QSet<QCMakeProperty> oldProps = this->properties().toSet();
+#else
+    QSet<QCMakeProperty> oldProps =
+      QSet(this->properties().begin(), this->properties().end());
+#endif
     oldProps.intersect(newProps);
     newProps.subtract(oldProps);
     newProps2.subtract(newProps);
   } else {
+#if QT_VERSION < QT_VERSION_CHECK(5, 14, 0)
     newProps2 = props.toSet();
+#else
+    newProps2 = QSet(props.begin(), props.end());
+#endif
   }
 
   bool b = this->blockSignals(true);
@@ -229,10 +240,15 @@ void QCMakeCacheModel::setProperties(const QCMakePropertyList& props)
   this->NewPropertyCount = newProps.size();
 
   if (View == FlatView) {
-    QCMakePropertyList newP = newProps.toList();
-    QCMakePropertyList newP2 = newProps2.toList();
+    QCMakePropertyList newP = newProps.values();
+    QCMakePropertyList newP2 = newProps2.values();
+#if QT_VERSION >= QT_VERSION_CHECK(5, 9, 0)
+    std::sort(newP.begin(), newP.end());
+    std::sort(newP2.begin(), newP2.end());
+#else
     qSort(newP);
     qSort(newP2);
+#endif
     int row_count = 0;
     foreach (QCMakeProperty const& p, newP) {
       this->insertRow(row_count);
@@ -262,10 +278,17 @@ void QCMakeCacheModel::setProperties(const QCMakePropertyList& props)
       parentItems.append(
         new QStandardItem(key.isEmpty() ? tr("Ungrouped Entries") : key));
       parentItems.append(new QStandardItem());
+#if QT_VERSION >= QT_VERSION_CHECK(5, 9, 0)
+      parentItems[0]->setData(QBrush(QColor(255, 100, 100)),
+                              Qt::BackgroundRole);
+      parentItems[1]->setData(QBrush(QColor(255, 100, 100)),
+                              Qt::BackgroundRole);
+#else
       parentItems[0]->setData(QBrush(QColor(255, 100, 100)),
                               Qt::BackgroundColorRole);
       parentItems[1]->setData(QBrush(QColor(255, 100, 100)),
                               Qt::BackgroundColorRole);
+#endif
       parentItems[0]->setData(1, GroupRole);
       parentItems[1]->setData(1, GroupRole);
       root->appendRow(parentItems);
@@ -305,7 +328,7 @@ void QCMakeCacheModel::setProperties(const QCMakePropertyList& props)
   }
 
   this->blockSignals(b);
-  this->reset();
+  this->endResetModel();
 }
 
 QCMakeCacheModel::ViewType QCMakeCacheModel::viewType() const
@@ -315,6 +338,8 @@ QCMakeCacheModel::ViewType QCMakeCacheModel::viewType() const
 
 void QCMakeCacheModel::setViewType(QCMakeCacheModel::ViewType t)
 {
+  this->beginResetModel();
+
   this->View = t;
 
   QCMakePropertyList props = this->properties();
@@ -330,7 +355,7 @@ void QCMakeCacheModel::setViewType(QCMakeCacheModel::ViewType t)
   this->setProperties(oldProps);
   this->setProperties(props);
   this->blockSignals(b);
-  this->reset();
+  this->endResetModel();
 }
 
 void QCMakeCacheModel::setPropertyData(const QModelIndex& idx1,
@@ -356,10 +381,15 @@ void QCMakeCacheModel::setPropertyData(const QModelIndex& idx1,
   }
 
   if (isNew) {
+#if QT_VERSION >= QT_VERSION_CHECK(5, 9, 0)
+    this->setData(idx1, QBrush(QColor(255, 100, 100)), Qt::BackgroundRole);
+    this->setData(idx2, QBrush(QColor(255, 100, 100)), Qt::BackgroundRole);
+#else
     this->setData(idx1, QBrush(QColor(255, 100, 100)),
                   Qt::BackgroundColorRole);
     this->setData(idx2, QBrush(QColor(255, 100, 100)),
                   Qt::BackgroundColorRole);
+#endif
   }
 }
 
@@ -409,7 +439,11 @@ void QCMakeCacheModel::breakProperties(
       reorgProps.append((*iter)[0]);
       iter = tmp.erase(iter);
     } else {
+#if QT_VERSION >= QT_VERSION_CHECK(5, 9, 0)
+      std::sort(iter->begin(), iter->end());
+#else
       qSort(*iter);
+#endif
       ++iter;
     }
   }
@@ -447,8 +481,7 @@ QCMakePropertyList QCMakeCacheModel::properties() const
       // go to the next in the tree
       while (!idxs.isEmpty() &&
              (
-#if QT_VERSION >= QT_VERSION_CHECK(5, 0, 0) &&                                \
-  QT_VERSION < QT_VERSION_CHECK(5, 1, 0)
+#if QT_VERSION < QT_VERSION_CHECK(5, 1, 0)
                (idxs.last().row() + 1) >= rowCount(idxs.last().parent()) ||
 #endif
                !idxs.last().sibling(idxs.last().row() + 1, 0).isValid())) {
@@ -608,20 +641,6 @@ bool QCMakeCacheModelDelegate::editorEvent(QEvent* e,
   return success;
 }
 
-// Issue 205903 fixed in Qt 4.5.0.
-// Can remove this function and FileDialogFlag when minimum Qt version is 4.5
-bool QCMakeCacheModelDelegate::eventFilter(QObject* object, QEvent* evt)
-{
-  // workaround for what looks like a bug in Qt on macOS
-  // where it doesn't create a QWidget wrapper for the native file dialog
-  // so the Qt library ends up assuming the focus was lost to something else
-
-  if (evt->type() == QEvent::FocusOut && this->FileDialogFlag) {
-    return false;
-  }
-  return QItemDelegate::eventFilter(object, evt);
-}
-
 void QCMakeCacheModelDelegate::setModelData(QWidget* editor,
                                             QAbstractItemModel* model,
                                             const QModelIndex& index) const
@@ -639,9 +658,15 @@ QSize QCMakeCacheModelDelegate::sizeHint(const QStyleOptionViewItem& option,
   // increase to checkbox size
   QStyleOptionButton opt;
   opt.QStyleOption::operator=(option);
+#if QT_VERSION >= QT_VERSION_CHECK(5, 13, 0)
+  sz = sz.expandedTo(
+    style->subElementRect(QStyle::SE_ItemViewItemCheckIndicator, &opt, nullptr)
+      .size());
+#else
   sz = sz.expandedTo(
     style->subElementRect(QStyle::SE_ViewItemCheckIndicator, &opt, nullptr)
       .size());
+#endif
 
   return sz;
 }

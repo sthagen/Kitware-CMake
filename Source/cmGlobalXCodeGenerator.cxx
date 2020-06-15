@@ -819,6 +819,14 @@ cmXCodeObject* cmGlobalXCodeGenerator::CreateXCodeSourceFile(
     default:
       break;
   }
+
+  // explicitly add the explicit language flag before any other flag
+  // this way backwards compatibility with user flags is maintained
+  if (sf->GetProperty("LANGUAGE")) {
+    this->CurrentLocalGenerator->AppendFeatureOptions(flags, lang,
+                                                      "EXPLICIT_LANGUAGE");
+  }
+
   const std::string COMPILE_FLAGS("COMPILE_FLAGS");
   if (cmProp cflags = sf->GetProperty(COMPILE_FLAGS)) {
     lg->AppendFlags(flags, genexInterpreter.Evaluate(*cflags, COMPILE_FLAGS));
@@ -3204,10 +3212,9 @@ std::string cmGlobalXCodeGenerator::GetObjectsDirectory(
 void cmGlobalXCodeGenerator::ComputeArchitectures(cmMakefile* mf)
 {
   this->Architectures.clear();
-  const char* osxArch = mf->GetDefinition("CMAKE_OSX_ARCHITECTURES");
   const char* sysroot = mf->GetDefinition("CMAKE_OSX_SYSROOT");
-  if (osxArch && sysroot) {
-    cmExpandList(std::string(osxArch), this->Architectures);
+  if (sysroot) {
+    mf->GetDefExpandList("CMAKE_OSX_ARCHITECTURES", this->Architectures);
   }
 
   if (this->Architectures.empty()) {

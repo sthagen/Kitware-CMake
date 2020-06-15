@@ -29,6 +29,7 @@
 #include "cmNinjaNormalTargetGenerator.h"
 #include "cmNinjaUtilityTargetGenerator.h"
 #include "cmOutputConverter.h"
+#include "cmProperty.h"
 #include "cmRange.h"
 #include "cmRulePlaceholderExpander.h"
 #include "cmSourceFile.h"
@@ -187,7 +188,16 @@ std::string cmNinjaTargetGenerator::ComputeFlagsForObject(
     }
   }
 
-  std::string flags = this->GetFlags(language, config, filterArch);
+  std::string flags;
+  // explicitly add the explicit language flag before any other flag
+  // this way backwards compatibility with user flags is maintained
+  if (source->GetProperty("LANGUAGE")) {
+    this->LocalGenerator->AppendFeatureOptions(flags, language,
+                                               "EXPLICIT_LANGUAGE");
+    flags += " ";
+  }
+
+  flags += this->GetFlags(language, config, filterArch);
 
   // Add Fortran format flags.
   if (language == "Fortran") {
@@ -749,9 +759,9 @@ void cmNinjaTargetGenerator::WriteCompileRule(const std::string& lang,
     if (!mf->GetIsSourceFileTryCompile()) {
       rule.DepType = "gcc";
       rule.DepFile = "$DEP_FILE";
-      const std::string cl = mf->GetDefinition("CMAKE_C_COMPILER")
-        ? mf->GetSafeDefinition("CMAKE_C_COMPILER")
-        : mf->GetSafeDefinition("CMAKE_CXX_COMPILER");
+      auto d = mf->GetDefinition("CMAKE_C_COMPILER");
+      const std::string cl =
+        d ? d : mf->GetSafeDefinition("CMAKE_CXX_COMPILER");
       cldeps = cmStrCat('"', cmSystemTools::GetCMClDepsCommand(), "\" ", lang,
                         ' ', vars.Source, " $DEP_FILE $out \"",
                         mf->GetSafeDefinition("CMAKE_CL_SHOWINCLUDES_PREFIX"),

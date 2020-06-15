@@ -2035,10 +2035,13 @@ void cmMakefile::AddGlobalLinkInformation(cmTarget& target)
   }
 }
 
-void cmMakefile::AddAlias(const std::string& lname, std::string const& tgtName)
+void cmMakefile::AddAlias(const std::string& lname, std::string const& tgtName,
+                          bool globallyVisible)
 {
   this->AliasTargets[lname] = tgtName;
-  this->GetGlobalGenerator()->AddAlias(lname, tgtName);
+  if (globallyVisible) {
+    this->GetGlobalGenerator()->AddAlias(lname, tgtName);
+  }
 }
 
 cmTarget* cmMakefile::AddLibrary(const std::string& lname,
@@ -2745,6 +2748,18 @@ const std::string& cmMakefile::GetSafeDefinition(const std::string& name) const
   return *def;
 }
 
+bool cmMakefile::GetDefExpandList(const std::string& name,
+                                  std::vector<std::string>& out,
+                                  bool emptyArgs) const
+{
+  cmProp def = this->GetDef(name);
+  if (!def) {
+    return false;
+  }
+  cmExpandList(*def, out, emptyArgs);
+  return true;
+}
+
 std::vector<std::string> cmMakefile::GetDefinitions() const
 {
   std::vector<std::string> res = this->StateSnapshot.ClosureKeys();
@@ -3273,10 +3288,7 @@ std::string cmMakefile::GetConfigurations(std::vector<std::string>& configs,
                                           bool singleConfig) const
 {
   if (this->GetGlobalGenerator()->IsMultiConfig()) {
-    if (const char* configTypes =
-          this->GetDefinition("CMAKE_CONFIGURATION_TYPES")) {
-      cmExpandList(configTypes, configs);
-    }
+    this->GetDefExpandList("CMAKE_CONFIGURATION_TYPES", configs);
     return "";
   }
   const std::string& buildType = this->GetSafeDefinition("CMAKE_BUILD_TYPE");
@@ -4277,7 +4289,15 @@ cmTarget* cmMakefile::FindTargetToUse(const std::string& name,
 {
   // Look for an imported target.  These take priority because they
   // are more local in scope and do not have to be globally unique.
-  auto imported = this->ImportedTargets.find(name);
+  auto targetName = name;
+  if (!excludeAliases) {
+    // Look for local alias targets.
+    auto alias = this->AliasTargets.find(name);
+    if (alias != this->AliasTargets.end()) {
+      targetName = alias->second;
+    }
+  }
+  auto imported = this->ImportedTargets.find(targetName);
   if (imported != this->ImportedTargets.end()) {
     return imported->second;
   }
@@ -4534,7 +4554,7 @@ bool cmMakefile::SetPolicy(cmPolicies::PolicyID id,
 
   // Deprecate old policies, especially those that require a lot
   // of code to maintain the old behavior.
-  if (status == cmPolicies::OLD && id <= cmPolicies::CMP0071 &&
+  if (status == cmPolicies::OLD && id <= cmPolicies::CMP0072 &&
       !(this->GetCMakeInstance()->GetIsInTryCompile() &&
         (
           // Policies set by cmCoreTryCompile::TryCompileCode.

@@ -17,13 +17,12 @@
 #include "cmLocalGenerator.h"
 #include "cmMakefile.h"
 #include "cmMessageType.h"
+#include "cmProperty.h"
 #include "cmSourceFile.h"
 #include "cmStateTypes.h"
 #include "cmStringAlgorithms.h"
 #include "cmSystemTools.h"
 #include "cmake.h"
-
-using cmProp = const std::string*; // just to silence IWYU
 
 /*
 Sublime Text 2 Generator
@@ -350,6 +349,13 @@ std::string cmExtraSublimeTextGenerator::ComputeFlagsForObject(
   if (language.empty()) {
     language = "C";
   }
+
+  // explicitly add the explicit language flag before any other flag
+  // this way backwards compatibility with user flags is maintained
+  if (source->GetProperty("LANGUAGE")) {
+    lg->AppendFeatureOptions(flags, language, "EXPLICIT_LANGUAGE");
+  }
+
   std::string const& config =
     lg->GetMakefile()->GetSafeDefinition("CMAKE_BUILD_TYPE");
 

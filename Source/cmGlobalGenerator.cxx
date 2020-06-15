@@ -42,6 +42,7 @@
 #include "cmMakefile.h"
 #include "cmMessageType.h"
 #include "cmPolicies.h"
+#include "cmProperty.h"
 #include "cmRange.h"
 #include "cmSourceFile.h"
 #include "cmState.h"
@@ -1617,7 +1618,23 @@ bool cmGlobalGenerator::AddAutomaticSources()
         continue;
       }
       lg->AddUnityBuild(gt.get());
-      lg->AddPchDependencies(gt.get());
+      // Targets that re-use a PCH are handled below.
+      if (!gt->GetProperty("PRECOMPILE_HEADERS_REUSE_FROM")) {
+        lg->AddPchDependencies(gt.get());
+      }
+    }
+  }
+  for (const auto& lg : this->LocalGenerators) {
+    for (const auto& gt : lg->GetGeneratorTargets()) {
+      if (gt->GetType() == cmStateEnums::INTERFACE_LIBRARY ||
+          gt->GetType() == cmStateEnums::UTILITY ||
+          gt->GetType() == cmStateEnums::GLOBAL_TARGET) {
+        continue;
+      }
+      // Handle targets that re-use a PCH from an above-handled target.
+      if (gt->GetProperty("PRECOMPILE_HEADERS_REUSE_FROM")) {
+        lg->AddPchDependencies(gt.get());
+      }
     }
   }
   // The above transformations may have changed the classification of sources.
@@ -1971,8 +1988,9 @@ int cmGlobalGenerator::Build(
   std::string makeCommandStr;
   output += "\nRun Build Command(s):";
 
-  for (auto command = makeCommand.begin(); command != makeCommand.end();
-       ++command) {
+  retVal = 0;
+  for (auto command = makeCommand.begin();
+       command != makeCommand.end() && retVal == 0; ++command) {
     makeCommandStr = command->Printable();
     if (command != makeCommand.end()) {
       makeCommandStr += " && ";
@@ -2507,9 +2525,8 @@ void cmGlobalGenerator::AddGlobalTarget_Test(
   cmCustomCommandLine singleLine;
   singleLine.push_back(cmSystemTools::GetCTestCommand());
   singleLine.push_back("--force-new-ctest-process");
-  if (auto testArgs = mf->GetDefinition("CMAKE_CTEST_ARGUMENTS")) {
-    std::vector<std::string> args;
-    cmExpandList(testArgs, args);
+  std::vector<std::string> args;
+  if (mf->GetDefExpandList("CMAKE_CTEST_ARGUMENTS", args)) {
     for (auto const& arg : args) {
       singleLine.push_back(arg);
     }

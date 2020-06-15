@@ -34,6 +34,7 @@
 #include "cmInstallTargetGenerator.h"
 #include "cmLinkLineComputer.h"
 #include "cmMakefile.h"
+#include "cmProperty.h"
 #include "cmRulePlaceholderExpander.h"
 #include "cmSourceFile.h"
 #include "cmSourceFileLocation.h"
@@ -1235,11 +1236,10 @@ std::vector<BT<std::string>> cmLocalGenerator::GetIncludeDirectoriesImplicit(
     // * Compilers like gfortran do not search their own implicit include
     //   directories for modules ('.mod' files).
     if (lang != "Fortran") {
-      const char* value = this->Makefile->GetDefinition(
-        cmStrCat("CMAKE_", lang, "_IMPLICIT_INCLUDE_DIRECTORIES"));
-      if (value != nullptr) {
-        size_t const impDirVecOldSize = impDirVec.size();
-        cmExpandList(value, impDirVec);
+      size_t const impDirVecOldSize = impDirVec.size();
+      if (this->Makefile->GetDefExpandList(
+            cmStrCat("CMAKE_", lang, "_IMPLICIT_INCLUDE_DIRECTORIES"),
+            impDirVec)) {
         // FIXME: Use cmRange with 'advance()' when it supports non-const.
         for (size_t i = impDirVecOldSize; i < impDirVec.size(); ++i) {
           cmSystemTools::ConvertToUnixSlashes(impDirVec[i]);
@@ -1986,6 +1986,20 @@ void cmLocalGenerator::AddLanguageFlags(std::string& flags,
     }
   } else if (lang == "CUDA") {
     target->AddCUDAArchitectureFlags(flags);
+    target->AddCUDAToolkitFlags(flags);
+
+    std::string const& compiler =
+      this->Makefile->GetSafeDefinition("CMAKE_CUDA_COMPILER_ID");
+
+    if (compiler == "Clang") {
+      bool separable = target->GetPropertyAsBool("CUDA_SEPARABLE_COMPILATION");
+
+      if (separable) {
+        this->Makefile->IssueMessage(
+          MessageType::FATAL_ERROR,
+          "CUDA_SEPARABLE_COMPILATION isn't supported on Clang.");
+      }
+    }
   }
 
   // Add MSVC runtime library flags.  This is activated by the presence
@@ -2047,6 +2061,15 @@ cmGeneratorTarget* cmLocalGenerator::FindGeneratorTargetToUse(
   auto imported = this->ImportedGeneratorTargets.find(name);
   if (imported != this->ImportedGeneratorTargets.end()) {
     return imported->second;
+  }
+
+  // find local alias to imported target
+  auto aliased = this->AliasTargets.find(name);
+  if (aliased != this->AliasTargets.end()) {
+    imported = this->ImportedGeneratorTargets.find(aliased->second);
+    if (imported != this->ImportedGeneratorTargets.end()) {
+      return imported->second;
+    }
   }
 
   if (cmGeneratorTarget* t = this->FindLocalNonAliasGeneratorTarget(name)) {
@@ -2468,7 +2491,8 @@ bool cmLocalGenerator::GetShouldUseOldFlags(bool shared,
           std::ostringstream e;
           e << "Variable " << flagsVar
             << " has been modified. CMake "
-               "will ignore the POSITION_INDEPENDENT_CODE target property for "
+               "will ignore the POSITION_INDEPENDENT_CODE target property "
+               "for "
                "shared libraries and will use the "
             << flagsVar
             << " variable "
@@ -2565,7 +2589,8 @@ void cmLocalGenerator::AddPchDependencies(cmGeneratorTarget* target)
   }
 
   for (std::string const& config : configsList) {
-    // FIXME: Refactor collection of sources to not evaluate object libraries.
+    // FIXME: Refactor collection of sources to not evaluate object
+    // libraries.
     std::vector<cmSourceFile*> sources;
     target->GetSourceFiles(sources, config);
 
@@ -3270,8 +3295,8 @@ const char* cmLocalGenerator::GetFeature(const std::string& feature,
                                          const std::string& config)
 {
   std::string featureName = feature;
-  // TODO: Define accumulation policy for features (prepend, append, replace).
-  // Currently we always replace.
+  // TODO: Define accumulation policy for features (prepend, append,
+  // replace). Currently we always replace.
   if (!config.empty()) {
     featureName += "_";
     featureName += cmSystemTools::UpperCase(config);
@@ -4120,9 +4145,9 @@ void AddUtilityCommand(cmLocalGenerator& lg, const cmListFileBacktrace& lfbt,
   cmImplicitDependsList no_implicit_depends;
   cmSourceFile* rule = AddCustomCommand(
     lg, lfbt, { force.Name }, byproducts, depends, no_main_dependency,
-    no_implicit_depends, commandLines, comment, workingDir, /*replace=*/false,
-    escapeOldStyle, uses_terminal, command_expand_lists, /*depfile=*/"",
-    job_pool, stdPipesUTF8);
+    no_implicit_depends, commandLines, comment, workingDir,
+    /*replace=*/false, escapeOldStyle, uses_terminal, command_expand_lists,
+    /*depfile=*/"", job_pool, stdPipesUTF8);
   if (rule) {
     lg.GetMakefile()->AddTargetByproducts(target, byproducts);
   }

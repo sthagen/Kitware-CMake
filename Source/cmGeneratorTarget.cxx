@@ -37,6 +37,7 @@
 #include "cmLocalGenerator.h"
 #include "cmMakefile.h"
 #include "cmMessageType.h"
+#include "cmOutputConverter.h"
 #include "cmPropertyMap.h"
 #include "cmRange.h"
 #include "cmSourceFile.h"
@@ -1486,11 +1487,8 @@ std::vector<BT<std::string>> cmGeneratorTarget::GetSourceFilePaths(
   }
 
   std::vector<std::string> debugProperties;
-  const char* debugProp =
-    this->Makefile->GetDefinition("CMAKE_DEBUG_TARGET_PROPERTIES");
-  if (debugProp) {
-    cmExpandList(debugProp, debugProperties);
-  }
+  this->Makefile->GetDefExpandList("CMAKE_DEBUG_TARGET_PROPERTIES",
+                                   debugProperties);
 
   bool debugSources =
     !this->DebugSourcesDone && cm::contains(debugProperties, "SOURCES");
@@ -2651,7 +2649,8 @@ void cmGeneratorTarget::ComputeModuleDefinitionInfo(
   info.DefFileGenerated = false;
 #endif
   if (info.DefFileGenerated) {
-    info.DefFile = this->ObjectDirectory /* has slash */ + "exports.def";
+    info.DefFile =
+      this->GetObjectDirectory(config) /* has slash */ + "exports.def";
   } else if (!info.Sources.empty()) {
     info.DefFile = info.Sources.front()->GetFullPath();
   }
@@ -3046,6 +3045,34 @@ void cmGeneratorTarget::GetAppleArchs(const std::string& config,
 
 void cmGeneratorTarget::AddCUDAArchitectureFlags(std::string& flags) const
 {
+  const std::string& property = this->GetSafeProperty("CUDA_ARCHITECTURES");
+
+  if (property.empty()) {
+    switch (this->GetPolicyStatusCMP0104()) {
+      case cmPolicies::WARN:
+        if (!this->LocalGenerator->GetCMakeInstance()->GetIsInTryCompile()) {
+          this->Makefile->IssueMessage(
+            MessageType::AUTHOR_WARNING,
+            cmPolicies::GetPolicyWarning(cmPolicies::CMP0104) +
+              "\nCUDA_ARCHITECTURES is empty for target \"" + this->GetName() +
+              "\".");
+        }
+        CM_FALLTHROUGH;
+      case cmPolicies::OLD:
+        break;
+      default:
+        this->Makefile->IssueMessage(
+          MessageType::FATAL_ERROR,
+          "CUDA_ARCHITECTURES is empty for target \"" + this->GetName() +
+            "\".");
+    }
+  }
+
+  // If CUDA_ARCHITECTURES is false we don't add any architectures.
+  if (cmIsOff(property)) {
+    return;
+  }
+
   struct CudaArchitecture
   {
     std::string name;
@@ -3056,28 +3083,7 @@ void cmGeneratorTarget::AddCUDAArchitectureFlags(std::string& flags) const
 
   {
     std::vector<std::string> options;
-    cmExpandList(this->GetSafeProperty("CUDA_ARCHITECTURES"), options);
-
-    if (options.empty()) {
-      switch (this->GetPolicyStatusCMP0104()) {
-        case cmPolicies::WARN:
-          if (!this->LocalGenerator->GetCMakeInstance()->GetIsInTryCompile()) {
-            this->Makefile->IssueMessage(
-              MessageType::AUTHOR_WARNING,
-              cmPolicies::GetPolicyWarning(cmPolicies::CMP0104) +
-                "\nCUDA_ARCHITECTURES is empty for target \"" +
-                this->GetName() + "\".");
-          }
-          CM_FALLTHROUGH;
-        case cmPolicies::OLD:
-          break;
-        default:
-          this->Makefile->IssueMessage(
-            MessageType::FATAL_ERROR,
-            "CUDA_ARCHITECTURES is empty for target \"" + this->GetName() +
-              "\".");
-      }
-    }
+    cmExpandList(property, options);
 
     for (std::string& option : options) {
       CudaArchitecture architecture;
@@ -3143,6 +3149,28 @@ void cmGeneratorTarget::AddCUDAArchitectureFlags(std::string& flags) const
       if (!architecture.virtual_) {
         flags += " --no-cuda-include-ptx=sm_" + architecture.name;
       }
+    }
+  }
+}
+
+void cmGeneratorTarget::AddCUDAToolkitFlags(std::string& flags) const
+{
+  std::string const& compiler =
+    this->Makefile->GetSafeDefinition("CMAKE_CUDA_COMPILER_ID");
+
+  if (compiler == "Clang") {
+    // Pass CUDA toolkit explicitly to Clang.
+    // Clang's searching for the system CUDA toolkit isn't very good and it's
+    // expected the user will explicitly pass the toolkit path.
+    // This also avoids Clang having to search for the toolkit on every
+    // invocation.
+    std::string toolkitRoot =
+      this->Makefile->GetSafeDefinition("CMAKE_CUDA_COMPILER_LIBRARY_ROOT");
+
+    if (!toolkitRoot.empty()) {
+      flags += " --cuda-path=" +
+        this->LocalGenerator->ConvertToOutputFormat(toolkitRoot,
+                                                    cmOutputConverter::SHELL);
     }
   }
 }
@@ -3305,11 +3333,8 @@ std::vector<BT<std::string>> cmGeneratorTarget::GetIncludeDirectories(
                                              nullptr, nullptr);
 
   std::vector<std::string> debugProperties;
-  const char* debugProp =
-    this->Makefile->GetDefinition("CMAKE_DEBUG_TARGET_PROPERTIES");
-  if (debugProp) {
-    cmExpandList(debugProp, debugProperties);
-  }
+  this->Makefile->GetDefExpandList("CMAKE_DEBUG_TARGET_PROPERTIES",
+                                   debugProperties);
 
   bool debugIncludes = !this->DebugIncludesDone &&
     cm::contains(debugProperties, "INCLUDE_DIRECTORIES");
@@ -3492,11 +3517,8 @@ std::vector<BT<std::string>> cmGeneratorTarget::GetCompileOptions(
                                              nullptr);
 
   std::vector<std::string> debugProperties;
-  const char* debugProp =
-    this->Makefile->GetDefinition("CMAKE_DEBUG_TARGET_PROPERTIES");
-  if (debugProp) {
-    cmExpandList(debugProp, debugProperties);
-  }
+  this->Makefile->GetDefExpandList("CMAKE_DEBUG_TARGET_PROPERTIES",
+                                   debugProperties);
 
   bool debugOptions = !this->DebugCompileOptionsDone &&
     cm::contains(debugProperties, "COMPILE_OPTIONS");
@@ -3537,11 +3559,8 @@ std::vector<BT<std::string>> cmGeneratorTarget::GetCompileFeatures(
                                              nullptr);
 
   std::vector<std::string> debugProperties;
-  const char* debugProp =
-    this->Makefile->GetDefinition("CMAKE_DEBUG_TARGET_PROPERTIES");
-  if (debugProp) {
-    cmExpandList(debugProp, debugProperties);
-  }
+  this->Makefile->GetDefExpandList("CMAKE_DEBUG_TARGET_PROPERTIES",
+                                   debugProperties);
 
   bool debugFeatures = !this->DebugCompileFeaturesDone &&
     cm::contains(debugProperties, "COMPILE_FEATURES");
@@ -3584,11 +3603,8 @@ std::vector<BT<std::string>> cmGeneratorTarget::GetCompileDefinitions(
                                              nullptr, nullptr);
 
   std::vector<std::string> debugProperties;
-  const char* debugProp =
-    this->Makefile->GetDefinition("CMAKE_DEBUG_TARGET_PROPERTIES");
-  if (debugProp) {
-    cmExpandList(debugProp, debugProperties);
-  }
+  this->Makefile->GetDefExpandList("CMAKE_DEBUG_TARGET_PROPERTIES",
+                                   debugProperties);
 
   bool debugDefines = !this->DebugCompileDefinitionsDone &&
     cm::contains(debugProperties, "COMPILE_DEFINITIONS");
@@ -3644,11 +3660,8 @@ std::vector<BT<std::string>> cmGeneratorTarget::GetPrecompileHeaders(
                                              nullptr, nullptr);
 
   std::vector<std::string> debugProperties;
-  const char* debugProp =
-    this->Makefile->GetDefinition("CMAKE_DEBUG_TARGET_PROPERTIES");
-  if (debugProp) {
-    cmExpandList(debugProp, debugProperties);
-  }
+  this->Makefile->GetDefExpandList("CMAKE_DEBUG_TARGET_PROPERTIES",
+                                   debugProperties);
 
   bool debugDefines = !this->DebugPrecompileHeadersDone &&
     std::find(debugProperties.begin(), debugProperties.end(),
@@ -3858,8 +3871,6 @@ std::string cmGeneratorTarget::GetPchFileObject(const std::string& config,
     }
     std::string& filename = inserted.first->second;
 
-    this->AddSource(pchSource, true);
-
     auto pchSf = this->Makefile->GetOrCreateSource(
       pchSource, false, cmSourceFileLocationKind::Known);
 
@@ -4025,11 +4036,8 @@ std::vector<BT<std::string>> cmGeneratorTarget::GetLinkOptions(
                                              nullptr);
 
   std::vector<std::string> debugProperties;
-  const char* debugProp =
-    this->Makefile->GetDefinition("CMAKE_DEBUG_TARGET_PROPERTIES");
-  if (debugProp) {
-    cmExpandList(debugProp, debugProperties);
-  }
+  this->Makefile->GetDefExpandList("CMAKE_DEBUG_TARGET_PROPERTIES",
+                                   debugProperties);
 
   bool debugOptions = !this->DebugLinkOptionsDone &&
     cm::contains(debugProperties, "LINK_OPTIONS");
@@ -4287,11 +4295,8 @@ std::vector<BT<std::string>> cmGeneratorTarget::GetLinkDirectories(
                                              nullptr);
 
   std::vector<std::string> debugProperties;
-  const char* debugProp =
-    this->Makefile->GetDefinition("CMAKE_DEBUG_TARGET_PROPERTIES");
-  if (debugProp) {
-    cmExpandList(debugProp, debugProperties);
-  }
+  this->Makefile->GetDefExpandList("CMAKE_DEBUG_TARGET_PROPERTIES",
+                                   debugProperties);
 
   bool debugDirectories = !this->DebugLinkDirectoriesDone &&
     cm::contains(debugProperties, "LINK_DIRECTORIES");
@@ -5812,11 +5817,8 @@ void cmGeneratorTarget::ReportPropertyOrigin(
   const std::string& compatibilityType) const
 {
   std::vector<std::string> debugProperties;
-  const char* debugProp = this->Target->GetMakefile()->GetDefinition(
-    "CMAKE_DEBUG_TARGET_PROPERTIES");
-  if (debugProp) {
-    cmExpandList(debugProp, debugProperties);
-  }
+  this->Target->GetMakefile()->GetDefExpandList(
+    "CMAKE_DEBUG_TARGET_PROPERTIES", debugProperties);
 
   bool debugOrigin = !this->DebugCompatiblePropertiesDone[p] &&
     cm::contains(debugProperties, p);
@@ -7031,6 +7033,13 @@ void cmGeneratorTarget::ComputeLinkImplementationLibraries(
 
       // Skip entries that resolve to the target itself or are empty.
       std::string name = this->CheckCMP0004(lib);
+      if (this->GetPolicyStatusCMP0108() == cmPolicies::NEW) {
+        // resolve alias name
+        auto target = this->Makefile->FindTargetToUse(name);
+        if (target) {
+          name = target->GetName();
+        }
+      }
       if (name == this->GetName() || name.empty()) {
         if (name == this->GetName()) {
           bool noMessage = false;

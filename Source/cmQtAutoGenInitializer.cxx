@@ -35,6 +35,7 @@
 #include "cmMakefile.h"
 #include "cmMessageType.h"
 #include "cmPolicies.h"
+#include "cmProperty.h"
 #include "cmQtAutoGen.h"
 #include "cmQtAutoGenGlobalInitializer.h"
 #include "cmSourceFile.h"
@@ -570,9 +571,8 @@ bool cmQtAutoGenInitializer::InitMoc()
   if (this->GenTarget->GetPropertyAsBool("AUTOMOC_COMPILER_PREDEFINES") &&
       (this->QtVersion >= IntegerVersion(5, 8))) {
     // Command
-    cmExpandList(this->Makefile->GetSafeDefinition(
-                   "CMAKE_CXX_COMPILER_PREDEFINES_COMMAND"),
-                 this->Moc.PredefsCmd);
+    this->Makefile->GetDefExpandList("CMAKE_CXX_COMPILER_PREDEFINES_COMMAND",
+                                     this->Moc.PredefsCmd);
     // Header
     if (!this->Moc.PredefsCmd.empty()) {
       ConfigFileNames(this->Moc.PredefsFile,

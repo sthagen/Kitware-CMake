@@ -35,6 +35,7 @@
 #include "cmMessageType.h"
 #include "cmOutputConverter.h"
 #include "cmPolicies.h"
+#include "cmProperty.h"
 #include "cmRange.h"
 #include "cmState.h"
 #include "cmStateSnapshot.h"
@@ -1338,6 +1339,14 @@ static const struct TargetPropertyNode : public cmGeneratorExpressionNode
                 context->LG->FindGeneratorTargetToUse(targetName)) {
             return tgt->GetName();
           }
+        }
+        return std::string();
+      }
+      if (propertyName == "ALIAS_GLOBAL"_s) {
+        if (context->LG->GetMakefile()->IsAlias(targetName)) {
+          return context->LG->GetGlobalGenerator()->IsAlias(targetName)
+            ? "TRUE"
+            : "FALSE";
         }
         return std::string();
       }
