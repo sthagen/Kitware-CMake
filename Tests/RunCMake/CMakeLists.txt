@@ -81,7 +81,9 @@ endif()
 # Test MSVC for older host CMake versions, and test
 # WIN32/CMAKE_C_COMPILER_ID to fix check on Intel for Windows.
 if(MSVC OR (WIN32 AND CMAKE_C_COMPILER_ID MATCHES "MSVC|Intel"))
-  set(GeneratorExpression_ARGS -DLINKER_SUPPORTS_PDB=1)
+  set(LINKER_SUPPORTS_PDB 1)
+else()
+  set(LINKER_SUPPORTS_PDB 0)
 endif()
 
 add_RunCMake_test(CMP0019)
@@ -219,6 +221,14 @@ endif()
 if(NOT CMAKE_C_COMPILER_ID MATCHES "Watcom")
   add_RunCMake_test(GenerateExportHeader)
 endif()
+add_RunCMake_test(GenEx-COMPILE_LANGUAGE)
+add_RunCMake_test(GenEx-COMPILE_LANG_AND_ID)
+add_RunCMake_test(GenEx-LINK_LANGUAGE)
+add_RunCMake_test(GenEx-LINK_LANG_AND_ID)
+add_RunCMake_test(GenEx-HOST_LINK)
+add_RunCMake_test(GenEx-DEVICE_LINK)
+add_RunCMake_test(GenEx-TARGET_FILE -DLINKER_SUPPORTS_PDB=${LINKER_SUPPORTS_PDB})
+add_RunCMake_test(GenEx-GENEX_EVAL)
 add_RunCMake_test(GeneratorExpression)
 add_RunCMake_test(GeneratorInstance)
 add_RunCMake_test(GeneratorPlatform)
@@ -484,6 +494,9 @@ add_RunCMake_test(File_Generate)
 add_RunCMake_test(ExportWithoutLanguage)
 add_RunCMake_test(target_link_directories)
 add_RunCMake_test(target_link_libraries)
+add_RunCMake_test(target_link_libraries-ALIAS)
+add_RunCMake_test(target_link_libraries-LINK_LANGUAGE)
+add_RunCMake_test(target_link_libraries-LINK_LANG_AND_ID)
 add_RunCMake_test(add_link_options -DCMAKE_C_COMPILER_ID=${CMAKE_C_COMPILER_ID})
 add_RunCMake_test(target_link_options -DCMAKE_C_COMPILER_ID=${CMAKE_C_COMPILER_ID}
                                       -DCMake_TEST_CUDA=${CMake_TEST_CUDA})
@@ -512,11 +525,15 @@ else()
   set(NO_NAMELINK 0)
 endif()
 
-add_RunCMake_test(install -DNO_NAMELINK=${NO_NAMELINK} -DCYGWIN=${CYGWIN} -DCMAKE_C_COMPILER_ID=${CMAKE_C_COMPILER_ID}
+add_RunCMake_test(install -DNO_NAMELINK=${NO_NAMELINK} -DCYGWIN=${CYGWIN}
   -DCMAKE_SHARED_LIBRARY_RPATH_ORIGIN_TOKEN=${CMAKE_SHARED_LIBRARY_RPATH_ORIGIN_TOKEN}
   -DCMAKE_SYSTEM_NAME=${CMAKE_SYSTEM_NAME}
   -DCMAKE_SHARED_LIBRARY_RUNTIME_C_FLAG=${CMAKE_SHARED_LIBRARY_RUNTIME_C_FLAG}
   -DCMAKE_EXECUTABLE_FORMAT=${CMAKE_EXECUTABLE_FORMAT}
+  )
+
+add_RunCMake_test(file-GET_RUNTIME_DEPENDENCIES
+  -DCMAKE_C_COMPILER_ID=${CMAKE_C_COMPILER_ID}
   -DCMake_INSTALL_NAME_TOOL_BUG=${CMake_INSTALL_NAME_TOOL_BUG}
   )
 

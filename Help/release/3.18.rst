@@ -13,7 +13,8 @@ New Features
 Languages
 ---------
 
-* The ``CUDA`` language can now be compiled using Clang.
+* The ``CUDA`` language can now be compiled using Clang on non-Windows
+  platforms. Separable compilation is not yet supported on any platform.
 
 Command-Line
 ------------
@@ -116,6 +117,9 @@ Properties
 * The :prop_sf:`OBJECT_OUTPUTS` source file property now supports
   :manual:`generator expressions <cmake-generator-expressions(7)>`.
 
+* The :prop_tgt:`PCH_WARN_INVALID` target property was added to allow the
+  removal of the precompiled header invalid warning.
+
 * The :prop_tgt:`UNITY_BUILD_MODE` target property was added to tell
   generators which algorithm to use for grouping included source
   files.
@@ -156,6 +160,14 @@ Modules
 
 * The :module:`FindBLAS` module now provides an imported target.
 
+* The :module:`FindCUDAToolkit` module:
+
+  * gained the variable
+    ``CUDAToolkit_LIBRARY_ROOT``, which is the directory containing the
+    ``nvvm`` directory and ``version.txt``.
+
+  * uses toolkit and library root found during ``CUDA`` compiler detection.
+
 * The :module:`FindLAPACK` module now provides an imported target.
 
 * The :module:`FindPython3`, :module:`FindPython2` and :module:`FindPython`
@@ -193,14 +205,6 @@ Modules
   the ``SWIG_EXECUTABLE`` is SWIG-Fortran_.
 
 .. _`SWIG-Fortran`: https://github.com/swig-fortran/swig
-
-* The :module:`FindCUDAToolkit` module:
-
-  * gained the variable
-    ``CUDAToolkit_LIBRARY_ROOT``, which is the directory containing the
-    ``nvvm`` directory and ``version.txt``.
-
-  * uses toolkit and library root found during ``CUDA`` compiler detection.
 
 Generator Expressions
 ---------------------
@@ -242,9 +246,9 @@ CPack
   installer is DPI-aware.
 
 * The :cpack_gen:`CPack RPM Generator` gained
-  :variable:`CPACK_RPM_PRE_TRANS_SCRIPT_FILE`
+  :variable:`CPACK_RPM_PRE_TRANS_SCRIPT_FILE` and
   :variable:`CPACK_RPM_POST_TRANS_SCRIPT_FILE`
-  variables to specify pre- and post-trans scripts.
+  variables to specify pre- and post-transaction scripts.
 
 Other
 -----
