@@ -93,7 +93,6 @@ const char* cmDocumentationOptions[][2] = {
   { "--trace-redirect=<file>",
     "Redirect trace output to a file instead of stderr." },
   { "--warn-uninitialized", "Warn about uninitialized values." },
-  { "--warn-unused-vars", "Warn about unused variables." },
   { "--no-warn-unused-cli", "Don't warn about command line options." },
   { "--check-system-vars",
     "Find problems with variable usage in system "
@@ -856,6 +855,8 @@ int main(int ac, char const* const* av)
 #ifndef CMAKE_BOOTSTRAP
   cmDynamicLoader::FlushCache();
 #endif
-  uv_loop_close(uv_default_loop());
+  if (uv_loop_t* loop = uv_default_loop()) {
+    uv_loop_close(loop);
+  }
   return ret;
 }

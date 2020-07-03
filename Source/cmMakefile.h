@@ -47,7 +47,6 @@ class cmExpandedCommandArgument;
 class cmExportBuildFileGenerator;
 class cmFunctionBlocker;
 class cmGeneratorExpressionEvaluationFile;
-class cmGeneratorTarget;
 class cmGlobalGenerator;
 class cmImplicitDependsList;
 class cmInstallGenerator;
@@ -687,6 +686,7 @@ public:
    */
   int ConfigureFile(const std::string& infile, const std::string& outfile,
                     bool copyonly, bool atOnly, bool escapeQuotes,
+                    bool use_source_permissions,
                     cmNewLineStyle = cmNewLineStyle());
 
   /**
@@ -926,30 +926,6 @@ public:
 
   bool PolicyOptionalWarningEnabled(std::string const& var);
 
-  bool AddRequiredTargetFeature(cmTarget* target, const std::string& feature,
-                                std::string* error = nullptr) const;
-
-  bool CompileFeatureKnown(const std::string& targetName,
-                           const std::string& feature, std::string& lang,
-                           std::string* error) const;
-
-  const char* CompileFeaturesAvailable(const std::string& lang,
-                                       std::string* error) const;
-
-  bool GetNewRequiredStandard(const std::string& targetName,
-                              const std::string& feature,
-                              cmProp currentLangStandardValue,
-                              std::string& newRequiredStandard,
-                              std::string* error = nullptr) const;
-
-  bool HaveStandardAvailable(cmGeneratorTarget const* target,
-                             std::string const& lang,
-                             std::string const& config,
-                             const std::string& feature) const;
-
-  bool IsLaterStandard(std::string const& lang, std::string const& lhs,
-                       std::string const& rhs);
-
   void PushLoopBlock();
   void PopLoopBlock();
   bool IsLoopBlock() const;
@@ -994,9 +970,6 @@ public:
 protected:
   // add link libraries and directories to the target
   void AddGlobalLinkInformation(cmTarget& target);
-
-  // Check for a an unused variable
-  void LogUnused(const char* reason, const std::string& name) const;
 
   mutable std::set<cmListFileContext> CMP0054ReportedIds;
 
@@ -1172,71 +1145,6 @@ private:
    */
   bool MightHaveCustomCommand(const std::string& name) const;
 
-  bool AddRequiredTargetCFeature(cmTarget* target, const std::string& feature,
-                                 std::string const& lang,
-                                 std::string* error = nullptr) const;
-  bool AddRequiredTargetCxxFeature(cmTarget* target,
-                                   const std::string& feature,
-                                   std::string const& lang,
-                                   std::string* error = nullptr) const;
-  bool AddRequiredTargetCudaFeature(cmTarget* target,
-                                    const std::string& feature,
-                                    std::string const& lang,
-                                    std::string* error = nullptr) const;
-
-  bool CheckCompileFeaturesAvailable(const std::string& targetName,
-                                     const std::string& feature,
-                                     std::string& lang,
-                                     std::string* error) const;
-
-  void CheckNeededCLanguage(const std::string& feature,
-                            std::string const& lang, bool& needC90,
-                            bool& needC99, bool& needC11) const;
-  void CheckNeededCxxLanguage(const std::string& feature,
-                              std::string const& lang, bool& needCxx98,
-                              bool& needCxx11, bool& needCxx14,
-                              bool& needCxx17, bool& needCxx20) const;
-  void CheckNeededCudaLanguage(const std::string& feature,
-                               std::string const& lang, bool& needCuda03,
-                               bool& needCuda11, bool& needCuda14,
-                               bool& needCuda17, bool& needCuda20) const;
-
-  bool GetNewRequiredCStandard(const std::string& targetName,
-                               const std::string& feature,
-                               std::string const& lang,
-                               cmProp currentLangStandardValue,
-                               std::string& newRequiredStandard,
-                               std::string* error = nullptr) const;
-  bool GetNewRequiredCxxStandard(const std::string& targetName,
-                                 const std::string& feature,
-                                 std::string const& lang,
-                                 cmProp currentLangStandardValue,
-                                 std::string& newRequiredStandard,
-                                 std::string* error = nullptr) const;
-  bool GetNewRequiredCudaStandard(const std::string& targetName,
-                                  const std::string& feature,
-                                  std::string const& lang,
-                                  cmProp currentLangStandardValue,
-                                  std::string& newRequiredStandard,
-                                  std::string* error = nullptr) const;
-
-  bool HaveCStandardAvailable(cmGeneratorTarget const* target,
-                              std::string const& lang,
-                              std::string const& config,
-                              const std::string& feature) const;
-  bool HaveCxxStandardAvailable(cmGeneratorTarget const* target,
-                                std::string const& lang,
-                                std::string const& config,
-                                const std::string& feature) const;
-  bool HaveCudaStandardAvailable(cmGeneratorTarget const* target,
-                                 std::string const& lang,
-                                 std::string const& config,
-                                 const std::string& feature) const;
-
-  void CheckForUnusedVariables() const;
-
-  // Unused variable flags
-  bool WarnUnused;
   bool CheckSystemVars;
   bool CheckCMP0000;
   std::set<std::string> WarnedCMP0074;

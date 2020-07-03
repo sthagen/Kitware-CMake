@@ -39,6 +39,7 @@
 #include "cmSourceFile.h"
 #include "cmSourceFileLocation.h"
 #include "cmSourceFileLocationKind.h"
+#include "cmStandardLevelResolver.h"
 #include "cmState.h"
 #include "cmStateDirectory.h"
 #include "cmStateTypes.h"
@@ -994,12 +995,13 @@ void cmLocalGenerator::AddCompileOptions(std::vector<BT<std::string>>& flags,
     this->AppendCompileOptions(flags, targetCompileOpts);
   }
 
+  cmStandardLevelResolver standardResolver(this->Makefile);
   for (auto const& it : target->GetMaxLanguageStandards()) {
     cmProp standard = target->GetLanguageStandard(it.first, config);
     if (!standard) {
       continue;
     }
-    if (this->Makefile->IsLaterStandard(it.first, *standard, it.second)) {
+    if (standardResolver.IsLaterStandard(it.first, *standard, it.second)) {
       std::ostringstream e;
       e << "The COMPILE_FEATURES property of target \"" << target->GetName()
         << "\" was evaluated when computing the link "
@@ -3845,7 +3847,7 @@ void cmLocalGenerator::GenerateAppleInfoPList(cmGeneratorTarget* target,
   cmLGInfoProp(mf, target, "MACOSX_BUNDLE_SHORT_VERSION_STRING");
   cmLGInfoProp(mf, target, "MACOSX_BUNDLE_BUNDLE_VERSION");
   cmLGInfoProp(mf, target, "MACOSX_BUNDLE_COPYRIGHT");
-  mf->ConfigureFile(inFile, fname, false, false, false);
+  mf->ConfigureFile(inFile, fname, false, false, false, true);
 }
 
 void cmLocalGenerator::GenerateFrameworkInfoPList(
@@ -3881,7 +3883,7 @@ void cmLocalGenerator::GenerateFrameworkInfoPList(
   cmLGInfoProp(mf, target, "MACOSX_FRAMEWORK_IDENTIFIER");
   cmLGInfoProp(mf, target, "MACOSX_FRAMEWORK_SHORT_VERSION_STRING");
   cmLGInfoProp(mf, target, "MACOSX_FRAMEWORK_BUNDLE_VERSION");
-  mf->ConfigureFile(inFile, fname, false, false, false);
+  mf->ConfigureFile(inFile, fname, false, false, false, true);
 }
 
 namespace {
