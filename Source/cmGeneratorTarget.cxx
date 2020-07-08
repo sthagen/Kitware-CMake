@@ -802,7 +802,8 @@ void cmGeneratorTarget::GetObjectSources(
 
 void cmGeneratorTarget::ComputeObjectMapping()
 {
-  auto const& configs = this->Makefile->GetGeneratorConfigs();
+  auto const& configs =
+    this->Makefile->GetGeneratorConfigs(cmMakefile::IncludeEmptyConfig);
   std::set<std::string> configSet(configs.begin(), configs.end());
   if (configSet == this->VisitedConfigsForObjects) {
     return;
@@ -948,7 +949,7 @@ bool cmGeneratorTarget::HasExplicitObjectName(cmSourceFile const* file) const
   return it != this->ExplicitObjectName.end();
 }
 
-BT<std::string> const* cmGeneratorTarget::GetLanguageStandardProperty(
+BTs<std::string> const* cmGeneratorTarget::GetLanguageStandardProperty(
   std::string const& lang, std::string const& config) const
 {
   std::string key = cmStrCat(cmSystemTools::UpperCase(config), '-', lang);
@@ -964,7 +965,7 @@ BT<std::string> const* cmGeneratorTarget::GetLanguageStandardProperty(
 cmProp cmGeneratorTarget::GetLanguageStandard(std::string const& lang,
                                               std::string const& config) const
 {
-  BT<std::string> const* languageStandard =
+  BTs<std::string> const* languageStandard =
     this->GetLanguageStandardProperty(lang, config);
 
   if (languageStandard) {
@@ -1779,8 +1780,8 @@ cmGeneratorTarget::GetAllConfigSources() const
 
 void cmGeneratorTarget::ComputeAllConfigSources() const
 {
-  std::vector<std::string> configs;
-  this->Makefile->GetConfigurations(configs);
+  std::vector<std::string> configs =
+    this->Makefile->GetGeneratorConfigs(cmMakefile::IncludeEmptyConfig);
 
   std::map<cmSourceFile const*, size_t> index;
 
@@ -2813,7 +2814,7 @@ cmTargetTraceDependencies::cmTargetTraceDependencies(cmGeneratorTarget* target)
   if (target->GetType() != cmStateEnums::INTERFACE_LIBRARY) {
     std::set<cmSourceFile*> emitted;
     std::vector<std::string> const& configs =
-      this->Makefile->GetGeneratorConfigs();
+      this->Makefile->GetGeneratorConfigs(cmMakefile::IncludeEmptyConfig);
     for (std::string const& c : configs) {
       std::vector<cmSourceFile*> sources;
       this->GeneratorTarget->GetSourceFiles(sources, c);
@@ -3024,7 +3025,7 @@ void cmTargetTraceDependencies::CheckCustomCommand(cmCustomCommand const& cc)
   // Queue the custom command dependencies.
   std::set<std::string> emitted;
   std::vector<std::string> const& configs =
-    this->Makefile->GetGeneratorConfigs();
+    this->Makefile->GetGeneratorConfigs(cmMakefile::IncludeEmptyConfig);
   for (std::string const& conf : configs) {
     this->FollowCommandDepends(cc, conf, emitted);
   }
@@ -4485,8 +4486,13 @@ bool cmGeneratorTarget::ComputeCompileFeatures(std::string const& config) const
     }
 
     if (!newRequiredStandard.empty()) {
-      this->LanguageStandardMap[key] =
-        BT<std::string>(newRequiredStandard, f.Backtrace);
+      BTs<std::string>& languageStandardProperty =
+        this->LanguageStandardMap[key];
+      if (languageStandardProperty.Value != newRequiredStandard) {
+        languageStandardProperty.Value = newRequiredStandard;
+        languageStandardProperty.Backtraces.clear();
+      }
+      languageStandardProperty.Backtraces.emplace_back(f.Backtrace);
     }
   }
 
@@ -4497,14 +4503,14 @@ bool cmGeneratorTarget::ComputeCompileFeatures(
   std::string const& config, std::set<LanguagePair> const& languagePairs) const
 {
   for (const auto& language : languagePairs) {
-    BT<std::string> const* generatorTargetLanguageStandard =
+    BTs<std::string> const* generatorTargetLanguageStandard =
       this->GetLanguageStandardProperty(language.first, config);
     if (!generatorTargetLanguageStandard) {
       // If the standard isn't explicitly set we copy it over from the
       // specified paired language.
       std::string key =
         cmStrCat(cmSystemTools::UpperCase(config), '-', language.first);
-      BT<std::string> const* standardToCopy =
+      BTs<std::string> const* standardToCopy =
         this->GetLanguageStandardProperty(language.second, config);
       if (standardToCopy != nullptr) {
         this->LanguageStandardMap[key] = *standardToCopy;
@@ -4513,7 +4519,7 @@ bool cmGeneratorTarget::ComputeCompileFeatures(
         cmProp defaultStandard = this->Makefile->GetDef(
           cmStrCat("CMAKE_", language.second, "_STANDARD_DEFAULT"));
         if (defaultStandard != nullptr) {
-          this->LanguageStandardMap[key] = BT<std::string>(*defaultStandard);
+          this->LanguageStandardMap[key] = BTs<std::string>(*defaultStandard);
           generatorTargetLanguageStandard = &this->LanguageStandardMap[key];
         }
       }
@@ -6845,7 +6851,7 @@ bool cmGeneratorTarget::GetConfigCommonSourceFiles(
   std::vector<cmSourceFile*>& files) const
 {
   std::vector<std::string> const& configs =
-    this->Makefile->GetGeneratorConfigs();
+    this->Makefile->GetGeneratorConfigs(cmMakefile::IncludeEmptyConfig);
 
   auto it = configs.begin();
   const std::string& firstConfig = *it;

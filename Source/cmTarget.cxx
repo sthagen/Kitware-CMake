@@ -186,7 +186,7 @@ public:
   std::vector<cmInstallTargetGenerator*> InstallGenerators;
   std::set<std::string> SystemIncludeDirectories;
   cmTarget::LinkLibraryVectorType OriginalLinkLibraries;
-  std::map<std::string, BT<std::string>> LanguageStandardProperties;
+  std::map<std::string, BTs<std::string>> LanguageStandardProperties;
   std::vector<std::string> IncludeDirectoriesEntries;
   std::vector<cmListFileBacktrace> IncludeDirectoriesBacktraces;
   std::vector<std::string> CompileOptionsEntries;
@@ -419,8 +419,8 @@ cmTarget::cmTarget(std::string const& name, cmStateEnums::TargetType type,
       "INTERPROCEDURAL_OPTIMIZATION_"
     };
     // Collect the set of configuration types.
-    std::vector<std::string> configNames;
-    mf->GetConfigurations(configNames);
+    std::vector<std::string> configNames =
+      mf->GetGeneratorConfigs(cmMakefile::ExcludeEmptyConfig);
     for (std::string const& configName : configNames) {
       std::string configUpper = cmSystemTools::UpperCase(configName);
       for (auto const& prop : configProps) {
@@ -600,7 +600,7 @@ cmGlobalGenerator* cmTarget::GetGlobalGenerator() const
   return impl->Makefile->GetGlobalGenerator();
 }
 
-BT<std::string> const* cmTarget::GetLanguageStandardProperty(
+BTs<std::string> const* cmTarget::GetLanguageStandardProperty(
   const std::string& propertyName) const
 {
   auto entry = impl->LanguageStandardProperties.find(propertyName);
@@ -625,8 +625,13 @@ void cmTarget::SetLanguageStandardProperty(std::string const& lang,
     }
   }
 
-  impl->LanguageStandardProperties[cmStrCat(lang, "_STANDARD")] =
-    BT<std::string>(value, featureBacktrace);
+  BTs<std::string>& languageStandardProperty =
+    impl->LanguageStandardProperties[cmStrCat(lang, "_STANDARD")];
+  if (languageStandardProperty.Value != value) {
+    languageStandardProperty.Value = value;
+    languageStandardProperty.Backtraces.clear();
+  }
+  languageStandardProperty.Backtraces.emplace_back(featureBacktrace);
 }
 
 void cmTarget::AddUtility(std::string const& name, bool cross, cmMakefile* mf)
@@ -1357,7 +1362,7 @@ void cmTarget::SetProperty(const std::string& prop, const char* value)
              prop == propOBJCXX_STANDARD) {
     if (value) {
       impl->LanguageStandardProperties[prop] =
-        BT<std::string>(value, impl->Makefile->GetBacktrace());
+        BTs<std::string>(value, impl->Makefile->GetBacktrace());
     } else {
       impl->LanguageStandardProperties.erase(prop);
     }
