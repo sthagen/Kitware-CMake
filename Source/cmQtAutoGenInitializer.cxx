@@ -489,7 +489,7 @@ bool cmQtAutoGenInitializer::InitCustomTargets()
 
     if (this->Moc.Enabled) {
       // Path prefix
-      if (cmIsOn(this->GenTarget->GetSafeProperty("AUTOMOC_PATH_PREFIX"))) {
+      if (cmIsOn(this->GenTarget->GetProperty("AUTOMOC_PATH_PREFIX"))) {
         this->Moc.PathPrefix = true;
       }
 
@@ -1610,7 +1610,7 @@ void cmQtAutoGenInitializer::AddToSourceGroup(std::string const& fileName,
       };
       for (std::string const& prop : props) {
         cmProp propName = this->Makefile->GetState()->GetGlobalProperty(prop);
-        if (propName && !propName->empty()) {
+        if (cmNonempty(propName)) {
           groupName = *propName;
           property = prop;
           break;

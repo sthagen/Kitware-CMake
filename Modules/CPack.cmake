@@ -22,9 +22,13 @@ section below for details.
 The generated binary installers will contain all files that have been installed
 via CMake's :command:`install` command (and the deprecated commands
 :command:`install_files`, :command:`install_programs`, and
-:command:`install_targets`).  Certain kinds of binary installers can be
-configured such that users can select individual application components to
-install.  See the :module:`CPackComponent` module for further details.
+:command:`install_targets`). Note that the ``DESTINATION`` option of the
+:command:`install` command must be a relative path; otherwise installed files
+are ignored by CPack.
+
+Certain kinds of binary installers can be configured such that users can select
+individual application components to install.  See the :module:`CPackComponent`
+module for further details.
 
 Source packages (configured through ``CPackSourceConfig.cmake`` and generated
 by the :cpack_gen:`CPack Archive Generator`) will contain all source files in
@@ -79,7 +83,7 @@ one may call ``cmake --build . --target package`` or ``make package`` or
 
 If CMake is run with the Makefile or Ninja generator, then ``include(CPack)``
 also generates a target ``package_source``. To build a source package,
-instead of ``cpack -G TGZ --config CPackConfig.cmake`` one may call
+instead of ``cpack -G TGZ --config CPackSourceConfig.cmake`` one may call
 ``cmake --build . --target package_source``, ``make package_source``,
 or ``ninja package_source``.
 

@@ -1371,7 +1371,7 @@ struct SaveCacheEntry
 
 int cmake::HandleDeleteCacheVariables(const std::string& var)
 {
-  std::vector<std::string> argsSplit = cmExpandedList(std::string(var), true);
+  std::vector<std::string> argsSplit = cmExpandedList(var, true);
   // erase the property to avoid infinite recursion
   this->State->SetGlobalProperty("__CMAKE_DELETE_CACHE_CHANGE_VARS_", "");
   if (this->State->GetIsInTryCompile()) {
@@ -1487,10 +1487,10 @@ int cmake::Configure()
   this->Messenger->SetSuppressDeprecatedWarnings(value && cmIsOff(*value));
 
   value = this->State->GetCacheEntryValue("CMAKE_ERROR_DEPRECATED");
-  this->Messenger->SetDeprecatedWarningsAsErrors(value && cmIsOn(*value));
+  this->Messenger->SetDeprecatedWarningsAsErrors(cmIsOn(value));
 
   value = this->State->GetCacheEntryValue("CMAKE_SUPPRESS_DEVELOPER_WARNINGS");
-  this->Messenger->SetSuppressDevWarnings(value && cmIsOn(*value));
+  this->Messenger->SetSuppressDevWarnings(cmIsOn(value));
 
   value = this->State->GetCacheEntryValue("CMAKE_SUPPRESS_DEVELOPER_ERRORS");
   this->Messenger->SetDevWarningsAsErrors(value && cmIsOff(*value));
@@ -2742,9 +2742,7 @@ int cmake::Build(int jobs, const std::string& dir,
   }
   projName = *cachedProjectName;
 
-  cmProp cachedVerbose =
-    this->State->GetCacheEntryValue("CMAKE_VERBOSE_MAKEFILE");
-  if (cachedVerbose && cmIsOn(*cachedVerbose)) {
+  if (cmIsOn(this->State->GetCacheEntryValue("CMAKE_VERBOSE_MAKEFILE"))) {
     verbose = true;
   }
 

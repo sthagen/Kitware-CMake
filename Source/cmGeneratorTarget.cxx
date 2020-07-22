@@ -365,7 +365,7 @@ std::string cmGeneratorTarget::GetExportName() const
 {
   cmProp exportName = this->GetProperty("EXPORT_NAME");
 
-  if (exportName && !exportName->empty()) {
+  if (cmNonempty(exportName)) {
     if (!cmGeneratorExpression::IsValidTargetName(*exportName)) {
       std::ostringstream e;
       e << "EXPORT_NAME property \"" << *exportName << "\" for \""
@@ -815,18 +815,18 @@ void cmGeneratorTarget::ComputeObjectMapping()
   }
 }
 
-const char* cmGeneratorTarget::GetFeature(const std::string& feature,
-                                          const std::string& config) const
+cmProp cmGeneratorTarget::GetFeature(const std::string& feature,
+                                     const std::string& config) const
 {
   if (!config.empty()) {
     std::string featureConfig =
       cmStrCat(feature, '_', cmSystemTools::UpperCase(config));
     if (cmProp value = this->GetProperty(featureConfig)) {
-      return value->c_str();
+      return value;
     }
   }
   if (cmProp value = this->GetProperty(feature)) {
-    return value->c_str();
+    return value;
   }
   return this->LocalGenerator->GetFeature(feature, config);
 }
@@ -853,10 +853,9 @@ const char* cmGeneratorTarget::GetLinkPIEProperty(
 bool cmGeneratorTarget::IsIPOEnabled(std::string const& lang,
                                      std::string const& config) const
 {
-  const char* feature = "INTERPROCEDURAL_OPTIMIZATION";
-  const bool result = cmIsOn(this->GetFeature(feature, config));
+  cmProp feature = this->GetFeature("INTERPROCEDURAL_OPTIMIZATION", config);
 
-  if (!result) {
+  if (!cmIsOn(feature)) {
     // 'INTERPROCEDURAL_OPTIMIZATION' is off, no need to check policies
     return false;
   }
@@ -1001,7 +1000,7 @@ bool cmGeneratorTarget::GetLanguageStandardRequired(
 {
   cmProp p =
     this->GetPropertyWithPairedLanguageSupport(lang, "_STANDARD_REQUIRED");
-  return p && cmIsOn(*p);
+  return cmIsOn(p);
 }
 
 void cmGeneratorTarget::GetModuleDefinitionSources(
@@ -1194,7 +1193,7 @@ bool cmGeneratorTarget::MaybeHaveInterfaceProperty(
 
     // If this target itself has a non-empty property value, we are done.
     cmProp p = this->GetProperty(prop);
-    maybeInterfaceProp = p && !p->empty();
+    maybeInterfaceProp = cmNonempty(p);
 
     // Otherwise, recurse to interface dependencies.
     if (!maybeInterfaceProp) {
@@ -1366,6 +1365,9 @@ void AddSwiftImplicitIncludeDirectories(
 
     for (const cmLinkImplItem& library : libraries->Libraries) {
       if (const cmGeneratorTarget* dependency = library.Target) {
+        if (dependency->GetType() == cmStateEnums::INTERFACE_LIBRARY) {
+          continue;
+        }
         if (cm::contains(dependency->GetAllConfigCompileLanguages(),
                          "Swift")) {
           EvaluatedTargetPropertyEntry entry{ library, library.Backtrace };
@@ -1841,12 +1843,12 @@ std::string cmGeneratorTarget::GetCompilePDBName(
   std::string configUpper = cmSystemTools::UpperCase(config);
   std::string configProp = cmStrCat("COMPILE_PDB_NAME_", configUpper);
   cmProp config_name = this->GetProperty(configProp);
-  if (config_name && !config_name->empty()) {
+  if (cmNonempty(config_name)) {
     return prefix + *config_name + ".pdb";
   }
 
   cmProp name = this->GetProperty("COMPILE_PDB_NAME");
-  if (name && !name->empty()) {
+  if (cmNonempty(name)) {
     return prefix + *name + ".pdb";
   }
 
@@ -2293,7 +2295,7 @@ std::string cmGeneratorTarget::GetInstallNameDirForInstallTree(
     cmProp install_name_dir = this->GetProperty("INSTALL_NAME_DIR");
 
     if (this->CanGenerateInstallNameDir(INSTALL_NAME_FOR_INSTALL)) {
-      if (install_name_dir && !install_name_dir->empty()) {
+      if (cmNonempty(install_name_dir)) {
         dir = *install_name_dir;
         cmGeneratorExpression::ReplaceInstallPrefix(dir, installPrefix);
         dir =
@@ -5411,8 +5413,7 @@ bool getTypedProperty<bool>(cmGeneratorTarget const* tgt,
   }
 
   cmProp value = tgt->GetProperty(prop);
-  return cmIsOn(
-    genexInterpreter->Evaluate(value ? value->c_str() : nullptr, prop));
+  return cmIsOn(genexInterpreter->Evaluate(value ? *value : "", prop));
 }
 
 template <>
@@ -5426,8 +5427,7 @@ const char* getTypedProperty<const char*>(
     return value ? value->c_str() : nullptr;
   }
 
-  return genexInterpreter->Evaluate(value ? value->c_str() : nullptr, prop)
-    .c_str();
+  return genexInterpreter->Evaluate(value ? *value : "", prop).c_str();
 }
 
 template <>
@@ -5441,7 +5441,7 @@ std::string getTypedProperty<std::string>(
     return valueAsString(value ? value->c_str() : nullptr);
   }
 
-  return genexInterpreter->Evaluate(value ? value->c_str() : nullptr, prop);
+  return genexInterpreter->Evaluate(value ? *value : "", prop);
 }
 
 template <typename PropertyType>
@@ -5842,7 +5842,7 @@ std::string cmGeneratorTarget::GetRuntimeLinkLibrary(
   // not it is overridden by a property.
   cmProp runtimeLibraryDefault = this->Makefile->GetDef(
     cmStrCat("CMAKE_", lang, "_RUNTIME_LIBRARY_DEFAULT"));
-  if (!runtimeLibraryDefault || runtimeLibraryDefault->empty()) {
+  if (!cmNonempty(runtimeLibraryDefault)) {
     return std::string();
   }
   cmProp runtimeLibraryValue =
@@ -6975,7 +6975,7 @@ std::string cmGeneratorTarget::CheckCMP0004(std::string const& item) const
 bool cmGeneratorTarget::IsDeprecated() const
 {
   cmProp deprecation = this->GetProperty("DEPRECATION");
-  return deprecation && !deprecation->empty();
+  return cmNonempty(deprecation);
 }
 
 std::string cmGeneratorTarget::GetDeprecation() const
@@ -7040,7 +7040,7 @@ bool cmGeneratorTarget::IsCSharpOnly() const
   // Consider an explicit linker language property, but *not* the
   // computed linker language that may depend on linked targets.
   cmProp linkLang = this->GetProperty("LINKER_LANGUAGE");
-  if (linkLang && !linkLang->empty()) {
+  if (cmNonempty(linkLang)) {
     languages.insert(*linkLang);
   }
   return languages.size() == 1 && languages.count("CSharp") > 0;

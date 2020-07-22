@@ -126,6 +126,7 @@ void CMakeCommandUsage(const char* program)
     << "  touch <file>...           - touch a <file>.\n"
     << "  touch_nocreate <file>...  - touch a <file> but do not create it.\n"
     << "  create_symlink old new    - create a symbolic link new -> old\n"
+    << "  create_hardlink old new   - create a hard link new -> old\n"
     << "  true                      - do nothing with an exit code of 0\n"
     << "  false                     - do nothing with an exit code of 1\n"
 #if defined(_WIN32) && !defined(__CYGWIN__)
@@ -600,8 +601,7 @@ int cmcmd::ExecuteCMakeCommand(std::vector<std::string> const& args)
       }
       cmsys::ifstream fin(args[3].c_str(), std::ios::in | std::ios::binary);
       if (!fin) {
-        std::cerr << "could not open object list file: " << args[3].c_str()
-                  << "\n";
+        std::cerr << "could not open object list file: " << args[3] << "\n";
         return 1;
       }
       std::vector<std::string> files;
@@ -624,13 +624,12 @@ int cmcmd::ExecuteCMakeCommand(std::vector<std::string> const& args)
       }
       FILE* fout = cmsys::SystemTools::Fopen(args[2], "w+");
       if (!fout) {
-        std::cerr << "could not open output .def file: " << args[2].c_str()
-                  << "\n";
+        std::cerr << "could not open output .def file: " << args[2] << "\n";
         return 1;
       }
       bindexplib deffile;
       if (args.size() >= 5) {
-        auto a = args[4];
+        std::string const& a = args[4];
         if (cmHasLiteralPrefix(a, "--nm=")) {
           deffile.SetNmPath(a.substr(5));
           std::cerr << a.substr(5) << "\n";
@@ -638,7 +637,7 @@ int cmcmd::ExecuteCMakeCommand(std::vector<std::string> const& args)
           std::cerr << "unknown argument: " << a << "\n";
         }
       }
-      for (auto const& file : files) {
+      for (std::string const& file : files) {
         std::string const& ext = cmSystemTools::GetFilenameLastExtension(file);
         if (cmSystemTools::LowerCase(ext) == ".def") {
           if (!deffile.AddDefinitionFile(file.c_str())) {
@@ -1020,7 +1019,7 @@ int cmcmd::ExecuteCMakeCommand(std::vector<std::string> const& args)
     // Command to create a symbolic link.  Fails on platforms not
     // supporting them.
     if (args[1] == "create_symlink" && args.size() == 4) {
-      const char* destinationFileName = args[3].c_str();
+      std::string const& destinationFileName = args[3];
       if ((cmSystemTools::FileExists(destinationFileName) ||
            cmSystemTools::FileIsSymlink(destinationFileName)) &&
           !cmSystemTools::RemoveFile(destinationFileName)) {
@@ -1031,6 +1030,34 @@ int cmcmd::ExecuteCMakeCommand(std::vector<std::string> const& args)
         return 1;
       }
       if (!cmSystemTools::CreateSymlink(args[2], args[3])) {
+        return 1;
+      }
+      return 0;
+    }
+
+    // Command to create a hard link.  Fails on platforms not
+    // supporting them.
+    if (args[1] == "create_hardlink" && args.size() == 4) {
+      const char* SouceFileName = args[2].c_str();
+      const char* destinationFileName = args[3].c_str();
+
+      if (!cmSystemTools::FileExists(SouceFileName)) {
+        std::cerr << "failed to create hard link because source path '"
+                  << SouceFileName << "' does not exist \n";
+        return 1;
+      }
+
+      if ((cmSystemTools::FileExists(destinationFileName) ||
+           cmSystemTools::FileIsSymlink(destinationFileName)) &&
+          !cmSystemTools::RemoveFile(destinationFileName)) {
+        std::string emsg = cmSystemTools::GetLastSystemError();
+        std::cerr << "failed to create hard link '" << destinationFileName
+                  << "' because existing path cannot be removed: " << emsg
+                  << "\n";
+        return 1;
+      }
+
+      if (!cmSystemTools::CreateLink(args[2], args[3])) {
         return 1;
       }
       return 0;
@@ -1377,15 +1404,12 @@ int cmcmd::ExecuteCMakeCommand(std::vector<std::string> const& args)
 #if defined(_WIN32) && !defined(__CYGWIN__)
     // Write registry value
     if (args[1] == "write_regv" && args.size() > 3) {
-      return cmSystemTools::WriteRegistryValue(args[2].c_str(),
-                                               args[3].c_str())
-        ? 0
-        : 1;
+      return cmSystemTools::WriteRegistryValue(args[2], args[3]) ? 0 : 1;
     }
 
     // Delete registry value
     if (args[1] == "delete_regv" && args.size() > 2) {
-      return cmSystemTools::DeleteRegistryValue(args[2].c_str()) ? 0 : 1;
+      return cmSystemTools::DeleteRegistryValue(args[2]) ? 0 : 1;
     }
 
     // Remove file

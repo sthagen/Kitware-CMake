@@ -694,9 +694,7 @@ std::set<std::string> cmGlobalVisualStudio7Generator::IsPartOfDefaultBuild(
   }
   // inspect EXCLUDE_FROM_DEFAULT_BUILD[_<CONFIG>] properties
   for (std::string const& i : configs) {
-    const char* propertyValue =
-      target->GetFeature("EXCLUDE_FROM_DEFAULT_BUILD", i);
-    if (cmIsOff(propertyValue)) {
+    if (cmIsOff(target->GetFeature("EXCLUDE_FROM_DEFAULT_BUILD", i))) {
       activeConfigs.insert(i);
     }
   }

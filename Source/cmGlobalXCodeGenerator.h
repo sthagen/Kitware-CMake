@@ -109,6 +109,7 @@ public:
 
   bool ShouldStripResourcePath(cmMakefile*) const override;
 
+  bool SetSystemName(std::string const& s, cmMakefile* mf) override;
   bool SetGeneratorToolset(std::string const& ts, bool build,
                            cmMakefile* mf) override;
   void AppendFlag(std::string& flags, std::string const& flag) const;
@@ -203,10 +204,10 @@ private:
                                                   cmGeneratorTarget* target,
                                                   const std::string& lang,
                                                   cmSourceFile* sf);
-  cmXCodeObject* CreateXCodeSourceFileFromPath(const std::string& fullpath,
-                                               cmGeneratorTarget* target,
-                                               const std::string& lang,
-                                               cmSourceFile* sf);
+  cmXCodeObject* CreateXCodeBuildFileFromPath(const std::string& fullpath,
+                                              cmGeneratorTarget* target,
+                                              const std::string& lang,
+                                              cmSourceFile* sf);
   cmXCodeObject* CreateXCodeFileReference(cmSourceFile* sf,
                                           cmGeneratorTarget* target);
   cmXCodeObject* CreateXCodeSourceFile(cmLocalGenerator* gen, cmSourceFile* sf,
@@ -281,6 +282,7 @@ private:
   std::string PostBuildMakeTarget(std::string const& tName,
                                   std::string const& configName);
   cmXCodeObject* MainGroupChildren;
+  cmXCodeObject* FrameworkGroup;
   cmMakefile* CurrentMakefile;
   cmLocalGenerator* CurrentLocalGenerator;
   std::vector<std::string> CurrentConfigurationTypes;
@@ -294,11 +296,13 @@ private:
   std::map<std::string, cmXCodeObject*> GroupNameMap;
   std::map<std::string, cmXCodeObject*> TargetGroup;
   std::map<std::string, cmXCodeObject*> FileRefs;
+  std::map<std::string, cmXCodeObject*> ExternalLibRefs;
   std::map<cmGeneratorTarget const*, cmXCodeObject*> XCodeObjectMap;
   std::map<cmXCodeObject*, cmXCodeObject*> FileRefToBuildFileMap;
   std::vector<std::string> Architectures;
   std::string ObjectDirArchDefault;
   std::string ObjectDirArch;
+  std::string SystemName;
   std::string GeneratorToolset;
   std::map<cmGeneratorTarget const*, size_t> TargetOrderIndex;
   std::vector<std::string> EnabledLangs;

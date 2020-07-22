@@ -967,9 +967,10 @@ static const struct CompileLanguageNode : public cmGeneratorExpressionNode
     const std::vector<std::string>& parameters,
     cmGeneratorExpressionContext* context,
     const GeneratorExpressionContent* content,
-    cmGeneratorExpressionDAGChecker* /*dagChecker*/) const override
+    cmGeneratorExpressionDAGChecker* dagChecker) const override
   {
-    if (context->Language.empty()) {
+    if (context->Language.empty() &&
+        (!dagChecker || !dagChecker->EvaluatingCompileExpression())) {
       reportError(
         context, content->GetOriginalExpression(),
         "$<COMPILE_LANGUAGE:...> may only be used to specify include "
@@ -1014,7 +1015,9 @@ static const struct CompileLanguageAndIdNode : public cmGeneratorExpressionNode
     const GeneratorExpressionContent* content,
     cmGeneratorExpressionDAGChecker* dagChecker) const override
   {
-    if (!context->HeadTarget || context->Language.empty()) {
+    if (!context->HeadTarget ||
+        (context->Language.empty() &&
+         (!dagChecker || !dagChecker->EvaluatingCompileExpression()))) {
       // reportError(context, content->GetOriginalExpression(), "");
       reportError(
         context, content->GetOriginalExpression(),
@@ -1473,8 +1476,9 @@ static const struct TargetPropertyNode : public cmGeneratorExpressionNode
     }
 
     if (isInterfaceProperty) {
-      return target->EvaluateInterfaceProperty(propertyName, context,
-                                               dagCheckerParent);
+      return cmGeneratorExpression::StripEmptyListElements(
+        target->EvaluateInterfaceProperty(propertyName, context,
+                                          dagCheckerParent));
     }
 
     cmGeneratorExpressionDAGChecker dagChecker(
@@ -1560,8 +1564,9 @@ static const struct TargetPropertyNode : public cmGeneratorExpressionNode
     }
 
     if (!interfacePropertyName.empty()) {
-      result = this->EvaluateDependentExpression(result, context->LG, context,
-                                                 target, &dagChecker, target);
+      result = cmGeneratorExpression::StripEmptyListElements(
+        this->EvaluateDependentExpression(result, context->LG, context, target,
+                                          &dagChecker, target));
       std::string linkedTargetsContent = getLinkedTargetsContent(
         target, interfacePropertyName, context, &dagChecker);
       if (!linkedTargetsContent.empty()) {

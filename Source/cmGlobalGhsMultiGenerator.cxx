@@ -470,8 +470,7 @@ void cmGlobalGhsMultiGenerator::WriteAllTarget(
     if (t->GetType() == cmStateEnums::INTERFACE_LIBRARY) {
       continue;
     }
-    cmProp p = t->GetProperty("EXCLUDE_FROM_ALL");
-    if (!(p && cmIsOn(*p))) {
+    if (!IsExcluded(t->GetLocalGenerator(), t)) {
       defaultTargets.push_back(t);
     }
   }
@@ -635,7 +634,7 @@ void cmGlobalGhsMultiGenerator::WriteHighLevelDirectives(
   std::string tgt;
   const char* t =
     this->GetCMakeInstance()->GetCacheDefinition("GHS_PRIMARY_TARGET");
-  if (t && *t != '\0') {
+  if (cmNonempty(t)) {
     tgt = t;
     this->GetCMakeInstance()->MarkCliAsUsed("GHS_PRIMARY_TARGET");
   } else {
