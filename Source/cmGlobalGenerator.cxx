@@ -309,17 +309,7 @@ bool cmGlobalGenerator::CheckTargetsForMissingSources() const
         continue;
       }
 
-      std::vector<std::string> configs =
-        target->Makefile->GetGeneratorConfigs(cmMakefile::IncludeEmptyConfig);
-      std::vector<cmSourceFile*> srcs;
-      for (std::string const& config : configs) {
-        target->GetSourceFiles(srcs, config);
-        if (!srcs.empty()) {
-          break;
-        }
-      }
-
-      if (srcs.empty()) {
+      if (target->GetAllConfigSources().empty()) {
         std::ostringstream e;
         e << "No SOURCES given to target: " << target->GetName();
         this->GetCMakeInstance()->IssueMessage(
@@ -2199,7 +2189,7 @@ bool cmGlobalGenerator::IsExcluded(cmLocalGenerator* root,
     // configurations.
     if (trueCount && falseCount) {
       std::ostringstream e;
-      e << "The EXCLUDED_FROM_ALL property of target \"" << target->GetName()
+      e << "The EXCLUDE_FROM_ALL property of target \"" << target->GetName()
         << "\" varies by configuration. This is not supported by the \""
         << root->GetGlobalGenerator()->GetName() << "\" generator.";
       mf->IssueMessage(MessageType::FATAL_ERROR, e.str());

@@ -2293,7 +2293,7 @@ void cmVisualStudio10TargetGenerator::WriteAllSources(Elem& e0)
           e2.Attribute("UnityFilesDirectory", unityDir);
         } else {
           // Visual Studio versions prior to 2017 15.8 do not know about unity
-          // builds, thus we exclude the files alredy part of unity sources.
+          // builds, thus we exclude the files already part of unity sources.
           if (!si.Source->GetPropertyAsBool("SKIP_UNITY_BUILD_INCLUSION")) {
             exclude_configs = si.Configs;
           }
@@ -2917,6 +2917,12 @@ bool cmVisualStudio10TargetGenerator::ComputeClOptions(
   if (const char* s = clOptions.GetFlag("SpectreMitigation")) {
     this->SpectreMitigation[configName] = s;
     clOptions.RemoveFlag("SpectreMitigation");
+  }
+
+  // Remove any target-wide -TC or -TP flag added by the project.
+  // Such flags are unnecessary and break our model of language selection.
+  if (langForClCompile == "C" || langForClCompile == "CXX") {
+    clOptions.RemoveFlag("CompileAs");
   }
 
   this->ClOptions[configName] = std::move(pOptions);

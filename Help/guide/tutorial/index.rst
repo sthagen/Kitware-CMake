@@ -359,7 +359,7 @@ executables. For example:
 
 The CMake variable :variable:`CMAKE_INSTALL_PREFIX` is used to determine the
 root of where the files will be installed. If using the ``cmake --install``
-command, the installation prefix can be overidden via the ``--prefix``
+command, the installation prefix can be overridden via the ``--prefix``
 argument. For example:
 
 .. code-block:: console
@@ -552,6 +552,7 @@ We also have to add the current binary directory to the list of include
 directories so that ``Table.h`` can be found and included by ``mysqrt.cxx``.
 
 .. literalinclude:: Step7/MathFunctions/CMakeLists.txt
+  :language: cmake
   :start-after: # state that we depend on our bin
   :end-before: # install rules
 
