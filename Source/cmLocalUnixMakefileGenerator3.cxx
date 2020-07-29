@@ -101,7 +101,7 @@ void cmLocalUnixMakefileGenerator3::Generate()
   cmGlobalUnixMakefileGenerator3* gg =
     static_cast<cmGlobalUnixMakefileGenerator3*>(this->GlobalGenerator);
   for (const auto& target : this->GetGeneratorTargets()) {
-    if (target->GetType() == cmStateEnums::INTERFACE_LIBRARY) {
+    if (!target->IsInBuildSystem()) {
       continue;
     }
     std::unique_ptr<cmMakefileTargetGenerator> tg(
@@ -137,7 +137,7 @@ void cmLocalUnixMakefileGenerator3::GetLocalObjectFiles(
   std::map<std::string, LocalObjectInfo>& localObjectFiles)
 {
   for (const auto& gt : this->GetGeneratorTargets()) {
-    if (gt->GetType() == cmStateEnums::INTERFACE_LIBRARY) {
+    if (!gt->CanCompileSources()) {
       continue;
     }
     std::vector<cmSourceFile const*> objectSources;
@@ -1807,7 +1807,7 @@ void cmLocalUnixMakefileGenerator3::WriteDependLanguageInfo(
     std::string cidVar =
       cmStrCat("CMAKE_", implicitLang.first, "_COMPILER_ID");
     const char* cid = this->Makefile->GetDefinition(cidVar);
-    if (cid && *cid) {
+    if (cmNonempty(cid)) {
       cmakefileStream << "set(CMAKE_" << implicitLang.first
                       << "_COMPILER_ID \"" << cid << "\")\n";
     }

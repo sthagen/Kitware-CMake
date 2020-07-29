@@ -302,9 +302,7 @@ bool cmGlobalGenerator::CheckTargetsForMissingSources() const
   bool failed = false;
   for (const auto& localGen : this->LocalGenerators) {
     for (const auto& target : localGen->GetGeneratorTargets()) {
-      if (target->GetType() == cmStateEnums::TargetType::GLOBAL_TARGET ||
-          target->GetType() == cmStateEnums::TargetType::INTERFACE_LIBRARY ||
-          target->GetType() == cmStateEnums::TargetType::UTILITY ||
+      if (!target->CanCompileSources() ||
           cmIsOn(target->GetProperty("ghs_integrity_app"))) {
         continue;
       }
@@ -358,9 +356,7 @@ bool cmGlobalGenerator::CheckTargetsForPchCompilePdb() const
   bool failed = false;
   for (const auto& generator : this->LocalGenerators) {
     for (const auto& target : generator->GetGeneratorTargets()) {
-      if (target->GetType() == cmStateEnums::TargetType::GLOBAL_TARGET ||
-          target->GetType() == cmStateEnums::TargetType::INTERFACE_LIBRARY ||
-          target->GetType() == cmStateEnums::TargetType::UTILITY ||
+      if (!target->CanCompileSources() ||
           cmIsOn(target->GetProperty("ghs_integrity_app"))) {
         continue;
       }
@@ -405,15 +401,13 @@ bool cmGlobalGenerator::FindMakeProgram(cmMakefile* mf)
       "all generators must specify this->FindMakeProgramFile");
     return false;
   }
-  if (!mf->GetDefinition("CMAKE_MAKE_PROGRAM") ||
-      cmIsOff(mf->GetDefinition("CMAKE_MAKE_PROGRAM"))) {
+  if (cmIsOff(mf->GetDefinition("CMAKE_MAKE_PROGRAM"))) {
     std::string setMakeProgram = mf->GetModulesFile(this->FindMakeProgramFile);
     if (!setMakeProgram.empty()) {
       mf->ReadListFile(setMakeProgram);
     }
   }
-  if (!mf->GetDefinition("CMAKE_MAKE_PROGRAM") ||
-      cmIsOff(mf->GetDefinition("CMAKE_MAKE_PROGRAM"))) {
+  if (cmIsOff(mf->GetDefinition("CMAKE_MAKE_PROGRAM"))) {
     std::ostringstream err;
     err << "CMake was unable to find a build program corresponding to \""
         << this->GetName() << "\".  CMAKE_MAKE_PROGRAM is not set.  You "
@@ -779,7 +773,7 @@ void cmGlobalGenerator::EnableLanguage(
     std::string compilerEnv = cmStrCat("CMAKE_", lang, "_COMPILER_ENV_VAR");
     std::ostringstream noCompiler;
     const char* compilerFile = mf->GetDefinition(compilerName);
-    if (!compilerFile || !*compilerFile || cmIsNOTFOUND(compilerFile)) {
+    if (!cmNonempty(compilerFile) || cmIsNOTFOUND(compilerFile)) {
       /* clang-format off */
       noCompiler <<
         "No " << compilerName << " could be found.\n"
@@ -1595,9 +1589,7 @@ bool cmGlobalGenerator::AddAutomaticSources()
   for (const auto& lg : this->LocalGenerators) {
     lg->CreateEvaluationFileOutputs();
     for (const auto& gt : lg->GetGeneratorTargets()) {
-      if (gt->GetType() == cmStateEnums::INTERFACE_LIBRARY ||
-          gt->GetType() == cmStateEnums::UTILITY ||
-          gt->GetType() == cmStateEnums::GLOBAL_TARGET) {
+      if (!gt->CanCompileSources()) {
         continue;
       }
       lg->AddUnityBuild(gt.get());
@@ -1609,9 +1601,7 @@ bool cmGlobalGenerator::AddAutomaticSources()
   }
   for (const auto& lg : this->LocalGenerators) {
     for (const auto& gt : lg->GetGeneratorTargets()) {
-      if (gt->GetType() == cmStateEnums::INTERFACE_LIBRARY ||
-          gt->GetType() == cmStateEnums::UTILITY ||
-          gt->GetType() == cmStateEnums::GLOBAL_TARGET) {
+      if (!gt->CanCompileSources()) {
         continue;
       }
       // Handle targets that re-use a PCH from an above-handled target.
@@ -2165,7 +2155,7 @@ bool cmGlobalGenerator::IsExcluded(cmLocalGenerator* root,
 bool cmGlobalGenerator::IsExcluded(cmLocalGenerator* root,
                                    const cmGeneratorTarget* target) const
 {
-  if (target->GetType() == cmStateEnums::INTERFACE_LIBRARY) {
+  if (!target->IsInBuildSystem()) {
     return true;
   }
   cmMakefile* mf = root->GetMakefile();
@@ -2454,7 +2444,7 @@ void cmGlobalGenerator::AddGlobalTarget_Package(
   gti.WorkingDir = mf->GetCurrentBinaryDirectory();
   cmCustomCommandLine singleLine;
   singleLine.push_back(cmSystemTools::GetCPackCommand());
-  if (cmakeCfgIntDir && *cmakeCfgIntDir && cmakeCfgIntDir[0] != '.') {
+  if (cmNonempty(cmakeCfgIntDir) && cmakeCfgIntDir[0] != '.') {
     singleLine.push_back("-C");
     singleLine.push_back(cmakeCfgIntDir);
   }
@@ -2539,7 +2529,7 @@ void cmGlobalGenerator::AddGlobalTarget_Test(
       singleLine.push_back(arg);
     }
   }
-  if (cmakeCfgIntDir && *cmakeCfgIntDir && cmakeCfgIntDir[0] != '.') {
+  if (cmNonempty(cmakeCfgIntDir) && cmakeCfgIntDir[0] != '.') {
     singleLine.push_back("-C");
     singleLine.push_back(cmakeCfgIntDir);
   } else // TODO: This is a hack. Should be something to do with the
@@ -2620,7 +2610,7 @@ void cmGlobalGenerator::AddGlobalTarget_Install(
       "installation rules have been specified",
       mf->GetBacktrace());
   } else if (this->InstallTargetEnabled && !skipInstallRules) {
-    if (!cmakeCfgIntDir || !*cmakeCfgIntDir || cmakeCfgIntDir[0] == '.') {
+    if (!(cmNonempty(cmakeCfgIntDir) && cmakeCfgIntDir[0] != '.')) {
       std::set<std::string>* componentsSet = &this->InstallComponents;
       std::ostringstream ostr;
       if (!componentsSet->empty()) {
@@ -2659,7 +2649,7 @@ void cmGlobalGenerator::AddGlobalTarget_Install(
       cmd = "cmake";
     }
     singleLine.push_back(cmd);
-    if (cmakeCfgIntDir && *cmakeCfgIntDir && cmakeCfgIntDir[0] != '.') {
+    if (cmNonempty(cmakeCfgIntDir) && cmakeCfgIntDir[0] != '.') {
       std::string cfgArg = "-DBUILD_TYPE=";
       bool useEPN = this->UseEffectivePlatformName(mf.get());
       if (useEPN) {
@@ -3054,7 +3044,7 @@ void cmGlobalGenerator::WriteSummary()
 
   for (const auto& lg : this->LocalGenerators) {
     for (const auto& tgt : lg->GetGeneratorTargets()) {
-      if (tgt->GetType() == cmStateEnums::INTERFACE_LIBRARY) {
+      if (!tgt->IsInBuildSystem()) {
         continue;
       }
       this->WriteSummary(tgt.get());

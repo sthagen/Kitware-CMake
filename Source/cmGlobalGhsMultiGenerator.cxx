@@ -218,10 +218,11 @@ void cmGlobalGhsMultiGenerator::GetToolset(cmMakefile* mf, std::string& tsd,
 {
   const char* ghsRoot = mf->GetDefinition("GHS_TOOLSET_ROOT");
 
-  if (!ghsRoot || ghsRoot[0] == '\0') {
-    ghsRoot = DEFAULT_TOOLSET_ROOT;
+  if (cmNonempty(ghsRoot)) {
+    tsd = ghsRoot;
+  } else {
+    tsd = DEFAULT_TOOLSET_ROOT;
   }
-  tsd = ghsRoot;
 
   if (ts.empty()) {
     std::vector<std::string> output;
@@ -467,7 +468,7 @@ void cmGlobalGhsMultiGenerator::WriteAllTarget(
     this->ProjectTargets.push_back(t);
   }
   for (cmGeneratorTarget const* t : sortedProjectTargets) {
-    if (t->GetType() == cmStateEnums::INTERFACE_LIBRARY) {
+    if (!t->IsInBuildSystem()) {
       continue;
     }
     if (!IsExcluded(t->GetLocalGenerator(), t)) {
