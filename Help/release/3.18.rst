@@ -264,6 +264,10 @@ Other
 * :manual:`ccmake(1)` learned to read a :envvar:`CCMAKE_COLORS`
   environment variable to customize colors.
 
+* The :manual:`Compile Features <cmake-compile-features(7)>` functionality
+  is now aware of the availability of C11 features in MSVC 19.27 and above,
+  including support for the ``c_restrict`` feature and the ``-std:c11`` flag.
+
 Deprecated and Removed Features
 ===============================
 
@@ -339,3 +343,14 @@ Changes made since CMake 3.18.0 include the following.
   that were using manual quoting or escaping to work around the prior
   limitation.  This fix has been reverted in 3.18.1, but may be
   re-introduced in future versions of CMake with a policy for compatibility.
+
+3.18.2
+------
+
+* The default value of :variable:`CMAKE_AUTOMOC_PATH_PREFIX` was changed to
+  ``OFF`` because this feature can break existing projects that have
+  identically named header files in different include directories.
+  This restores compatibility with behavior of CMake 3.15 and below.
+
+* The :manual:`Compile Features <cmake-compile-features(7)>` functionality
+  was updated for MSVC 19.27 as mentioned above.

@@ -93,8 +93,12 @@
 #if defined(CMAKE_USE_WMAKE)
 #  include "cmGlobalWatcomWMakeGenerator.h"
 #endif
-#include "cmGlobalUnixMakefileGenerator3.h"
 #if !defined(CMAKE_BOOTSTRAP)
+#  include "cmGlobalNinjaGenerator.h"
+#  include "cmGlobalUnixMakefileGenerator3.h"
+#elif defined(CMAKE_BOOTSTRAP_MAKEFILES)
+#  include "cmGlobalUnixMakefileGenerator3.h"
+#elif defined(CMAKE_BOOTSTRAP_NINJA)
 #  include "cmGlobalNinjaGenerator.h"
 #endif
 
@@ -1390,8 +1394,13 @@ int cmake::HandleDeleteCacheVariables(const std::string& var)
     save.key = *i;
     warning << *i << "= ";
     i++;
-    save.value = *i;
-    warning << *i << "\n";
+    if (i != argsSplit.end()) {
+      save.value = *i;
+      warning << *i << "\n";
+    } else {
+      warning << "\n";
+      i -= 1;
+    }
     cmProp existingValue = this->State->GetCacheEntryValue(save.key);
     if (existingValue) {
       save.type = this->State->GetCacheEntryType(save.key);
@@ -1745,6 +1754,9 @@ std::unique_ptr<cmGlobalGenerator> cmake::EvaluateDefaultGlobalGenerator()
     gen = cm::make_unique<cmGlobalNMakeMakefileGenerator>(this);
   }
   return std::unique_ptr<cmGlobalGenerator>(std::move(gen));
+#elif defined(CMAKE_BOOTSTRAP_NINJA)
+  return std::unique_ptr<cmGlobalGenerator>(
+    cm::make_unique<cmGlobalNinjaGenerator>(this));
 #else
   return std::unique_ptr<cmGlobalGenerator>(
     cm::make_unique<cmGlobalUnixMakefileGenerator3>(this));
@@ -2021,13 +2033,17 @@ void cmake::AddDefaultGenerators()
   this->Generators.push_back(cmGlobalMSYSMakefileGenerator::NewFactory());
   this->Generators.push_back(cmGlobalMinGWMakefileGenerator::NewFactory());
 #endif
-  this->Generators.push_back(cmGlobalUnixMakefileGenerator3::NewFactory());
 #if !defined(CMAKE_BOOTSTRAP)
 #  if defined(__linux__) || defined(_WIN32)
   this->Generators.push_back(cmGlobalGhsMultiGenerator::NewFactory());
 #  endif
+  this->Generators.push_back(cmGlobalUnixMakefileGenerator3::NewFactory());
   this->Generators.push_back(cmGlobalNinjaGenerator::NewFactory());
   this->Generators.push_back(cmGlobalNinjaMultiGenerator::NewFactory());
+#elif defined(CMAKE_BOOTSTRAP_NINJA)
+  this->Generators.push_back(cmGlobalNinjaGenerator::NewFactory());
+#elif defined(CMAKE_BOOTSTRAP_MAKEFILES)
+  this->Generators.push_back(cmGlobalUnixMakefileGenerator3::NewFactory());
 #endif
 #if defined(CMAKE_USE_WMAKE)
   this->Generators.push_back(cmGlobalWatcomWMakeGenerator::NewFactory());

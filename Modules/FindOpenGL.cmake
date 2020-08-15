@@ -132,19 +132,7 @@ endforeach()
 
 set(_OpenGL_CACHE_VARS)
 
-if (CYGWIN)
-  find_path(OPENGL_INCLUDE_DIR GL/gl.h )
-  list(APPEND _OpenGL_REQUIRED_VARS OPENGL_INCLUDE_DIR)
-
-  find_library(OPENGL_gl_LIBRARY opengl32 )
-  find_library(OPENGL_glu_LIBRARY glu32 )
-
-  list(APPEND _OpenGL_CACHE_VARS
-    OPENGL_INCLUDE_DIR
-    OPENGL_gl_LIBRARY
-    OPENGL_glu_LIBRARY
-    )
-elseif (WIN32)
+if (WIN32)
 
   if(BORLAND)
     set (OPENGL_gl_LIBRARY import32 CACHE STRING "OpenGL library for win32")
@@ -424,8 +412,15 @@ if(OPENGL_EGL_INCLUDE_DIR)
 endif()
 
 include(${CMAKE_CURRENT_LIST_DIR}/FindPackageHandleStandardArgs.cmake)
+if (CMAKE_FIND_PACKAGE_NAME STREQUAL "GLU")
+  # FindGLU include()'s this module. It's an old pattern, but rather than
+  # trying to suppress this from outside the module (which is then sensitive to
+  # the contents, detect the case in this module and suppress it explicitly.
+  set(FPHSA_NAME_MISMATCHED 1)
+endif ()
 FIND_PACKAGE_HANDLE_STANDARD_ARGS(OpenGL REQUIRED_VARS ${_OpenGL_REQUIRED_VARS}
                                   HANDLE_COMPONENTS)
+unset(FPHSA_NAME_MISMATCHED)
 unset(_OpenGL_REQUIRED_VARS)
 
 # OpenGL:: targets

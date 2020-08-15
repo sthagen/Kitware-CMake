@@ -5,17 +5,13 @@
 # This file is a "template" file used by various FindPython modules.
 #
 
-cmake_policy (GET CMP0094 _${_PYTHON_PREFIX}_LOOKUP_POLICY)
-
-cmake_policy (VERSION 3.7)
-
-if (_${_PYTHON_PREFIX}_LOOKUP_POLICY)
-  cmake_policy (SET CMP0094 ${_${_PYTHON_PREFIX}_LOOKUP_POLICY})
-endif()
-
 #
 # Initial configuration
 #
+
+# IN_LIST operator
+cmake_policy (SET CMP0057 NEW)
+
 if (NOT DEFINED _PYTHON_PREFIX)
   message (FATAL_ERROR "FindPython: INTERNAL ERROR")
 endif()
@@ -490,7 +486,7 @@ function (_PYTHON_GET_CONFIG_VAR _PYTHON_PGCV_VALUE NAME)
       endif()
     elseif (NAME STREQUAL "SOABI")
       execute_process (COMMAND ${_${_PYTHON_PREFIX}_INTERPRETER_LAUNCHER} "${_${_PYTHON_PREFIX}_EXECUTABLE}" -c
-                               "import sys\ntry:\n   from distutils import sysconfig\n   sys.stdout.write(';'.join([sysconfig.get_config_var('SOABI') or '',sysconfig.get_config_var('EXT_SUFFIX') or '']))\nexcept Exception:\n   import sysconfig;sys.stdout.write(';'.join([sysconfig.get_config_var('SOABI') or '',sysconfig.get_config_var('EXT_SUFFIX') or '']))"
+                               "import sys\ntry:\n   from distutils import sysconfig\n   sys.stdout.write(';'.join([sysconfig.get_config_var('SOABI') or '',sysconfig.get_config_var('EXT_SUFFIX') or '',sysconfig.get_config_var('SO') or '']))\nexcept Exception:\n   import sysconfig;sys.stdout.write(';'.join([sysconfig.get_config_var('SOABI') or '',sysconfig.get_config_var('EXT_SUFFIX') or '',sysconfig.get_config_var('SO') or '']))"
                        RESULT_VARIABLE _result
                        OUTPUT_VARIABLE _soabi
                        ERROR_QUIET
@@ -526,7 +522,7 @@ function (_PYTHON_GET_CONFIG_VAR _PYTHON_PGCV_VALUE NAME)
     endif()
   endif()
 
-  if (config_flag STREQUAL "ABIFLAGS")
+  if (NAME STREQUAL "ABIFLAGS" OR NAME STREQUAL "SOABI")
     set (${_PYTHON_PGCV_VALUE} "${_values}" PARENT_SCOPE)
     return()
   endif()
@@ -1097,6 +1093,7 @@ endif()
 unset (${_PYTHON_PREFIX}_SOABI)
 
 # Define lookup strategy
+cmake_policy (GET CMP0094 _${_PYTHON_PREFIX}_LOOKUP_POLICY)
 if (_${_PYTHON_PREFIX}_LOOKUP_POLICY STREQUAL "NEW")
   set (_${_PYTHON_PREFIX}_FIND_STRATEGY "LOCATION")
 else()
@@ -1771,9 +1768,7 @@ if ("Interpreter" IN_LIST ${_PYTHON_PREFIX}_FIND_COMPONENTS)
           unset (${_PYTHON_PREFIX}_SITEARCH)
         endif()
 
-        if (_${_PYTHON_PREFIX}_REQUIRED_VERSION_MAJOR VERSION_GREATER_EQUAL "3")
-          _python_get_config_var (${_PYTHON_PREFIX}_SOABI SOABI)
-        endif()
+        _python_get_config_var (${_PYTHON_PREFIX}_SOABI SOABI)
 
         # store properties in the cache to speed-up future searches
         set (_${_PYTHON_PREFIX}_INTERPRETER_PROPERTIES
@@ -2844,8 +2839,7 @@ if (("Development.Module" IN_LIST ${_PYTHON_PREFIX}_FIND_COMPONENTS
                 ${_PYTHON_PREFIX}_PyPy_VERSION "${${_PYTHON_PREFIX}_PyPy_VERSION}")
   endif()
 
-  if (_${_PYTHON_PREFIX}_REQUIRED_VERSION_MAJOR VERSION_GREATER_EQUAL "3"
-      AND NOT DEFINED ${_PYTHON_PREFIX}_SOABI)
+  if (NOT DEFINED ${_PYTHON_PREFIX}_SOABI)
     _python_get_config_var (${_PYTHON_PREFIX}_SOABI SOABI)
   endif()
 
@@ -3094,11 +3088,6 @@ if(_${_PYTHON_PREFIX}_CMAKE_ROLE STREQUAL "PROJECT")
     #
     function (__${_PYTHON_PREFIX}_ADD_LIBRARY prefix name)
       cmake_parse_arguments (PARSE_ARGV 2 PYTHON_ADD_LIBRARY "STATIC;SHARED;MODULE;WITH_SOABI" "" "")
-
-      if (prefix STREQUAL "Python2" AND PYTHON_ADD_LIBRARY_WITH_SOABI)
-        message (AUTHOR_WARNING "FindPython2: Option `WITH_SOABI` is not supported for Python2 and will be ignored.")
-        unset (PYTHON_ADD_LIBRARY_WITH_SOABI)
-      endif()
 
       if (PYTHON_ADD_LIBRARY_STATIC)
         set (type STATIC)

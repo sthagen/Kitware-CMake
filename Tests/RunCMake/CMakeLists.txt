@@ -142,6 +142,9 @@ if(CMAKE_GENERATOR MATCHES "Ninja")
   if(CMAKE_Fortran_COMPILER)
     list(APPEND Ninja_ARGS -DTEST_Fortran=1)
   endif()
+  if(CMake_TEST_Qt5 AND Qt5Core_FOUND)
+    list(APPEND Ninja_ARGS -DCMake_TEST_Qt5=1 -DCMAKE_TEST_Qt5Core_Version=${Qt5Core_VERSION})
+  endif()
   add_RunCMake_test(Ninja)
   set(NinjaMultiConfig_ARGS
     -DCYGWIN=${CYGWIN}
@@ -398,6 +401,7 @@ add_RunCMake_test(no_install_prefix)
 add_RunCMake_test(configure_file)
 add_RunCMake_test(CTestTimeout -DTIMEOUT=${CTestTestTimeout_TIME})
 add_RunCMake_test(CTestTimeoutAfterMatch)
+add_RunCMake_test(DependencyGraph -DCMAKE_Fortran_COMPILER=${CMAKE_Fortran_COMPILER})
 
 # ctresalloc links against CMakeLib and CTestLib, which means it can't be built
 # if CMake_TEST_EXTERNAL_CMAKE is activated (the compiler might be different.)
@@ -623,6 +627,7 @@ if("${CMAKE_GENERATOR}" MATCHES "Make|Ninja")
   set_property(TEST RunCMake.CompilerLauncher APPEND
     PROPERTY LABELS "CUDA")
   add_RunCMake_test(ctest_labels_for_subprojects)
+  add_RunCMake_test(CompilerArgs)
 endif()
 
 set(cpack_tests
