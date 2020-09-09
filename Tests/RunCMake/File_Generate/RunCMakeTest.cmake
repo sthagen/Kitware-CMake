@@ -4,6 +4,10 @@ run_cmake(CMP0070-NEW)
 run_cmake(CMP0070-OLD)
 run_cmake(CMP0070-WARN)
 
+run_cmake(SourceProperty)
+run_cmake(SourceProperty-CMP0070-NEW)
+run_cmake(SourceProperty-CMP0070-OLD)
+
 run_cmake(CommandConflict)
 if(RunCMake_GENERATOR_IS_MULTI_CONFIG)
   run_cmake(OutputConflict)
@@ -28,6 +32,13 @@ foreach(l CXX C)
     message(FATAL_ERROR "File content does not match: ${l_defs}")
   endif()
 endforeach()
+
+run_cmake(Target)
+file(READ "${RunCMake_BINARY_DIR}/Target-build/sub1/output.txt" sub_1)
+file(READ "${RunCMake_BINARY_DIR}/Target-build/sub2/output.txt" sub_2)
+if(NOT sub_1 MATCHES "first" OR NOT sub_2 MATCHES "second")
+  message(SEND_ERROR "Wrong target used by TARGET argument! ${sub_1} ${sub_2}")
+endif()
 
 set(timeformat "%Y%j%H%M%S")
 

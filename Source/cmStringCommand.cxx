@@ -11,6 +11,7 @@
 #include <memory>
 
 #include <cm/iterator>
+#include <cm/string_view>
 #include <cmext/string_view>
 
 #include "cmsys/RegularExpression.hxx"
@@ -20,6 +21,7 @@
 #include "cmGeneratorExpression.h"
 #include "cmMakefile.h"
 #include "cmMessageType.h"
+#include "cmProperty.h"
 #include "cmRange.h"
 #include "cmStringAlgorithms.h"
 #include "cmStringReplaceHelper.h"
@@ -533,15 +535,14 @@ bool HandleAppendCommand(std::vector<std::string> const& args,
     return true;
   }
 
-  const std::string& variable = args[1];
+  auto const& variableName = args[1];
 
-  std::string value;
-  const char* oldValue = status.GetMakefile().GetDefinition(variable);
-  if (oldValue) {
-    value = oldValue;
-  }
-  value += cmJoin(cmMakeRange(args).advance(2), std::string());
-  status.GetMakefile().AddDefinition(variable, value);
+  cm::string_view oldView{ status.GetMakefile().GetSafeDefinition(
+    variableName) };
+
+  auto const newValue = cmJoin(cmMakeRange(args).advance(2), {}, oldView);
+  status.GetMakefile().AddDefinition(variableName, newValue);
+
   return true;
 }
 
@@ -561,9 +562,9 @@ bool HandlePrependCommand(std::vector<std::string> const& args,
   const std::string& variable = args[1];
 
   std::string value = cmJoin(cmMakeRange(args).advance(2), std::string());
-  const char* oldValue = status.GetMakefile().GetDefinition(variable);
+  cmProp oldValue = status.GetMakefile().GetDefinition(variable);
   if (oldValue) {
-    value += oldValue;
+    value += *oldValue;
   }
   status.GetMakefile().AddDefinition(variable, value);
   return true;

@@ -625,13 +625,13 @@ const char* cmGeneratorTarget::GetFilePrefixInternal(
     const char* prefixVar = this->Target->GetPrefixVariableInternal(artifact);
     if (!language.empty() && prefixVar && *prefixVar) {
       std::string langPrefix = prefixVar + std::string("_") + language;
-      targetPrefix = this->Makefile->GetDef(langPrefix);
+      targetPrefix = this->Makefile->GetDefinition(langPrefix);
     }
 
     // if there is no prefix on the target nor specific language
     // use the cmake definition.
     if (!targetPrefix && prefixVar) {
-      targetPrefix = this->Makefile->GetDef(prefixVar);
+      targetPrefix = this->Makefile->GetDefinition(prefixVar);
     }
   }
 
@@ -675,13 +675,13 @@ const char* cmGeneratorTarget::GetFileSuffixInternal(
     const char* suffixVar = this->Target->GetSuffixVariableInternal(artifact);
     if (!language.empty() && suffixVar && *suffixVar) {
       std::string langSuffix = suffixVar + std::string("_") + language;
-      targetSuffix = this->Makefile->GetDef(langSuffix);
+      targetSuffix = this->Makefile->GetDefinition(langSuffix);
     }
 
     // if there is no suffix on the target nor specific language
     // use the cmake definition.
     if (!targetSuffix && suffixVar) {
-      targetSuffix = this->Makefile->GetDef(suffixVar);
+      targetSuffix = this->Makefile->GetDefinition(suffixVar);
     }
   }
 
@@ -1167,10 +1167,10 @@ const std::string& cmGeneratorTarget::GetLocationForBuild() const
   // Now handle the deprecated build-time configuration location.
   std::string const noConfig;
   location = this->GetDirectory(noConfig);
-  const char* cfgid = this->Makefile->GetDefinition("CMAKE_CFG_INTDIR");
-  if (cfgid && strcmp(cfgid, ".") != 0) {
+  cmProp cfgid = this->Makefile->GetDefinition("CMAKE_CFG_INTDIR");
+  if (cfgid && (*cfgid != ".")) {
     location += "/";
-    location += cfgid;
+    location += *cfgid;
   }
 
   if (this->IsAppBundleOnApple()) {
@@ -1363,18 +1363,25 @@ std::string cmGeneratorTarget::EvaluateInterfaceProperty(
 }
 
 namespace {
-std::string AddSwiftInterfaceIncludeDirectories(
+
+enum class IncludeDirectoryFallBack
+{
+  BINARY,
+  OBJECT
+};
+
+std::string AddLangSpecificInterfaceIncludeDirectories(
   const cmGeneratorTarget* root, const cmGeneratorTarget* target,
-  const std::string& config, cmGeneratorExpressionDAGChecker* context)
+  const std::string& lang, const std::string& config,
+  const std::string& propertyName, IncludeDirectoryFallBack mode,
+  cmGeneratorExpressionDAGChecker* context)
 {
   cmGeneratorExpressionDAGChecker dag{ target->GetBacktrace(), target,
-                                       "Swift_MODULE_DIRECTORY", nullptr,
-                                       context };
+                                       propertyName, nullptr, context };
   switch (dag.Check()) {
     case cmGeneratorExpressionDAGChecker::SELF_REFERENCE:
-      dag.ReportError(nullptr,
-                      "$<TARGET_PROPERTY:" + target->GetName() +
-                        ",Swift_MODULE_DIRECTORY>");
+      dag.ReportError(
+        nullptr, "$<TARGET_PROPERTY:" + target->GetName() + ",propertyName");
       CM_FALLTHROUGH;
     case cmGeneratorExpressionDAGChecker::CYCLIC_REFERENCE:
       // No error. We just skip cyclic references.
@@ -1390,13 +1397,16 @@ std::string AddSwiftInterfaceIncludeDirectories(
         target->GetLinkInterfaceLibraries(config, root, true)) {
     for (const cmLinkItem& library : interface->Libraries) {
       if (const cmGeneratorTarget* dependency = library.Target) {
-        if (cm::contains(dependency->GetAllConfigCompileLanguages(),
-                         "Swift")) {
-          std::string value =
-            dependency->GetSafeProperty("Swift_MODULE_DIRECTORY");
+        if (cm::contains(dependency->GetAllConfigCompileLanguages(), lang)) {
+          auto* lg = dependency->GetLocalGenerator();
+          std::string value = dependency->GetSafeProperty(propertyName);
           if (value.empty()) {
-            value =
-              dependency->GetLocalGenerator()->GetCurrentBinaryDirectory();
+            if (mode == IncludeDirectoryFallBack::BINARY) {
+              value = lg->GetCurrentBinaryDirectory();
+            } else if (mode == IncludeDirectoryFallBack::OBJECT) {
+              value = cmStrCat(lg->GetCurrentBinaryDirectory(), '/',
+                               lg->GetTargetDirectory(dependency));
+            }
           }
 
           if (!directories.empty()) {
@@ -1410,35 +1420,39 @@ std::string AddSwiftInterfaceIncludeDirectories(
   return directories;
 }
 
-void AddSwiftImplicitIncludeDirectories(
-  const cmGeneratorTarget* target, const std::string& config,
-  EvaluatedTargetPropertyEntries& entries)
+void AddLangSpecificImplicitIncludeDirectories(
+  const cmGeneratorTarget* target, const std::string& lang,
+  const std::string& config, const std::string& propertyName,
+  IncludeDirectoryFallBack mode, EvaluatedTargetPropertyEntries& entries)
 {
   if (const auto* libraries = target->GetLinkImplementationLibraries(config)) {
     cmGeneratorExpressionDAGChecker dag{ target->GetBacktrace(), target,
-                                         "Swift_MODULE_DIRECTORY", nullptr,
-                                         nullptr };
+                                         propertyName, nullptr, nullptr };
 
     for (const cmLinkImplItem& library : libraries->Libraries) {
       if (const cmGeneratorTarget* dependency = library.Target) {
         if (!dependency->IsInBuildSystem()) {
           continue;
         }
-        if (cm::contains(dependency->GetAllConfigCompileLanguages(),
-                         "Swift")) {
+        if (cm::contains(dependency->GetAllConfigCompileLanguages(), lang)) {
+          auto* lg = dependency->GetLocalGenerator();
           EvaluatedTargetPropertyEntry entry{ library, library.Backtrace };
 
-          if (cmProp val = dependency->GetProperty("Swift_MODULE_DIRECTORY")) {
+          if (cmProp val = dependency->GetProperty(propertyName)) {
             entry.Values.emplace_back(*val);
           } else {
-            entry.Values.emplace_back(
-              dependency->GetLocalGenerator()->GetCurrentBinaryDirectory());
+            if (mode == IncludeDirectoryFallBack::BINARY) {
+              entry.Values.emplace_back(lg->GetCurrentBinaryDirectory());
+            } else if (mode == IncludeDirectoryFallBack::OBJECT) {
+              entry.Values.emplace_back(
+                dependency->GetObjectDirectory(config));
+            }
           }
 
-          cmExpandList(AddSwiftInterfaceIncludeDirectories(target, dependency,
-                                                           config, &dag),
-                       entry.Values);
-
+          cmExpandList(
+            AddLangSpecificInterfaceIncludeDirectories(
+              target, dependency, lang, config, propertyName, mode, &dag),
+            entry.Values);
           entries.Entries.emplace_back(std::move(entry));
         }
       }
@@ -2051,13 +2065,13 @@ bool cmGeneratorTarget::IsChrpathUsed(const std::string& config) const
   if (!ll.empty()) {
     std::string sepVar =
       cmStrCat("CMAKE_SHARED_LIBRARY_RUNTIME_", ll, "_FLAG_SEP");
-    const char* sep = this->Makefile->GetDefinition(sepVar);
+    cmProp sep = this->Makefile->GetDefinition(sepVar);
     if (cmNonempty(sep)) {
       // TODO: Add ELF check to ABI detection and get rid of
       // CMAKE_EXECUTABLE_FORMAT.
-      if (const char* fmt =
+      if (cmProp fmt =
             this->Makefile->GetDefinition("CMAKE_EXECUTABLE_FORMAT")) {
-        return strcmp(fmt, "ELF") == 0;
+        return (*fmt == "ELF");
       }
     }
   }
@@ -2264,6 +2278,12 @@ bool cmGeneratorTarget::IsBundleOnApple() const
 {
   return this->IsFrameworkOnApple() || this->IsAppBundleOnApple() ||
     this->IsCFBundleOnApple();
+}
+
+bool cmGeneratorTarget::IsWin32Executable(const std::string& config) const
+{
+  return cmIsOn(cmGeneratorExpression::Evaluate(
+    this->GetSafeProperty("WIN32_EXECUTABLE"), this->LocalGenerator, config));
 }
 
 std::string cmGeneratorTarget::GetCFBundleDirectory(
@@ -3282,6 +3302,27 @@ void cmGeneratorTarget::AddCUDAArchitectureFlags(std::string& flags) const
   }
 }
 
+void cmGeneratorTarget::AddISPCTargetFlags(std::string& flags) const
+{
+  const std::string& property = this->GetSafeProperty("ISPC_INSTRUCTION_SETS");
+
+  // If ISPC_TARGET is false we don't add any architectures.
+  if (cmIsOff(property)) {
+    return;
+  }
+
+  std::string const& compiler =
+    this->Makefile->GetSafeDefinition("CMAKE_ISPC_COMPILER_ID");
+
+  if (compiler == "Intel") {
+    std::vector<std::string> targets;
+    cmExpandList(property, targets);
+    if (!targets.empty()) {
+      flags += cmStrCat(" --target=", cmWrap("", targets, "", ","));
+    }
+  }
+}
+
 void cmGeneratorTarget::AddCUDAToolkitFlags(std::string& flags) const
 {
   std::string const& compiler =
@@ -3476,7 +3517,28 @@ std::vector<BT<std::string>> cmGeneratorTarget::GetIncludeDirectories(
     this, config, lang, &dagChecker, this->IncludeDirectoriesEntries);
 
   if (lang == "Swift") {
-    AddSwiftImplicitIncludeDirectories(this, config, entries);
+    AddLangSpecificImplicitIncludeDirectories(
+      this, lang, config, "Swift_MODULE_DIRECTORY",
+      IncludeDirectoryFallBack::BINARY, entries);
+  }
+
+  if (this->CanCompileSources() && (lang != "Swift" && lang != "Fortran")) {
+
+    const std::string propertyName = "ISPC_HEADER_DIRECTORY";
+
+    // If this target has ISPC sources make sure to add the header
+    // directory to other compilation units
+    if (cm::contains(this->GetAllConfigCompileLanguages(), "ISPC")) {
+      if (cmProp val = this->GetProperty(propertyName)) {
+        includes.emplace_back(*val);
+      } else {
+        includes.emplace_back(this->GetObjectDirectory(config));
+      }
+    }
+
+    AddLangSpecificImplicitIncludeDirectories(
+      this, "ISPC", config, propertyName, IncludeDirectoryFallBack::OBJECT,
+      entries);
   }
 
   AddInterfaceEntries(this, config, "INTERFACE_INCLUDE_DIRECTORIES", lang,
@@ -3868,8 +3930,8 @@ std::string cmGeneratorTarget::GetPchHeader(const std::string& config,
 
     const std::string filename_tmp = cmStrCat(filename, ".tmp");
     if (!pchReuseFrom) {
-      auto pchPrologue = this->Makefile->GetDefinition("CMAKE_PCH_PROLOGUE");
-      auto pchEpilogue = this->Makefile->GetDefinition("CMAKE_PCH_EPILOGUE");
+      cmProp pchPrologue = this->Makefile->GetDefinition("CMAKE_PCH_PROLOGUE");
+      cmProp pchEpilogue = this->Makefile->GetDefinition("CMAKE_PCH_EPILOGUE");
 
       std::string firstHeaderOnDisk;
       {
@@ -3878,7 +3940,7 @@ std::string cmGeneratorTarget::GetPchHeader(const std::string& config,
           this->GetGlobalGenerator()->GetMakefileEncoding());
         file << "/* generated by CMake */\n\n";
         if (pchPrologue) {
-          file << pchPrologue << "\n";
+          file << *pchPrologue << "\n";
         }
         if (this->GetGlobalGenerator()->IsXcode()) {
           file << "#ifndef CMAKE_SKIP_PRECOMPILE_HEADERS\n";
@@ -3908,7 +3970,7 @@ std::string cmGeneratorTarget::GetPchHeader(const std::string& config,
           file << "#endif // CMAKE_SKIP_PRECOMPILE_HEADERS\n";
         }
         if (pchEpilogue) {
-          file << pchEpilogue << "\n";
+          file << *pchEpilogue << "\n";
         }
       }
 
@@ -4589,7 +4651,7 @@ bool cmGeneratorTarget::ComputeCompileFeatures(
         this->LanguageStandardMap[key] = *standardToCopy;
         generatorTargetLanguageStandard = &this->LanguageStandardMap[key];
       } else {
-        cmProp defaultStandard = this->Makefile->GetDef(
+        cmProp defaultStandard = this->Makefile->GetDefinition(
           cmStrCat("CMAKE_", language.second, "_STANDARD_DEFAULT"));
         if (defaultStandard != nullptr) {
           this->LanguageStandardMap[key] = BTs<std::string>(*defaultStandard);
@@ -4734,12 +4796,11 @@ cmGeneratorTarget::Names cmGeneratorTarget::GetLibraryNames(
     // The library's soname.
     this->ComputeVersionedName(targetNames.SharedObject, prefix,
                                targetNames.Base, suffix, targetNames.Output,
-                               (soversion ? soversion->c_str() : nullptr));
+                               cmToCStr(soversion));
 
     // The library's real name on disk.
     this->ComputeVersionedName(targetNames.Real, prefix, targetNames.Base,
-                               suffix, targetNames.Output,
-                               (version ? version->c_str() : nullptr));
+                               suffix, targetNames.Output, cmToCStr(version));
   }
 
   // The import library name.
@@ -4775,10 +4836,7 @@ cmGeneratorTarget::Names cmGeneratorTarget::GetExecutableNames(
   const char* version = nullptr;
 #else
   // Check for executable version properties.
-  const char* version = nullptr;
-  if (cmProp p = this->GetProperty("VERSION")) {
-    version = p->c_str();
-  }
+  const char* version = cmToCStr(this->GetProperty("VERSION"));
   if (this->GetType() != cmStateEnums::EXECUTABLE ||
       this->Makefile->IsOn("XCODE")) {
     version = nullptr;
@@ -5029,6 +5087,11 @@ void cmGeneratorTarget::GetTargetObjectNames(
     // It must exist because we populated the mapping just above.
     assert(!map_it->second.empty());
     objects.push_back(map_it->second);
+  }
+
+  auto ispcObjects = this->GetGeneratedISPCObjects(config);
+  for (std::string const& output : ispcObjects) {
+    objects.push_back(cmSystemTools::GetFilenameName(output));
   }
 }
 
@@ -5495,7 +5558,7 @@ const char* getTypedProperty<const char*>(
   cmProp value = tgt->GetProperty(prop);
 
   if (genexInterpreter == nullptr) {
-    return value ? value->c_str() : nullptr;
+    return cmToCStr(value);
   }
 
   return genexInterpreter->Evaluate(value ? *value : "", prop).c_str();
@@ -5509,7 +5572,7 @@ std::string getTypedProperty<std::string>(
   cmProp value = tgt->GetProperty(prop);
 
   if (genexInterpreter == nullptr) {
-    return valueAsString(value ? value->c_str() : nullptr);
+    return valueAsString(cmToCStr(value));
   }
 
   return genexInterpreter->Evaluate(value ? *value : "", prop);
@@ -5911,7 +5974,7 @@ std::string cmGeneratorTarget::GetRuntimeLinkLibrary(
 {
   // This is activated by the presence of a default selection whether or
   // not it is overridden by a property.
-  cmProp runtimeLibraryDefault = this->Makefile->GetDef(
+  cmProp runtimeLibraryDefault = this->Makefile->GetDefinition(
     cmStrCat("CMAKE_", lang, "_RUNTIME_LIBRARY_DEFAULT"));
   if (!cmNonempty(runtimeLibraryDefault)) {
     return std::string();
@@ -5951,7 +6014,7 @@ std::string cmGeneratorTarget::CreateFortranModuleDirectory(
       target_mod_dir = default_mod_dir;
     }
   }
-  const char* moddir_flag =
+  cmProp moddir_flag =
     this->Makefile->GetDefinition("CMAKE_Fortran_MODDIR_FLAG");
   if (!target_mod_dir.empty() && moddir_flag) {
     // Compute the full path to the module directory.
@@ -5968,6 +6031,66 @@ std::string cmGeneratorTarget::CreateFortranModuleDirectory(
     cmSystemTools::MakeDirectory(mod_dir);
   }
   return mod_dir;
+}
+
+void cmGeneratorTarget::AddISPCGeneratedHeader(std::string const& header,
+                                               std::string const& config)
+{
+  std::string config_upper;
+  if (!config.empty()) {
+    config_upper = cmSystemTools::UpperCase(config);
+  }
+  auto iter = this->ISPCGeneratedHeaders.find(config_upper);
+  if (iter == this->ISPCGeneratedHeaders.end()) {
+    std::vector<std::string> headers;
+    headers.emplace_back(header);
+    this->ISPCGeneratedHeaders.insert({ config_upper, headers });
+  } else {
+    iter->second.emplace_back(header);
+  }
+}
+
+std::vector<std::string> cmGeneratorTarget::GetGeneratedISPCHeaders(
+  std::string const& config) const
+{
+  std::string config_upper;
+  if (!config.empty()) {
+    config_upper = cmSystemTools::UpperCase(config);
+  }
+  auto iter = this->ISPCGeneratedHeaders.find(config_upper);
+  if (iter == this->ISPCGeneratedHeaders.end()) {
+    return std::vector<std::string>{};
+  }
+  return iter->second;
+}
+
+void cmGeneratorTarget::AddISPCGeneratedObject(std::vector<std::string>&& objs,
+                                               std::string const& config)
+{
+  std::string config_upper;
+  if (!config.empty()) {
+    config_upper = cmSystemTools::UpperCase(config);
+  }
+  auto iter = this->ISPCGeneratedObjects.find(config_upper);
+  if (iter == this->ISPCGeneratedObjects.end()) {
+    this->ISPCGeneratedObjects.insert({ config_upper, objs });
+  } else {
+    iter->second.insert(iter->second.end(), objs.begin(), objs.end());
+  }
+}
+
+std::vector<std::string> cmGeneratorTarget::GetGeneratedISPCObjects(
+  std::string const& config) const
+{
+  std::string config_upper;
+  if (!config.empty()) {
+    config_upper = cmSystemTools::UpperCase(config);
+  }
+  auto iter = this->ISPCGeneratedObjects.find(config_upper);
+  if (iter == this->ISPCGeneratedObjects.end()) {
+    return std::vector<std::string>{};
+  }
+  return iter->second;
 }
 
 std::string cmGeneratorTarget::GetFrameworkVersion() const

@@ -100,12 +100,13 @@ void cmLocalUnixMakefileGenerator3::Generate()
   // Generate the rule files for each target.
   cmGlobalUnixMakefileGenerator3* gg =
     static_cast<cmGlobalUnixMakefileGenerator3*>(this->GlobalGenerator);
-  for (const auto& target : this->GetGeneratorTargets()) {
-    if (!target->IsInBuildSystem()) {
+  for (cmGeneratorTarget* gt :
+       this->GlobalGenerator->GetLocalGeneratorTargetsInOrder(this)) {
+    if (!gt->IsInBuildSystem()) {
       continue;
     }
     std::unique_ptr<cmMakefileTargetGenerator> tg(
-      cmMakefileTargetGenerator::New(target.get()));
+      cmMakefileTargetGenerator::New(gt));
     if (tg) {
       tg->WriteRuleFiles();
       gg->RecordTargetProgress(tg.get());
@@ -235,7 +236,8 @@ void cmLocalUnixMakefileGenerator3::WriteLocalMakefile()
 
     for (LocalObjectEntry const& entry : localObjectFile.second) {
       if (entry.Language == "C" || entry.Language == "CXX" ||
-          entry.Language == "CUDA" || entry.Language == "Fortran") {
+          entry.Language == "CUDA" || entry.Language == "Fortran" ||
+          entry.Language == "ISPC") {
         // Right now, C, C++, Fortran and CUDA have both a preprocessor and the
         // ability to generate assembly code
         lang_has_preprocessor = true;
@@ -518,9 +520,9 @@ void cmLocalUnixMakefileGenerator3::WriteMakeRule(
 
   // Mark the rule as symbolic if requested.
   if (symbolic) {
-    if (const char* sym =
+    if (cmProp sym =
           this->Makefile->GetDefinition("CMAKE_MAKE_SYMBOLIC_RULE")) {
-      os << tgt << space << ": " << sym << "\n";
+      os << tgt << space << ": " << *sym << "\n";
     }
   }
 
@@ -832,9 +834,8 @@ void cmLocalUnixMakefileGenerator3::AppendRuleDepend(
 {
   // Add a dependency on the rule file itself unless an option to skip
   // it is specifically enabled by the user or project.
-  const char* nodep =
-    this->Makefile->GetDefinition("CMAKE_SKIP_RULE_DEPENDENCY");
-  if (!nodep || cmIsOff(nodep)) {
+  cmProp nodep = this->Makefile->GetDefinition("CMAKE_SKIP_RULE_DEPENDENCY");
+  if (cmIsOff(nodep)) {
     depends.emplace_back(ruleFileName);
   }
 }
@@ -1394,22 +1395,22 @@ bool cmLocalUnixMakefileGenerator3::ScanDependencies(
   // Lookup useful directory information.
   if (haveDirectoryInfo) {
     // Test whether we need to force Unix paths.
-    if (const char* force = mf->GetDefinition("CMAKE_FORCE_UNIX_PATHS")) {
+    if (cmProp force = mf->GetDefinition("CMAKE_FORCE_UNIX_PATHS")) {
       if (!cmIsOff(force)) {
         cmSystemTools::SetForceUnixPaths(true);
       }
     }
 
     // Setup relative path top directories.
-    if (const char* relativePathTopSource =
+    if (cmProp relativePathTopSource =
           mf->GetDefinition("CMAKE_RELATIVE_PATH_TOP_SOURCE")) {
       this->StateSnapshot.GetDirectory().SetRelativePathTopSource(
-        relativePathTopSource);
+        relativePathTopSource->c_str());
     }
-    if (const char* relativePathTopBinary =
+    if (cmProp relativePathTopBinary =
           mf->GetDefinition("CMAKE_RELATIVE_PATH_TOP_BINARY")) {
       this->StateSnapshot.GetDirectory().SetRelativePathTopBinary(
-        relativePathTopBinary);
+        relativePathTopBinary->c_str());
     }
   } else {
     cmSystemTools::Error("Directory Information file not found");
@@ -1444,7 +1445,8 @@ bool cmLocalUnixMakefileGenerator3::ScanDependencies(
     // Create the scanner for this language
     std::unique_ptr<cmDepends> scanner;
     if (lang == "C" || lang == "CXX" || lang == "RC" || lang == "ASM" ||
-        lang == "OBJC" || lang == "OBJCXX" || lang == "CUDA") {
+        lang == "OBJC" || lang == "OBJCXX" || lang == "CUDA" ||
+        lang == "ISPC") {
       // TODO: Handle RC (resource files) dependencies correctly.
       scanner = cm::make_unique<cmDependsC>(this, targetDir, lang, &validDeps);
     }
@@ -1476,13 +1478,13 @@ void cmLocalUnixMakefileGenerator3::CheckMultipleOutputs(bool verbose)
   cmMakefile* mf = this->Makefile;
 
   // Get the string listing the multiple output pairs.
-  const char* pairs_string = mf->GetDefinition("CMAKE_MULTIPLE_OUTPUT_PAIRS");
+  cmProp pairs_string = mf->GetDefinition("CMAKE_MULTIPLE_OUTPUT_PAIRS");
   if (!pairs_string) {
     return;
   }
 
   // Convert the string to a list and preserve empty entries.
-  std::vector<std::string> pairs = cmExpandedList(pairs_string, true);
+  std::vector<std::string> pairs = cmExpandedList(*pairs_string, true);
   for (auto i = pairs.begin(); i != pairs.end() && (i + 1) != pairs.end();) {
     const std::string& depender = *i++;
     const std::string& dependee = *i++;
@@ -1648,9 +1650,9 @@ void cmLocalUnixMakefileGenerator3::WriteLocalAllRules(
   recursiveTarget = cmStrCat(this->GetCurrentBinaryDirectory(), "/preinstall");
   commands.clear();
   depends.clear();
-  const char* noall =
+  cmProp noall =
     this->Makefile->GetDefinition("CMAKE_SKIP_INSTALL_ALL_DEPENDENCY");
-  if (!noall || cmIsOff(noall)) {
+  if (cmIsOff(noall)) {
     // Drive the build before installing.
     depends.emplace_back("all");
   } else if (regenerate) {
@@ -1698,11 +1700,11 @@ void cmLocalUnixMakefileGenerator3::ClearDependencies(cmMakefile* mf,
                                                       bool verbose)
 {
   // Get the list of target files to check
-  const char* infoDef = mf->GetDefinition("CMAKE_DEPEND_INFO_FILES");
+  cmProp infoDef = mf->GetDefinition("CMAKE_DEPEND_INFO_FILES");
   if (!infoDef) {
     return;
   }
-  std::vector<std::string> files = cmExpandedList(infoDef);
+  std::vector<std::string> files = cmExpandedList(*infoDef);
 
   // Each depend information file corresponds to a target.  Clear the
   // dependencies for that target.
@@ -1806,10 +1808,10 @@ void cmLocalUnixMakefileGenerator3::WriteDependLanguageInfo(
     // Tell the dependency scanner what compiler is used.
     std::string cidVar =
       cmStrCat("CMAKE_", implicitLang.first, "_COMPILER_ID");
-    const char* cid = this->Makefile->GetDefinition(cidVar);
+    cmProp cid = this->Makefile->GetDefinition(cidVar);
     if (cmNonempty(cid)) {
       cmakefileStream << "set(CMAKE_" << implicitLang.first
-                      << "_COMPILER_ID \"" << cid << "\")\n";
+                      << "_COMPILER_ID \"" << *cid << "\")\n";
     }
 
     if (implicitLang.first == "Fortran") {

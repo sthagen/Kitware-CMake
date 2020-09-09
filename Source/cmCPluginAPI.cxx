@@ -140,7 +140,7 @@ const char* CCONV cmGetCurrentOutputDirectory(void* arg)
 const char* CCONV cmGetDefinition(void* arg, const char* def)
 {
   cmMakefile* mf = static_cast<cmMakefile*>(arg);
-  return mf->GetDefinition(def);
+  return cmToCStr(mf->GetDefinition(def));
 }
 
 int CCONV cmIsOn(void* arg, const char* name)
@@ -581,13 +581,13 @@ const char* CCONV cmSourceFileGetProperty(void* arg, const char* prop)
   cmCPluginAPISourceFile* sf = static_cast<cmCPluginAPISourceFile*>(arg);
   if (cmSourceFile* rsf = sf->RealSourceFile) {
     cmProp p = rsf->GetProperty(prop);
-    return p ? p->c_str() : nullptr;
+    return cmToCStr(p);
   }
   if (!strcmp(prop, "LOCATION")) {
     return sf->FullPath.c_str();
   }
   cmProp retVal = sf->Properties.GetPropertyValue(prop);
-  return retVal ? retVal->c_str() : nullptr;
+  return cmToCStr(retVal);
 }
 
 int CCONV cmSourceFileGetPropertyAsBool(void* arg, const char* prop)

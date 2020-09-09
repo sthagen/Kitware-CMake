@@ -1,7 +1,6 @@
 /* Distributed under the OSI-approved BSD 3-Clause License.  See accompanying
    file Copyright.txt or https://cmake.org/licensing for details.  */
-#ifndef cmMakefile_h
-#define cmMakefile_h
+#pragma once
 
 #include "cmConfigure.h" // IWYU pragma: keep
 
@@ -515,8 +514,7 @@ public:
    * If the variable is not found in this makefile instance, the
    * cache is then queried.
    */
-  const char* GetDefinition(const std::string&) const;
-  const std::string* GetDef(const std::string&) const;
+  cmProp GetDefinition(const std::string&) const;
   const std::string& GetSafeDefinition(const std::string&) const;
   const std::string& GetRequiredDefinition(const std::string& name) const;
   bool IsDefinitionSet(const std::string&) const;
@@ -944,12 +942,12 @@ public:
 
   const char* GetDefineFlagsCMP0059() const;
 
-  std::string GetExecutionFilePath() const;
+  std::string const& GetExecutionFilePath() const;
 
   void EnforceDirectoryLevelRules() const;
 
   void AddEvaluationFile(
-    const std::string& inputFile,
+    const std::string& inputFile, const std::string& targetName,
     std::unique_ptr<cmCompiledGeneratorExpression> outputName,
     std::unique_ptr<cmCompiledGeneratorExpression> condition,
     bool inputIsContent);
@@ -1158,5 +1156,3 @@ private:
   bool IsSourceFileTryCompile;
   mutable bool SuppressSideEffects;
 };
-
-#endif

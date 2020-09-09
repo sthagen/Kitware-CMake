@@ -265,16 +265,16 @@ cmTarget::cmTarget(std::string const& name, cmStateEnums::TargetType type,
   auto initProp = [this, mf, &defKey](const std::string& property) {
     // Replace everything after "CMAKE_"
     defKey.replace(defKey.begin() + 6, defKey.end(), property);
-    if (const char* value = mf->GetDefinition(defKey)) {
-      this->SetProperty(property, value);
+    if (cmProp value = mf->GetDefinition(defKey)) {
+      this->SetProperty(property, *value);
     }
   };
   auto initPropValue = [this, mf, &defKey](const std::string& property,
                                            const char* default_value) {
     // Replace everything after "CMAKE_"
     defKey.replace(defKey.begin() + 6, defKey.end(), property);
-    if (const char* value = mf->GetDefinition(defKey)) {
-      this->SetProperty(property, value);
+    if (cmProp value = mf->GetDefinition(defKey)) {
+      this->SetProperty(property, *value);
     } else if (default_value) {
       this->SetProperty(property, default_value);
     }
@@ -325,6 +325,7 @@ cmTarget::cmTarget(std::string const& name, cmStateEnums::TargetType type,
     initProp("Fortran_MODULE_DIRECTORY");
     initProp("Fortran_COMPILER_LAUNCHER");
     initProp("Fortran_PREPROCESS");
+    initProp("Fortran_VISIBILITY_PRESET");
     initProp("GNUtoMS");
     initProp("OSX_ARCHITECTURES");
     initProp("IOS_INSTALL_COMBINED");
@@ -366,6 +367,9 @@ cmTarget::cmTarget(std::string const& name, cmStateEnums::TargetType type,
     initProp("JOB_POOL_COMPILE");
     initProp("JOB_POOL_LINK");
     initProp("JOB_POOL_PRECOMPILE_HEADER");
+    initProp("ISPC_COMPILER_LAUNCHER");
+    initProp("ISPC_HEADER_DIRECTORY");
+    initProp("ISPC_INSTRUCTION_SETS");
     initProp("LINK_SEARCH_START_STATIC");
     initProp("LINK_SEARCH_END_STATIC");
     initProp("Swift_LANGUAGE_VERSION");
@@ -398,6 +402,7 @@ cmTarget::cmTarget(std::string const& name, cmStateEnums::TargetType type,
       initProp("XCODE_SCHEME_DYNAMIC_LINKER_API_USAGE");
       initProp("XCODE_SCHEME_DYNAMIC_LIBRARY_LOADS");
       initProp("XCODE_SCHEME_ENVIRONMENT");
+      initPropValue("XCODE_LINK_BUILD_PHASE_MODE", "NONE");
     }
 #endif
   }
@@ -522,11 +527,11 @@ cmTarget::cmTarget(std::string const& name, cmStateEnums::TargetType type,
 
   // check for "CMAKE_VS_GLOBALS" variable and set up target properties
   // if any
-  const char* globals = mf->GetDefinition("CMAKE_VS_GLOBALS");
+  cmProp globals = mf->GetDefinition("CMAKE_VS_GLOBALS");
   if (globals) {
     const std::string genName = mf->GetGlobalGenerator()->GetName();
     if (cmHasLiteralPrefix(genName, "Visual Studio")) {
-      std::vector<std::string> props = cmExpandedList(globals);
+      std::vector<std::string> props = cmExpandedList(*globals);
       const std::string vsGlobal = "VS_GLOBAL_";
       for (const std::string& i : props) {
         // split NAME=VALUE
@@ -1015,9 +1020,9 @@ void cmTarget::AddLinkLibrary(cmMakefile& mf, std::string const& lib,
        this->GetPolicyStatusCMP0073() == cmPolicies::WARN)) {
     std::string targetEntry = cmStrCat(impl->Name, "_LIB_DEPENDS");
     std::string dependencies;
-    const char* old_val = mf.GetDefinition(targetEntry);
+    cmProp old_val = mf.GetDefinition(targetEntry);
     if (old_val) {
-      dependencies += old_val;
+      dependencies += *old_val;
     }
     switch (llt) {
       case GENERAL_LibraryType:
@@ -1327,7 +1332,7 @@ void cmTarget::SetProperty(const std::string& prop, const char* value)
                               cmStrCat(reusedFrom, ".dir/"));
 
     cmProp tmp = reusedTarget->GetProperty("COMPILE_PDB_NAME");
-    this->SetProperty("COMPILE_PDB_NAME", tmp ? tmp->c_str() : nullptr);
+    this->SetProperty("COMPILE_PDB_NAME", cmToCStr(tmp));
     this->AddUtility(reusedFrom, false, impl->Makefile);
   } else if (prop == propC_STANDARD || prop == propCXX_STANDARD ||
              prop == propCUDA_STANDARD || prop == propOBJC_STANDARD ||
@@ -2039,6 +2044,37 @@ std::string cmTarget::ImportedGetFullPath(
   }
 
   if (result.empty()) {
+    auto message = [&]() -> std::string {
+      std::string unset;
+      std::string configuration;
+
+      if (artifact == cmStateEnums::RuntimeBinaryArtifact) {
+        unset = "IMPORTED_LOCATION";
+      } else if (artifact == cmStateEnums::ImportLibraryArtifact) {
+        unset = "IMPORTED_IMPLIB";
+      }
+
+      if (!config.empty()) {
+        configuration = cmStrCat(" configuration \"", config, "\"");
+      }
+
+      return cmStrCat(unset, " not set for imported target \"",
+                      this->GetName(), "\"", configuration, ".");
+    };
+
+    switch (this->GetPolicyStatus(cmPolicies::CMP0111)) {
+      case cmPolicies::WARN:
+        impl->Makefile->IssueMessage(
+          MessageType::AUTHOR_WARNING,
+          cmPolicies::GetPolicyWarning(cmPolicies::CMP0111) + "\n" +
+            message());
+        CM_FALLTHROUGH;
+      case cmPolicies::OLD:
+        break;
+      default:
+        impl->Makefile->IssueMessage(MessageType::FATAL_ERROR, message());
+    }
+
     result = cmStrCat(this->GetName(), "-NOTFOUND");
   }
   return result;

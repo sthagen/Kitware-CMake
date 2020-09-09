@@ -15,6 +15,7 @@
 
 #include "cmMakefile.h"
 #include "cmMessageType.h"
+#include "cmProperty.h"
 #include "cmState.h"
 #include "cmStringAlgorithms.h"
 #include "cmSystemTools.h"
@@ -143,7 +144,7 @@ const char* cmConditionEvaluator::GetDefinitionIfUnquoted(
     return nullptr;
   }
 
-  const char* def = this->Makefile.GetDefinition(argument.GetValue());
+  cmProp def = this->Makefile.GetDefinition(argument.GetValue());
 
   if (def && argument.WasQuoted() &&
       this->Policy54Status == cmPolicies::WARN) {
@@ -161,7 +162,7 @@ const char* cmConditionEvaluator::GetDefinitionIfUnquoted(
     }
   }
 
-  return def;
+  return cmToCStr(def);
 }
 
 //=========================================================================
@@ -534,9 +535,10 @@ bool cmConditionEvaluator::HandleLevel2(cmArgumentList& newArgs,
       this->IncrementArguments(newArgs, argP1, argP2);
       if (argP1 != newArgs.end() && argP2 != newArgs.end() &&
           IsKeyword(keyMATCHES, *argP1)) {
-        def = this->GetVariableOrString(*arg);
-        if (def != arg->c_str() // yes, we compare the pointer value
-            && cmHasLiteralPrefix(arg->GetValue(), "CMAKE_MATCH_")) {
+        def = this->GetDefinitionIfUnquoted(*arg);
+        if (!def) {
+          def = arg->c_str();
+        } else if (cmHasLiteralPrefix(arg->GetValue(), "CMAKE_MATCH_")) {
           // The string to match is owned by our match result variables.
           // Move it to our own buffer before clearing them.
           def_buf = def;
@@ -667,7 +669,7 @@ bool cmConditionEvaluator::HandleLevel2(cmArgumentList& newArgs,
           bool result = false;
 
           def = this->GetVariableOrString(*arg);
-          def2 = this->Makefile.GetDefinition(argP2->GetValue());
+          def2 = cmToCStr(this->Makefile.GetDefinition(argP2->GetValue()));
 
           if (def2) {
             std::vector<std::string> list = cmExpandedList(def2, true);

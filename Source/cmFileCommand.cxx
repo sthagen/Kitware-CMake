@@ -30,6 +30,7 @@
 #include "cmArgumentParser.h"
 #include "cmCryptoHash.h"
 #include "cmExecutionStatus.h"
+#include "cmFSPermissions.h"
 #include "cmFileCopier.h"
 #include "cmFileInstaller.h"
 #include "cmFileLockPool.h"
@@ -43,6 +44,7 @@
 #include "cmMessageType.h"
 #include "cmNewLineStyle.h"
 #include "cmPolicies.h"
+#include "cmProperty.h"
 #include "cmRange.h"
 #include "cmRuntimeDependencyArchive.h"
 #include "cmState.h"
@@ -1567,7 +1569,7 @@ bool HandleDownloadCommand(std::vector<std::string> const& args,
   std::string logVar;
   std::string statusVar;
   bool tls_verify = status.GetMakefile().IsOn("CMAKE_TLS_VERIFY");
-  const char* cainfo = status.GetMakefile().GetDefinition("CMAKE_TLS_CAINFO");
+  cmProp cainfo = status.GetMakefile().GetDefinition("CMAKE_TLS_CAINFO");
   std::string netrc_level =
     status.GetMakefile().GetSafeDefinition("CMAKE_NETRC");
   std::string netrc_file =
@@ -1622,7 +1624,7 @@ bool HandleDownloadCommand(std::vector<std::string> const& args,
     } else if (*i == "TLS_CAINFO") {
       ++i;
       if (i != args.end()) {
-        cainfo = i->c_str();
+        cainfo = &(*i);
       } else {
         status.SetError("DOWNLOAD missing file value for TLS_CAINFO.");
         return false;
@@ -1789,7 +1791,7 @@ bool HandleDownloadCommand(std::vector<std::string> const& args,
 
   // check to see if a CAINFO file has been specified
   // command arg comes first
-  std::string const& cainfo_err = cmCurlSetCAInfo(curl, cainfo);
+  std::string const& cainfo_err = cmCurlSetCAInfo(curl, cmToCStr(cainfo));
   if (!cainfo_err.empty()) {
     status.SetError(cainfo_err);
     return false;
@@ -1955,7 +1957,7 @@ bool HandleUploadCommand(std::vector<std::string> const& args,
   std::string statusVar;
   bool showProgress = false;
   bool tls_verify = status.GetMakefile().IsOn("CMAKE_TLS_VERIFY");
-  const char* cainfo = status.GetMakefile().GetDefinition("CMAKE_TLS_CAINFO");
+  cmProp cainfo = status.GetMakefile().GetDefinition("CMAKE_TLS_CAINFO");
   std::string userpwd;
   std::string netrc_level =
     status.GetMakefile().GetSafeDefinition("CMAKE_NETRC");
@@ -2008,7 +2010,7 @@ bool HandleUploadCommand(std::vector<std::string> const& args,
     } else if (*i == "TLS_CAINFO") {
       ++i;
       if (i != args.end()) {
-        cainfo = i->c_str();
+        cainfo = &(*i);
       } else {
         status.SetError("UPLOAD missing file value for TLS_CAINFO.");
         return false;
@@ -2109,7 +2111,7 @@ bool HandleUploadCommand(std::vector<std::string> const& args,
 
   // check to see if a CAINFO file has been specified
   // command arg comes first
-  std::string const& cainfo_err = cmCurlSetCAInfo(curl, cainfo);
+  std::string const& cainfo_err = cmCurlSetCAInfo(curl, cmToCStr(cainfo));
   if (!cainfo_err.empty()) {
     status.SetError(cainfo_err);
     return false;
@@ -2240,6 +2242,7 @@ bool HandleUploadCommand(std::vector<std::string> const& args,
 }
 
 void AddEvaluationFile(const std::string& inputName,
+                       const std::string& targetName,
                        const std::string& outputExpr,
                        const std::string& condition, bool inputIsContent,
                        cmExecutionStatus& status)
@@ -2255,7 +2258,8 @@ void AddEvaluationFile(const std::string& inputName,
     conditionGe.Parse(condition);
 
   status.GetMakefile().AddEvaluationFile(
-    inputName, std::move(outputCge), std::move(conditionCge), inputIsContent);
+    inputName, targetName, std::move(outputCge), std::move(conditionCge),
+    inputIsContent);
 }
 
 bool HandleGenerateCommand(std::vector<std::string> const& args,
@@ -2269,23 +2273,36 @@ bool HandleGenerateCommand(std::vector<std::string> const& args,
     status.SetError("Incorrect arguments to GENERATE subcommand.");
     return false;
   }
+
   std::string condition;
-  if (args.size() > 5) {
-    if (args[5] != "CONDITION") {
+  std::string target;
+
+  for (std::size_t i = 5; i < args.size();) {
+    const std::string& arg = args[i++];
+
+    if (args.size() - i == 0) {
       status.SetError("Incorrect arguments to GENERATE subcommand.");
       return false;
     }
-    if (args.size() != 7) {
-      status.SetError("Incorrect arguments to GENERATE subcommand.");
+
+    const std::string& value = args[i++];
+
+    if (value.empty()) {
+      status.SetError(
+        arg + " of sub-command GENERATE must not be empty if specified.");
       return false;
     }
-    condition = args[6];
-    if (condition.empty()) {
-      status.SetError("CONDITION of sub-command GENERATE must not be empty if "
-                      "specified.");
+
+    if (arg == "CONDITION") {
+      condition = value;
+    } else if (arg == "TARGET") {
+      target = value;
+    } else {
+      status.SetError("Unknown argument to GENERATE subcommand.");
       return false;
     }
   }
+
   std::string output = args[2];
   const bool inputIsContent = args[3] != "INPUT";
   if (inputIsContent && args[3] != "CONTENT") {
@@ -2294,7 +2311,7 @@ bool HandleGenerateCommand(std::vector<std::string> const& args,
   }
   std::string input = args[4];
 
-  AddEvaluationFile(input, output, condition, inputIsContent, status);
+  AddEvaluationFile(input, target, output, condition, inputIsContent, status);
   return true;
 }
 
@@ -3145,6 +3162,163 @@ bool HandleArchiveExtractCommand(std::vector<std::string> const& args,
   return true;
 }
 
+bool ValidateAndConvertPermissions(const std::vector<std::string>& permissions,
+                                   mode_t& perms, cmExecutionStatus& status)
+{
+  for (const auto& i : permissions) {
+    if (!cmFSPermissions::stringToModeT(i, perms)) {
+      status.SetError(i + " is an invalid permission specifier");
+      cmSystemTools::SetFatalErrorOccured();
+      return false;
+    }
+  }
+  return true;
+}
+
+bool SetPermissions(const std::string& filename, const mode_t& perms,
+                    cmExecutionStatus& status)
+{
+  if (!cmSystemTools::SetPermissions(filename, perms)) {
+    status.SetError("Failed to set permissions for " + filename);
+    cmSystemTools::SetFatalErrorOccured();
+    return false;
+  }
+  return true;
+}
+
+bool HandleChmodCommandImpl(std::vector<std::string> const& args, bool recurse,
+                            cmExecutionStatus& status)
+{
+  mode_t perms = 0;
+  mode_t fperms = 0;
+  mode_t dperms = 0;
+  cmsys::Glob globber;
+
+  globber.SetRecurse(recurse);
+  globber.SetRecurseListDirs(recurse);
+
+  struct Arguments
+  {
+    std::vector<std::string> Permissions;
+    std::vector<std::string> FilePermissions;
+    std::vector<std::string> DirectoryPermissions;
+  };
+
+  static auto const parser =
+    cmArgumentParser<Arguments>{}
+      .Bind("PERMISSIONS"_s, &Arguments::Permissions)
+      .Bind("FILE_PERMISSIONS"_s, &Arguments::FilePermissions)
+      .Bind("DIRECTORY_PERMISSIONS"_s, &Arguments::DirectoryPermissions);
+
+  std::vector<std::string> pathEntries;
+  std::vector<std::string> keywordsMissingValues;
+  Arguments parsedArgs = parser.Parse(cmMakeRange(args).advance(1),
+                                      &pathEntries, &keywordsMissingValues);
+
+  // check validity of arguments
+  if (parsedArgs.Permissions.empty() && parsedArgs.FilePermissions.empty() &&
+      parsedArgs.DirectoryPermissions.empty()) // no permissions given
+  {
+    status.SetError("No permissions given");
+    cmSystemTools::SetFatalErrorOccured();
+    return false;
+  }
+
+  if (!parsedArgs.Permissions.empty() && !parsedArgs.FilePermissions.empty() &&
+      !parsedArgs.DirectoryPermissions.empty()) // all keywords are used
+  {
+    status.SetError("Remove either PERMISSIONS or FILE_PERMISSIONS or "
+                    "DIRECTORY_PERMISSIONS from the invocation");
+    cmSystemTools::SetFatalErrorOccured();
+    return false;
+  }
+
+  if (!keywordsMissingValues.empty()) {
+    for (const auto& i : keywordsMissingValues) {
+      status.SetError(i + " is not given any arguments");
+      cmSystemTools::SetFatalErrorOccured();
+    }
+    return false;
+  }
+
+  // validate permissions
+  bool validatePermissions =
+    ValidateAndConvertPermissions(parsedArgs.Permissions, perms, status) &&
+    ValidateAndConvertPermissions(parsedArgs.FilePermissions, fperms,
+                                  status) &&
+    ValidateAndConvertPermissions(parsedArgs.DirectoryPermissions, dperms,
+                                  status);
+  if (!validatePermissions) {
+    return false;
+  }
+
+  std::vector<std::string> allPathEntries;
+
+  if (recurse) {
+    std::vector<std::string> tempPathEntries;
+    for (const auto& i : pathEntries) {
+      if (cmSystemTools::FileIsDirectory(i)) {
+        globber.FindFiles(i + "/*");
+        tempPathEntries = globber.GetFiles();
+        allPathEntries.insert(allPathEntries.end(), tempPathEntries.begin(),
+                              tempPathEntries.end());
+        allPathEntries.emplace_back(i);
+      } else {
+        allPathEntries.emplace_back(i); // We validate path entries below
+      }
+    }
+  } else {
+    allPathEntries = std::move(pathEntries);
+  }
+
+  // chmod
+  for (const auto& i : allPathEntries) {
+    if (!(cmSystemTools::FileExists(i) || cmSystemTools::FileIsDirectory(i))) {
+      status.SetError(cmStrCat("does not exist:\n  ", i));
+      cmSystemTools::SetFatalErrorOccured();
+      return false;
+    }
+
+    if (cmSystemTools::FileExists(i, true)) {
+      bool success = true;
+      const mode_t& filePermissions =
+        parsedArgs.FilePermissions.empty() ? perms : fperms;
+      if (filePermissions) {
+        success = SetPermissions(i, filePermissions, status);
+      }
+      if (!success) {
+        return false;
+      }
+    }
+
+    else if (cmSystemTools::FileIsDirectory(i)) {
+      bool success = true;
+      const mode_t& directoryPermissions =
+        parsedArgs.DirectoryPermissions.empty() ? perms : dperms;
+      if (directoryPermissions) {
+        success = SetPermissions(i, directoryPermissions, status);
+      }
+      if (!success) {
+        return false;
+      }
+    }
+  }
+
+  return true;
+}
+
+bool HandleChmodCommand(std::vector<std::string> const& args,
+                        cmExecutionStatus& status)
+{
+  return HandleChmodCommandImpl(args, false, status);
+}
+
+bool HandleChmodRecurseCommand(std::vector<std::string> const& args,
+                               cmExecutionStatus& status)
+{
+  return HandleChmodCommandImpl(args, true, status);
+}
+
 } // namespace
 
 bool cmFileCommand(std::vector<std::string> const& args,
@@ -3201,6 +3375,8 @@ bool cmFileCommand(std::vector<std::string> const& args,
     { "CONFIGURE"_s, HandleConfigureCommand },
     { "ARCHIVE_CREATE"_s, HandleArchiveCreateCommand },
     { "ARCHIVE_EXTRACT"_s, HandleArchiveExtractCommand },
+    { "CHMOD"_s, HandleChmodCommand },
+    { "CHMOD_RECURSE"_s, HandleChmodRecurseCommand },
   };
 
   return subcommand(args[0], args, status);

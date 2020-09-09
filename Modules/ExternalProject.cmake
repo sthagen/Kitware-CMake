@@ -179,6 +179,9 @@ External Project Definition
       ``TIMEOUT <seconds>``
         Maximum time allowed for file download operations.
 
+      ``INACTIVITY_TIMEOUT <seconds>``
+        Terminate the operation after a period of inactivity.
+
       ``HTTP_USERNAME <username>``
         Username for the download operation if authentication is required.
 
@@ -747,7 +750,7 @@ control needed to implement such step-level capabilities.
 
   ``<name>`` is the same as the name passed to the original call to
   :command:`ExternalProject_Add`. The specified ``<step>`` must not be one of
-  the pre-defined steps (``mkdir``, ``download``, ``update``, ``skip-update``,
+  the pre-defined steps (``mkdir``, ``download``, ``update``,
   ``patch``, ``configure``, ``build``, ``install`` or ``test``). The supported
   options are:
 
@@ -1300,7 +1303,7 @@ function(_ep_write_gitupdate_script script_filename git_EXECUTABLE git_tag git_r
   )
 endfunction()
 
-function(_ep_write_downloadfile_script script_filename REMOTE LOCAL timeout no_progress hash tls_verify tls_cainfo userpwd http_headers netrc netrc_file)
+function(_ep_write_downloadfile_script script_filename REMOTE LOCAL timeout inactivity_timeout no_progress hash tls_verify tls_cainfo userpwd http_headers netrc netrc_file)
   if(timeout)
     set(TIMEOUT_ARGS TIMEOUT ${timeout})
     set(TIMEOUT_MSG "${timeout} seconds")
@@ -1308,6 +1311,14 @@ function(_ep_write_downloadfile_script script_filename REMOTE LOCAL timeout no_p
     set(TIMEOUT_ARGS "# no TIMEOUT")
     set(TIMEOUT_MSG "none")
   endif()
+  if(inactivity_timeout)
+    set(INACTIVITY_TIMEOUT_ARGS INACTIVITY_TIMEOUT ${inactivity_timeout})
+    set(INACTIVITY_TIMEOUT_MSG "${inactivity_timeout} seconds")
+  else()
+    set(INACTIVITY_TIMEOUT_ARGS "# no INACTIVITY_TIMEOUT")
+    set(INACTIVITY_TIMEOUT_MSG "none")
+  endif()
+
 
   if(no_progress)
     set(SHOW_PROGRESS "")
@@ -2512,6 +2523,7 @@ function(_ep_add_download_command name)
         string(REPLACE ";" "-" fname "${fname}")
         set(file ${download_dir}/${fname})
         get_property(timeout TARGET ${name} PROPERTY _EP_TIMEOUT)
+        get_property(inactivity_timeout TARGET ${name} PROPERTY _EP_INACTIVITY_TIMEOUT)
         get_property(no_progress TARGET ${name} PROPERTY _EP_DOWNLOAD_NO_PROGRESS)
         get_property(tls_verify TARGET ${name} PROPERTY _EP_TLS_VERIFY)
         get_property(tls_cainfo TARGET ${name} PROPERTY _EP_TLS_CAINFO)
@@ -2521,7 +2533,7 @@ function(_ep_add_download_command name)
         get_property(http_password TARGET ${name} PROPERTY _EP_HTTP_PASSWORD)
         get_property(http_headers TARGET ${name} PROPERTY _EP_HTTP_HEADER)
         set(download_script "${stamp_dir}/download-${name}.cmake")
-        _ep_write_downloadfile_script("${download_script}" "${url}" "${file}" "${timeout}" "${no_progress}" "${hash}" "${tls_verify}" "${tls_cainfo}" "${http_username}:${http_password}" "${http_headers}" "${netrc}" "${netrc_file}")
+        _ep_write_downloadfile_script("${download_script}" "${url}" "${file}" "${timeout}" "${inactivity_timeout}" "${no_progress}" "${hash}" "${tls_verify}" "${tls_cainfo}" "${http_username}:${http_password}" "${http_headers}" "${netrc}" "${netrc_file}")
         set(cmd ${CMAKE_COMMAND} -P "${download_script}"
           COMMAND)
         if (no_extract)
@@ -2762,21 +2774,6 @@ Update to Mercurial >= 2.1.1.
       )"
   )
 
-  if(update_disconnected)
-    _ep_get_step_stampfile(${name} skip-update skip-update_stamp_file)
-    string(REPLACE "Performing" "Skipping" comment "${comment}")
-    ExternalProject_Add_Step(${name} skip-update
-      COMMENT ${comment}
-      ALWAYS ${always}
-      EXCLUDE_FROM_MAIN 1
-      WORKING_DIRECTORY ${work_dir}
-      DEPENDEES download
-      ${log}
-      ${uses_terminal}
-    )
-    set_property(SOURCE ${skip-update_stamp_file} PROPERTY SYMBOLIC 1)
-  endif()
-
 endfunction()
 
 
@@ -2801,9 +2798,9 @@ function(_ep_add_patch_command name)
 
   _ep_get_update_disconnected(update_disconnected ${name})
   if(update_disconnected)
-    set(update_dep skip-update)
+    set(patch_dep download)
   else()
-    set(update_dep update)
+    set(patch_dep update)
   endif()
 
   set(__cmdQuoted)
@@ -2814,7 +2811,7 @@ function(_ep_add_patch_command name)
     ExternalProject_Add_Step(${name} patch
       COMMAND ${__cmdQuoted}
       WORKING_DIRECTORY \${work_dir}
-      DEPENDEES download \${update_dep}
+      DEPENDEES \${patch_dep}
       ${log}
       )"
   )
@@ -2970,13 +2967,6 @@ function(_ep_add_configure_command name)
     set(uses_terminal "")
   endif()
 
-  _ep_get_update_disconnected(update_disconnected ${name})
-  if(update_disconnected)
-    set(update_dep skip-update)
-  else()
-    set(update_dep update)
-  endif()
-
   set(__cmdQuoted)
   foreach(__item IN LISTS cmd)
     string(APPEND __cmdQuoted " [==[${__item}]==]")
@@ -2985,7 +2975,7 @@ function(_ep_add_configure_command name)
     ExternalProject_Add_Step(${name} configure
       COMMAND ${__cmdQuoted}
       WORKING_DIRECTORY \${binary_dir}
-      DEPENDEES \${update_dep} patch
+      DEPENDEES patch
       DEPENDS \${file_deps}
       ${log}
       ${uses_terminal}

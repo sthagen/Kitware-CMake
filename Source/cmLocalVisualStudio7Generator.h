@@ -1,7 +1,6 @@
 /* Distributed under the OSI-approved BSD 3-Clause License.  See accompanying
    file Copyright.txt or https://cmake.org/licensing for details.  */
-#ifndef cmLocalVisualStudio7Generator_h
-#define cmLocalVisualStudio7Generator_h
+#pragma once
 
 #include "cmConfigure.h" // IWYU pragma: keep
 
@@ -85,7 +84,7 @@ public:
                                         const char* path);
 
 protected:
-  void CreateSingleVCProj(const std::string& lname, cmGeneratorTarget* tgt);
+  virtual void GenerateTarget(cmGeneratorTarget* target);
 
 private:
   using Options = cmVS7GeneratorOptions;
@@ -93,7 +92,6 @@ private:
   std::string GetBuildTypeLinkerFlags(std::string rootLinkerFlags,
                                       const std::string& configName);
   void FixGlobalTargets();
-  void WriteProjectFiles();
   void WriteVCProjHeader(std::ostream& fout, const std::string& libName,
                          cmGeneratorTarget* tgt,
                          std::vector<cmSourceGroup>& sgs);
@@ -151,5 +149,3 @@ private:
   bool WindowsCEProject;
   std::unique_ptr<cmLocalVisualStudio7GeneratorInternals> Internal;
 };
-
-#endif

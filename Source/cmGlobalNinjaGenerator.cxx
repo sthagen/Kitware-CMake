@@ -32,6 +32,7 @@
 #include "cmMessageType.h"
 #include "cmNinjaLinkLineComputer.h"
 #include "cmOutputConverter.h"
+#include "cmProperty.h"
 #include "cmRange.h"
 #include "cmState.h"
 #include "cmStateDirectory.h"
@@ -614,8 +615,8 @@ bool cmGlobalNinjaGenerator::FindMakeProgram(cmMakefile* mf)
   if (!this->cmGlobalGenerator::FindMakeProgram(mf)) {
     return false;
   }
-  if (const char* ninjaCommand = mf->GetDefinition("CMAKE_MAKE_PROGRAM")) {
-    this->NinjaCommand = ninjaCommand;
+  if (cmProp ninjaCommand = mf->GetDefinition("CMAKE_MAKE_PROGRAM")) {
+    this->NinjaCommand = *ninjaCommand;
     std::vector<std::string> command;
     command.push_back(this->NinjaCommand);
     command.emplace_back("--version");
@@ -680,6 +681,9 @@ void cmGlobalNinjaGenerator::CheckNinjaFeatures()
   this->NinjaSupportsRestatTool = !cmSystemTools::VersionCompare(
     cmSystemTools::OP_LESS, this->NinjaVersion.c_str(),
     RequiredNinjaVersionForRestatTool().c_str());
+  this->NinjaSupportsMultipleOutputs = !cmSystemTools::VersionCompare(
+    cmSystemTools::OP_LESS, this->NinjaVersion.c_str(),
+    RequiredNinjaVersionForMultipleOutputs().c_str());
 }
 
 bool cmGlobalNinjaGenerator::CheckLanguages(
@@ -687,6 +691,9 @@ bool cmGlobalNinjaGenerator::CheckLanguages(
 {
   if (cm::contains(languages, "Fortran")) {
     return this->CheckFortran(mf);
+  }
+  if (cm::contains(languages, "ISPC")) {
+    return this->CheckISPC(mf);
   }
   if (cm::contains(languages, "Swift")) {
     const std::string architectures =
@@ -712,6 +719,25 @@ bool cmGlobalNinjaGenerator::CheckFortran(cmMakefile* mf) const
   /* clang-format off */
   e <<
     "The Ninja generator does not support Fortran using Ninja version\n"
+    "  " << this->NinjaVersion << "\n"
+    "due to lack of required features.  Ninja 1.10 or higher is required."
+    ;
+  /* clang-format on */
+  mf->IssueMessage(MessageType::FATAL_ERROR, e.str());
+  cmSystemTools::SetFatalErrorOccured();
+  return false;
+}
+
+bool cmGlobalNinjaGenerator::CheckISPC(cmMakefile* mf) const
+{
+  if (this->NinjaSupportsMultipleOutputs) {
+    return true;
+  }
+
+  std::ostringstream e;
+  /* clang-format off */
+  e <<
+    "The Ninja generator does not support ISPC using Ninja version\n"
     "  " << this->NinjaVersion << "\n"
     "due to lack of required features.  Ninja 1.10 or higher is required."
     ;
@@ -1127,6 +1153,27 @@ void cmGlobalNinjaGenerator::AppendTargetDepends(
     }
   } else {
     cmNinjaDeps outs;
+
+    auto computeISPCOuputs = [](cmGlobalNinjaGenerator* gg,
+                                cmGeneratorTarget const* depTarget,
+                                cmNinjaDeps& outputDeps,
+                                const std::string& targetConfig) {
+      if (depTarget->CanCompileSources()) {
+        auto headers = depTarget->GetGeneratedISPCHeaders(targetConfig);
+        if (!headers.empty()) {
+          std::transform(headers.begin(), headers.end(), headers.begin(),
+                         gg->MapToNinjaPath());
+          outputDeps.insert(outputDeps.end(), headers.begin(), headers.end());
+        }
+        auto objs = depTarget->GetGeneratedISPCObjects(targetConfig);
+        if (!objs.empty()) {
+          std::transform(objs.begin(), objs.end(), objs.begin(),
+                         gg->MapToNinjaPath());
+          outputDeps.insert(outputDeps.end(), objs.begin(), objs.end());
+        }
+      }
+    };
+
     for (cmTargetDepend const& targetDep :
          this->GetTargetDirectDepends(target)) {
       if (!targetDep->IsInBuildSystem()) {
@@ -1134,8 +1181,10 @@ void cmGlobalNinjaGenerator::AppendTargetDepends(
       }
       if (targetDep.IsCross()) {
         this->AppendTargetOutputs(targetDep, outs, fileConfig, depends);
+        computeISPCOuputs(this, targetDep, outs, fileConfig);
       } else {
         this->AppendTargetOutputs(targetDep, outs, config, depends);
+        computeISPCOuputs(this, targetDep, outs, config);
       }
     }
     std::sort(outs.begin(), outs.end());
@@ -1172,7 +1221,8 @@ void cmGlobalNinjaGenerator::AppendTargetDependsClosure(
 
     for (auto const& dep_target : this->GetTargetDirectDepends(target)) {
       if (!dep_target->IsInBuildSystem() ||
-          (this->EnableCrossConfigBuild() && !dep_target.IsCross())) {
+          (target->GetType() != cmStateEnums::UTILITY &&
+           this->EnableCrossConfigBuild() && !dep_target.IsCross())) {
         continue;
       }
 
@@ -1868,6 +1918,7 @@ void cmGlobalNinjaGenerator::WriteTargetClean(std::ostream& os)
         byproducts.push_back(
           this->BuildAlias(GetByproductsForCleanTargetName(), config));
       }
+      byproducts.emplace_back(GetByproductsForCleanTargetName());
       build.Variables["TARGETS"] = cmJoin(byproducts, " ");
 
       for (auto const& fileConfig : configs) {

@@ -1,7 +1,6 @@
 /* Distributed under the OSI-approved BSD 3-Clause License.  See accompanying
    file Copyright.txt or https://cmake.org/licensing for details.  */
-#ifndef cmGlobalXCodeGenerator_h
-#define cmGlobalXCodeGenerator_h
+#pragma once
 
 #include "cmConfigure.h" // IWYU pragma: keep
 
@@ -116,8 +115,6 @@ public:
 
 protected:
   void AddExtraIDETargets() override;
-  void ComputeTargetOrder();
-  void ComputeTargetOrder(cmGeneratorTarget const* gt, size_t& index);
   void Generate() override;
 
 private:
@@ -168,9 +165,9 @@ private:
   std::string AddConfigurations(cmXCodeObject* target,
                                 cmGeneratorTarget* gtgt);
   void AppendOrAddBuildSetting(cmXCodeObject* settings, const char* attr,
-                               const char* value);
+                               cmXCodeObject* value);
   void AppendBuildSettingAttribute(cmXCodeObject* target, const char* attr,
-                                   const char* value,
+                                   cmXCodeObject* value,
                                    const std::string& configName);
   cmXCodeObject* CreateUtilityTarget(cmGeneratorTarget* gtgt);
   void AddDependAndLinkInformation(cmXCodeObject* target);
@@ -304,8 +301,7 @@ private:
   std::string ObjectDirArch;
   std::string SystemName;
   std::string GeneratorToolset;
-  std::map<cmGeneratorTarget const*, size_t> TargetOrderIndex;
   std::vector<std::string> EnabledLangs;
+  std::map<cmGeneratorTarget const*, std::set<cmSourceFile const*>>
+    CommandsVisited;
 };
-
-#endif

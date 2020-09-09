@@ -381,8 +381,7 @@ void cmGlobalVisualStudio7Generator::WriteTargetsToSolution(
       std::string location = *expath;
 
       cmProp p = target->GetProperty("VS_PROJECT_TYPE");
-      this->WriteExternalProject(fout, project, location,
-                                 p ? p->c_str() : nullptr,
+      this->WriteExternalProject(fout, project, location, cmToCStr(p),
                                  target->GetUtilities());
       written = true;
     } else {
@@ -676,11 +675,11 @@ std::set<std::string> cmGlobalVisualStudio7Generator::IsPartOfDefaultBuild(
           "CMAKE_VS_INCLUDE_" + t + "_TO_DEFAULT_BUILD";
         // inspect CMAKE_VS_INCLUDE_<t>_TO_DEFAULT_BUILD properties
         for (std::string const& i : configs) {
-          const char* propertyValue =
+          cmProp propertyValue =
             target->Target->GetMakefile()->GetDefinition(propertyName);
           if (propertyValue &&
               cmIsOn(cmGeneratorExpression::Evaluate(
-                propertyValue, target->GetLocalGenerator(), i))) {
+                *propertyValue, target->GetLocalGenerator(), i))) {
             activeConfigs.insert(i);
           }
         }

@@ -1,7 +1,6 @@
 /* Distributed under the OSI-approved BSD 3-Clause License.  See accompanying
    file Copyright.txt or https://cmake.org/licensing for details.  */
-#ifndef cmake_h
-#define cmake_h
+#pragma once
 
 #include "cmConfigure.h" // IWYU pragma: keep
 
@@ -268,7 +267,8 @@ public:
   {
     return this->CLikeSourceFileExtensions.Test(ext) ||
       this->CudaFileExtensions.Test(ext) ||
-      this->FortranFileExtensions.Test(ext);
+      this->FortranFileExtensions.Test(ext) ||
+      this->ISPCFileExtensions.Test(ext);
   }
 
   bool IsACLikeSourceExtension(cm::string_view ext) const
@@ -617,6 +617,7 @@ private:
   FileExtensions CLikeSourceFileExtensions;
   FileExtensions HeaderFileExtensions;
   FileExtensions CudaFileExtensions;
+  FileExtensions ISPCFileExtensions;
   FileExtensions FortranFileExtensions;
   bool ClearBuildSystem = false;
   bool DebugTryCompile = false;
@@ -780,5 +781,3 @@ private:
   F(cuda_std_14)                                                              \
   F(cuda_std_17)                                                              \
   F(cuda_std_20)
-
-#endif

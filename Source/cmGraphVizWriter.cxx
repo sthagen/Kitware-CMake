@@ -2,6 +2,7 @@
    file Copyright.txt or https://cmake.org/licensing for details.  */
 #include "cmGraphVizWriter.h"
 
+#include <algorithm>
 #include <cctype>
 #include <iostream>
 #include <memory>
@@ -16,6 +17,7 @@
 #include "cmLinkItem.h"
 #include "cmLocalGenerator.h"
 #include "cmMakefile.h"
+#include "cmProperty.h"
 #include "cmState.h"
 #include "cmStateSnapshot.h"
 #include "cmStringAlgorithms.h"
@@ -228,9 +230,9 @@ void cmGraphVizWriter::ReadSettings(
 
 #define __set_if_set(var, cmakeDefinition)                                    \
   do {                                                                        \
-    const char* value = mf.GetDefinition(cmakeDefinition);                    \
+    cmProp value = mf.GetDefinition(cmakeDefinition);                         \
     if (value) {                                                              \
-      (var) = value;                                                          \
+      (var) = *value;                                                         \
     }                                                                         \
   } while (false)
 
@@ -240,9 +242,9 @@ void cmGraphVizWriter::ReadSettings(
 
 #define __set_bool_if_set(var, cmakeDefinition)                               \
   do {                                                                        \
-    const char* value = mf.GetDefinition(cmakeDefinition);                    \
+    cmProp value = mf.GetDefinition(cmakeDefinition);                         \
     if (value) {                                                              \
-      (var) = cmIsOn(value);                                                  \
+      (var) = cmIsOn(*value);                                                 \
     }                                                                         \
   } while (false)
 
@@ -552,14 +554,21 @@ bool cmGraphVizWriter::TargetTypeEnabled(
 std::string cmGraphVizWriter::ItemNameWithAliases(
   std::string const& itemName) const
 {
-  auto nameWithAliases = itemName;
-
+  std::vector<std::string> items;
   for (auto const& lg : this->GlobalGenerator->GetLocalGenerators()) {
     for (auto const& aliasTargets : lg->GetMakefile()->GetAliasTargets()) {
       if (aliasTargets.second == itemName) {
-        nameWithAliases += "\\n(" + aliasTargets.first + ")";
+        items.push_back(aliasTargets.first);
       }
     }
+  }
+
+  std::sort(items.begin(), items.end());
+  items.erase(std::unique(items.begin(), items.end()), items.end());
+
+  auto nameWithAliases = itemName;
+  for(auto const& item : items) {
+    nameWithAliases += "\\n(" + item + ")";
   }
 
   return nameWithAliases;

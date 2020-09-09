@@ -631,6 +631,7 @@ void cmNinjaTargetGenerator::WriteCompileRule(const std::string& lang,
   vars.TargetCompilePDB = "$TARGET_COMPILE_PDB";
   vars.ObjectDir = "$OBJECT_DIR";
   vars.ObjectFileDir = "$OBJECT_FILE_DIR";
+  vars.ISPCHeader = "$ISPC_HEADER_FILE";
 
   cmMakefile* mf = this->GetMakefile();
 
@@ -761,9 +762,9 @@ void cmNinjaTargetGenerator::WriteCompileRule(const std::string& lang,
     if (!mf->GetIsSourceFileTryCompile()) {
       rule.DepType = "gcc";
       rule.DepFile = "$DEP_FILE";
-      auto d = mf->GetDefinition("CMAKE_C_COMPILER");
+      cmProp d = mf->GetDefinition("CMAKE_C_COMPILER");
       const std::string cl =
-        d ? d : mf->GetSafeDefinition("CMAKE_CXX_COMPILER");
+        d ? *d : mf->GetSafeDefinition("CMAKE_CXX_COMPILER");
       cldeps = cmStrCat('"', cmSystemTools::GetCMClDepsCommand(), "\" ", lang,
                         ' ', vars.Source, " $DEP_FILE $out \"",
                         mf->GetSafeDefinition("CMAKE_CL_SHOWINCLUDES_PREFIX"),
@@ -777,8 +778,9 @@ void cmNinjaTargetGenerator::WriteCompileRule(const std::string& lang,
     if (!depfileFlags.empty()) {
       cmSystemTools::ReplaceString(depfileFlags, "<DEPFILE>", "$DEP_FILE");
       cmSystemTools::ReplaceString(depfileFlags, "<OBJECT>", "$out");
-      cmSystemTools::ReplaceString(depfileFlags, "<CMAKE_C_COMPILER>",
-                                   mf->GetDefinition("CMAKE_C_COMPILER"));
+      cmSystemTools::ReplaceString(
+        depfileFlags, "<CMAKE_C_COMPILER>",
+        cmToCStr(mf->GetDefinition("CMAKE_C_COMPILER")));
       flags += cmStrCat(' ', depfileFlags);
     }
   }
@@ -811,7 +813,7 @@ void cmNinjaTargetGenerator::WriteCompileRule(const std::string& lang,
   std::string compilerLauncher;
   if (!compileCmds.empty() &&
       (lang == "C" || lang == "CXX" || lang == "Fortran" || lang == "CUDA" ||
-       lang == "OBJC" || lang == "OBJCXX")) {
+       lang == "ISPC" || lang == "OBJC" || lang == "OBJCXX")) {
     std::string const clauncher_prop = cmStrCat(lang, "_COMPILER_LAUNCHER");
     cmProp clauncher = this->GeneratorTarget->GetProperty(clauncher_prop);
     if (cmNonempty(clauncher)) {
@@ -846,9 +848,12 @@ void cmNinjaTargetGenerator::WriteCompileRule(const std::string& lang,
       }
       if (cmNonempty(tidy)) {
         run_iwyu += " --tidy=";
-        const char* driverMode = this->Makefile->GetDefinition(
+        cmProp p = this->Makefile->GetDefinition(
           cmStrCat("CMAKE_", lang, "_CLANG_TIDY_DRIVER_MODE"));
-        if (!cmNonempty(driverMode)) {
+        std::string driverMode;
+        if (cmNonempty(p)) {
+          driverMode = *p;
+        } else {
           driverMode = lang == "C" ? "gcc" : "g++";
         }
         run_iwyu += this->GetLocalGenerator()->EscapeForShell(
@@ -941,15 +946,15 @@ void cmNinjaTargetGenerator::WriteObjectBuildStatements(
       config);
   }
   if (firstForConfig) {
-    const char* pchExtension =
-      GetMakefile()->GetDefinition("CMAKE_PCH_EXTENSION");
+    cmProp pchExtension = GetMakefile()->GetDefinition("CMAKE_PCH_EXTENSION");
 
     std::vector<cmSourceFile const*> externalObjects;
     this->GeneratorTarget->GetExternalObjects(externalObjects, config);
     for (cmSourceFile const* sf : externalObjects) {
       auto objectFileName = this->GetGlobalGenerator()->ExpandCFGIntDir(
         this->GetSourceFilePath(sf), config);
-      if (!cmSystemTools::StringEndsWith(objectFileName, pchExtension)) {
+      if (!cmSystemTools::StringEndsWith(objectFileName,
+                                         cmToCStr(pchExtension))) {
         this->Configs[config].Objects.push_back(objectFileName);
       }
     }
@@ -1158,7 +1163,7 @@ void cmNinjaTargetGenerator::WriteObjectBuildStatement(
   // build response file name
   std::string cmakeLinkVar = cmStrCat(cmakeVarLang, "_RESPONSE_FILE_FLAG");
 
-  const char* flag = GetMakefile()->GetDefinition(cmakeLinkVar);
+  cmProp flag = GetMakefile()->GetDefinition(cmakeLinkVar);
 
   bool const lang_supports_response =
     !(language == "RC" || (language == "CUDA" && !flag));
@@ -1199,9 +1204,10 @@ void cmNinjaTargetGenerator::WriteObjectBuildStatement(
 
   objBuild.Outputs.push_back(objectFileName);
   if (firstForConfig) {
-    const char* pchExtension =
+    cmProp pchExtension =
       this->GetMakefile()->GetDefinition("CMAKE_PCH_EXTENSION");
-    if (!cmSystemTools::StringEndsWith(objectFileName, pchExtension)) {
+    if (!cmSystemTools::StringEndsWith(objectFileName,
+                                       cmToCStr(pchExtension))) {
       // Add this object to the list of object files.
       this->Configs[config].Objects.push_back(objectFileName);
     }
@@ -1368,6 +1374,55 @@ void cmNinjaTargetGenerator::WriteObjectBuildStatement(
   this->SetMsvcTargetPdbVariable(vars, config);
 
   objBuild.RspFile = cmStrCat(objectFileName, ".rsp");
+
+  if (language == "ISPC") {
+    std::string const& objectName =
+      this->GeneratorTarget->GetObjectName(source);
+    std::string ispcSource =
+      cmSystemTools::GetFilenameWithoutLastExtension(objectName);
+
+    std::string ispcDirectory = objectFileDir;
+    if (cmProp prop =
+          this->GeneratorTarget->GetProperty("ISPC_HEADER_DIRECTORY")) {
+      ispcDirectory = *prop;
+    }
+    ispcDirectory =
+      cmStrCat(this->LocalGenerator->GetBinaryDirectory(), '/', ispcDirectory);
+
+    std::string ispcHeader = cmStrCat(ispcDirectory, '/', ispcSource, ".h");
+    ispcHeader = this->ConvertToNinjaPath(ispcHeader);
+
+    // Make sure ninja knows what command generates the header
+    objBuild.ImplicitOuts.push_back(ispcHeader);
+
+    // Make sure ninja knows how to clean the generated header
+    this->GetGlobalGenerator()->AddAdditionalCleanFile(ispcHeader, config);
+
+    auto ispcSuffixes =
+      detail::ComputeISPCObjectSuffixes(this->GeneratorTarget);
+    if (ispcSuffixes.size() > 1) {
+      auto ispcSideEfffectObjects = detail::ComputeISPCExtraObjects(
+        objectName, ispcDirectory, ispcSuffixes);
+
+      for (auto sideEffect : ispcSideEfffectObjects) {
+        sideEffect = this->ConvertToNinjaPath(sideEffect);
+        objBuild.ImplicitOuts.emplace_back(sideEffect);
+        this->GetGlobalGenerator()->AddAdditionalCleanFile(sideEffect, config);
+      }
+    }
+
+    vars["ISPC_HEADER_FILE"] =
+      this->GetLocalGenerator()->ConvertToOutputFormat(
+        ispcHeader, cmOutputConverter::SHELL);
+  } else {
+    auto headers = this->GeneratorTarget->GetGeneratedISPCHeaders(config);
+    if (!headers.empty()) {
+      std::transform(headers.begin(), headers.end(), headers.begin(),
+                     MapToNinjaPath());
+      objBuild.OrderOnlyDeps.insert(objBuild.OrderOnlyDeps.end(),
+                                    headers.begin(), headers.end());
+    }
+  }
 
   if (language == "Swift") {
     this->EmitSwiftDependencyInfo(source, config);

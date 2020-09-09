@@ -1,10 +1,10 @@
 /* Distributed under the OSI-approved BSD 3-Clause License.  See accompanying
    file Copyright.txt or https://cmake.org/licensing for details.  */
-#ifndef cmGlobalGenerator_h
-#define cmGlobalGenerator_h
+#pragma once
 
 #include "cmConfigure.h" // IWYU pragma: keep
 
+#include <cstddef>
 #include <iosfwd>
 #include <map>
 #include <memory>
@@ -264,6 +264,9 @@ public:
   {
     return this->LocalGenerators;
   }
+
+  std::vector<cmGeneratorTarget*> GetLocalGeneratorTargetsInOrder(
+    cmLocalGenerator* lg) const;
 
   cmMakefile* GetCurrentMakefile() const
   {
@@ -614,6 +617,10 @@ private:
   // Its order is not deterministic.
   LocalGeneratorMap LocalGeneratorSearchIndex;
 
+  void ComputeTargetOrder();
+  void ComputeTargetOrder(cmGeneratorTarget const* gt, size_t& index);
+  std::map<cmGeneratorTarget const*, size_t> TargetOrderIndex;
+
   cmMakefile* TryCompileOuterMakefile;
   // If you add a new map here, make sure it is copied
   // in EnableLanguagesFromGenerator
@@ -717,5 +724,3 @@ protected:
   bool InstallTargetEnabled;
   bool ConfigureDoneCMP0026AndCMP0024;
 };
-
-#endif

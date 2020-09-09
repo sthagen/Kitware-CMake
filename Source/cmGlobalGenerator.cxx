@@ -335,13 +335,13 @@ bool cmGlobalGenerator::CheckTargetsForType() const
   bool failed = false;
   for (const auto& generator : this->LocalGenerators) {
     for (const auto& target : generator->GetGeneratorTargets()) {
-      if (target->GetType() == cmStateEnums::EXECUTABLE &&
-          target->GetPropertyAsBool("WIN32_EXECUTABLE")) {
+      if (target->GetType() == cmStateEnums::EXECUTABLE) {
         std::vector<std::string> const& configs =
           target->Makefile->GetGeneratorConfigs(
             cmMakefile::IncludeEmptyConfig);
         for (std::string const& config : configs) {
-          if (target->GetLinkerLanguage(config) == "Swift") {
+          if (target->IsWin32Executable(config) &&
+              target->GetLinkerLanguage(config) == "Swift") {
             this->GetCMakeInstance()->IssueMessage(
               MessageType::FATAL_ERROR,
               "WIN32_EXECUTABLE property is not supported on Swift "
@@ -780,27 +780,27 @@ void cmGlobalGenerator::EnableLanguage(
     std::string compilerName = cmStrCat("CMAKE_", lang, "_COMPILER");
     std::string compilerEnv = cmStrCat("CMAKE_", lang, "_COMPILER_ENV_VAR");
     std::ostringstream noCompiler;
-    const char* compilerFile = mf->GetDefinition(compilerName);
-    if (!cmNonempty(compilerFile) || cmIsNOTFOUND(compilerFile)) {
+    cmProp compilerFile = mf->GetDefinition(compilerName);
+    if (!cmNonempty(compilerFile) || cmIsNOTFOUND(*compilerFile)) {
       /* clang-format off */
       noCompiler <<
         "No " << compilerName << " could be found.\n"
         ;
       /* clang-format on */
     } else if ((lang != "RC") && (lang != "ASM_MASM")) {
-      if (!cmSystemTools::FileIsFullPath(compilerFile)) {
+      if (!cmSystemTools::FileIsFullPath(*compilerFile)) {
         /* clang-format off */
         noCompiler <<
           "The " << compilerName << ":\n"
-          "  " << compilerFile << "\n"
+          "  " << *compilerFile << "\n"
           "is not a full path and was not found in the PATH.\n"
           ;
         /* clang-format on */
-      } else if (!cmSystemTools::FileExists(compilerFile)) {
+      } else if (!cmSystemTools::FileExists(*compilerFile)) {
         /* clang-format off */
         noCompiler <<
           "The " << compilerName << ":\n"
-          "  " << compilerFile << "\n"
+          "  " << *compilerFile << "\n"
           "is not a full path to an existing compiler tool.\n"
           ;
         /* clang-format on */
@@ -817,7 +817,7 @@ void cmGlobalGenerator::EnableLanguage(
         cmSystemTools::RemoveFile(compilerLangFile);
         if (!this->CMakeInstance->GetIsInTryCompile()) {
           this->PrintCompilerAdvice(noCompiler, lang,
-                                    mf->GetDefinition(compilerEnv));
+                                    cmToCStr(mf->GetDefinition(compilerEnv)));
           mf->IssueMessage(MessageType::FATAL_ERROR, noCompiler.str());
           fatalError = true;
         }
@@ -1095,17 +1095,16 @@ void cmGlobalGenerator::SetLanguageEnabledMaps(const std::string& l,
     return;
   }
 
-  std::string linkerPrefVar =
-    std::string("CMAKE_") + std::string(l) + std::string("_LINKER_PREFERENCE");
-  const char* linkerPref = mf->GetDefinition(linkerPrefVar);
+  std::string linkerPrefVar = "CMAKE_" + l + "_LINKER_PREFERENCE";
+  cmProp linkerPref = mf->GetDefinition(linkerPrefVar);
   int preference = 0;
-  if (linkerPref) {
-    if (sscanf(linkerPref, "%d", &preference) != 1) {
+  if (cmNonempty(linkerPref)) {
+    if (sscanf(linkerPref->c_str(), "%d", &preference) != 1) {
       // backward compatibility: before 2.6 LINKER_PREFERENCE
       // was either "None" or "Preferred", and only the first character was
       // tested. So if there is a custom language out there and it is
       // "Preferred", set its preference high
-      if (linkerPref[0] == 'P') {
+      if ((*linkerPref)[0] == 'P') {
         preference = 100;
       } else {
         preference = 0;
@@ -1122,14 +1121,14 @@ void cmGlobalGenerator::SetLanguageEnabledMaps(const std::string& l,
 
   this->LanguageToLinkerPreference[l] = preference;
 
-  std::string outputExtensionVar =
-    std::string("CMAKE_") + std::string(l) + std::string("_OUTPUT_EXTENSION");
-  const char* outputExtension = mf->GetDefinition(outputExtensionVar);
-  if (outputExtension) {
+  std::string outputExtensionVar = "CMAKE_" + l + "_OUTPUT_EXTENSION";
+  if (cmProp p = mf->GetDefinition(outputExtensionVar)) {
+    std::string outputExtension = *p;
     this->LanguageToOutputExtension[l] = outputExtension;
     this->OutputExtensions[outputExtension] = outputExtension;
-    if (outputExtension[0] == '.') {
-      this->OutputExtensions[outputExtension + 1] = outputExtension + 1;
+    if (cmHasPrefix(outputExtension, ".")) {
+      outputExtension = outputExtension.substr(1);
+      this->OutputExtensions[outputExtension] = outputExtension;
     }
   }
 
@@ -1162,7 +1161,7 @@ void cmGlobalGenerator::FillExtensionToLanguageMap(const std::string& l,
 const char* cmGlobalGenerator::GetGlobalSetting(std::string const& name) const
 {
   assert(!this->Makefiles.empty());
-  return this->Makefiles[0]->GetDefinition(name);
+  return cmToCStr(this->Makefiles[0]->GetDefinition(name));
 }
 
 bool cmGlobalGenerator::GlobalSettingIsOn(std::string const& name) const
@@ -1472,6 +1471,7 @@ bool cmGlobalGenerator::Compute()
   if (!this->ComputeTargetDepends()) {
     return false;
   }
+  this->ComputeTargetOrder();
 
   if (this->CheckTargetsForType()) {
     return false;
@@ -1582,6 +1582,50 @@ bool cmGlobalGenerator::ComputeTargetDepends()
   return true;
 }
 
+std::vector<cmGeneratorTarget*>
+cmGlobalGenerator::GetLocalGeneratorTargetsInOrder(cmLocalGenerator* lg) const
+{
+  std::vector<cmGeneratorTarget*> gts;
+  cm::append(gts, lg->GetGeneratorTargets());
+  std::sort(gts.begin(), gts.end(),
+            [this](cmGeneratorTarget const* l, cmGeneratorTarget const* r) {
+              return this->TargetOrderIndex.at(l) <
+                this->TargetOrderIndex.at(r);
+            });
+  return gts;
+}
+
+void cmGlobalGenerator::ComputeTargetOrder()
+{
+  size_t index = 0;
+  auto const& lgens = this->GetLocalGenerators();
+  for (auto const& lgen : lgens) {
+    const auto& targets = lgen->GetGeneratorTargets();
+    for (const auto& gt : targets) {
+      this->ComputeTargetOrder(gt.get(), index);
+    }
+  }
+  assert(index == this->TargetOrderIndex.size());
+}
+
+void cmGlobalGenerator::ComputeTargetOrder(cmGeneratorTarget const* gt,
+                                           size_t& index)
+{
+  std::map<cmGeneratorTarget const*, size_t>::value_type value(gt, 0);
+  auto insertion = this->TargetOrderIndex.insert(value);
+  if (!insertion.second) {
+    return;
+  }
+  auto entry = insertion.first;
+
+  auto& deps = this->GetTargetDirectDepends(gt);
+  for (auto& d : deps) {
+    this->ComputeTargetOrder(d, index);
+  }
+
+  entry->second = index++;
+}
+
 bool cmGlobalGenerator::QtAutoGen()
 {
 #ifndef CMAKE_BOOTSTRAP
@@ -1601,6 +1645,7 @@ bool cmGlobalGenerator::AddAutomaticSources()
         continue;
       }
       lg->AddUnityBuild(gt.get());
+      lg->AddISPCDependencies(gt.get());
       // Targets that re-use a PCH are handled below.
       if (!gt->GetProperty("PRECOMPILE_HEADERS_REUSE_FROM")) {
         lg->AddPchDependencies(gt.get());
@@ -1760,6 +1805,7 @@ void cmGlobalGenerator::ClearGeneratorMembers()
   this->GeneratorTargetSearchIndex.clear();
   this->MakefileSearchIndex.clear();
   this->LocalGeneratorSearchIndex.clear();
+  this->TargetOrderIndex.clear();
   this->ProjectMap.clear();
   this->RuleHashes.clear();
   this->DirectoryContentMap.clear();
@@ -2462,9 +2508,9 @@ void cmGlobalGenerator::AddGlobalTarget_Package(
   if (this->GetPreinstallTargetName()) {
     gti.Depends.emplace_back(this->GetPreinstallTargetName());
   } else {
-    const char* noPackageAll =
+    cmProp noPackageAll =
       mf->GetDefinition("CMAKE_SKIP_PACKAGE_ALL_DEPENDENCY");
-    if (!noPackageAll || cmIsOff(noPackageAll)) {
+    if (cmIsOff(noPackageAll)) {
       gti.Depends.emplace_back(this->GetAllTargetName());
     }
   }
@@ -2643,9 +2689,8 @@ void cmGlobalGenerator::AddGlobalTarget_Install(
     if (this->GetPreinstallTargetName()) {
       gti.Depends.emplace_back(this->GetPreinstallTargetName());
     } else {
-      const char* noall =
-        mf->GetDefinition("CMAKE_SKIP_INSTALL_ALL_DEPENDENCY");
-      if (!noall || cmIsOff(noall)) {
+      cmProp noall = mf->GetDefinition("CMAKE_SKIP_INSTALL_ALL_DEPENDENCY");
+      if (cmIsOff(noall)) {
         gti.Depends.emplace_back(this->GetAllTargetName());
       }
     }
@@ -2665,7 +2710,7 @@ void cmGlobalGenerator::AddGlobalTarget_Install(
         singleLine.push_back(cfgArg);
         cfgArg = "-DEFFECTIVE_PLATFORM_NAME=$(EFFECTIVE_PLATFORM_NAME)";
       } else {
-        cfgArg += mf->GetDefinition("CMAKE_CFG_INTDIR");
+        cfgArg += cmToCStr(mf->GetDefinition("CMAKE_CFG_INTDIR"));
       }
       singleLine.push_back(cfgArg);
     }
@@ -3073,7 +3118,7 @@ void cmGlobalGenerator::WriteSummary(cmGeneratorTarget* target)
   cmProp targetLabels = target->GetProperty("LABELS");
   cmProp directoryLabels =
     target->Target->GetMakefile()->GetProperty("LABELS");
-  const char* cmakeDirectoryLabels =
+  cmProp cmakeDirectoryLabels =
     target->Target->GetMakefile()->GetDefinition("CMAKE_DIRECTORY_LABELS");
   if (targetLabels || directoryLabels || cmakeDirectoryLabels) {
     Json::Value lj_root(Json::objectValue);
@@ -3109,7 +3154,7 @@ void cmGlobalGenerator::WriteSummary(cmGeneratorTarget* target)
     }
 
     if (cmakeDirectoryLabels) {
-      cmExpandList(cmakeDirectoryLabels, cmakeDirectoryLabelsList);
+      cmExpandList(*cmakeDirectoryLabels, cmakeDirectoryLabelsList);
     }
 
     if (!directoryLabelsList.empty() || !cmakeDirectoryLabelsList.empty()) {

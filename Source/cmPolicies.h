@@ -1,7 +1,6 @@
 /* Distributed under the OSI-approved BSD 3-Clause License.  See accompanying
    file Copyright.txt or https://cmake.org/licensing for details.  */
-#ifndef cmPolicies_h
-#define cmPolicies_h
+#pragma once
 
 #include "cmConfigure.h" // IWYU pragma: keep
 
@@ -323,7 +322,18 @@ class cmMakefile;
          3, 18, 0, cmPolicies::WARN)                                          \
   SELECT(POLICY, CMP0109,                                                     \
          "find_program() requires permission to execute but not to read.", 3, \
-         19, 0, cmPolicies::WARN)
+         19, 0, cmPolicies::WARN)                                             \
+  SELECT(POLICY, CMP0110,                                                     \
+         "add_test() supports arbitrary characters in test names.", 3, 19, 0, \
+         cmPolicies::WARN)                                                    \
+  SELECT(POLICY, CMP0111,                                                     \
+         "An imported target with a missing location fails during "           \
+         "generation.",                                                       \
+         3, 19, 0, cmPolicies::WARN)                                          \
+  SELECT(POLICY, CMP0112,                                                     \
+         "Target file component generator expressions do not add target "     \
+         "dependencies.",                                                     \
+         3, 19, 0, cmPolicies::WARN)
 
 #define CM_SELECT_ID(F, A1, A2, A3, A4, A5, A6) F(A1)
 #define CM_FOR_EACH_POLICY_ID(POLICY)                                         \
@@ -356,7 +366,8 @@ class cmMakefile;
   F(CMP0099)                                                                  \
   F(CMP0104)                                                                  \
   F(CMP0105)                                                                  \
-  F(CMP0108)
+  F(CMP0108)                                                                  \
+  F(CMP0112)
 
 /** \class cmPolicies
  * \brief Handles changes in CMake behavior and policies
@@ -437,5 +448,3 @@ public:
     std::bitset<cmPolicies::CMPCOUNT * POLICY_STATUS_COUNT> Status;
   };
 };
-
-#endif

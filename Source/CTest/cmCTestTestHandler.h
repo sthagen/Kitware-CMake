@@ -1,7 +1,6 @@
 /* Distributed under the OSI-approved BSD 3-Clause License.  See accompanying
    file Copyright.txt or https://cmake.org/licensing for details.  */
-#ifndef cmCTestTestHandler_h
-#define cmCTestTestHandler_h
+#pragma once
 
 #include "cmConfigure.h" // IWYU pragma: keep
 
@@ -286,10 +285,10 @@ private:
   /**
    * Get the list of tests in directory and subdirectories.
    */
-  void GetListOfTests();
+  bool GetListOfTests();
   // compute the lists of tests that will actually run
   // based on union regex and -I stuff
-  void ComputeTestList();
+  bool ComputeTestList();
 
   // compute the lists of tests that will actually run
   // based on LastTestFailed.log
@@ -360,5 +359,3 @@ private:
   int RepeatCount = 1;
   bool RerunFailed;
 };
-
-#endif

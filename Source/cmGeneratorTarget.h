@@ -1,7 +1,6 @@
 /* Distributed under the OSI-approved BSD 3-Clause License.  See accompanying
    file Copyright.txt or https://cmake.org/licensing for details.  */
-#ifndef cmGeneratorTarget_h
-#define cmGeneratorTarget_h
+#pragma once
 
 #include "cmConfigure.h" // IWYU pragma: keep
 
@@ -284,6 +283,9 @@ public:
       or CFBundle on Apple.  */
   bool IsBundleOnApple() const;
 
+  /** Return whether this target is a Win32 executable */
+  bool IsWin32Executable(const std::string& config) const;
+
   /** Get the full name of the target according to the settings in its
       makefile.  */
   std::string GetFullName(const std::string& config,
@@ -445,6 +447,8 @@ public:
 
   void AddCUDAArchitectureFlags(std::string& flags) const;
   void AddCUDAToolkitFlags(std::string& flags) const;
+
+  void AddISPCTargetFlags(std::string& flags) const;
 
   std::string GetFeatureSpecificLinkRuleVariable(
     std::string const& var, std::string const& lang,
@@ -813,6 +817,16 @@ public:
 
   const std::string& GetSourcesProperty() const;
 
+  void AddISPCGeneratedHeader(std::string const& header,
+                              std::string const& config);
+  std::vector<std::string> GetGeneratedISPCHeaders(
+    std::string const& config) const;
+
+  void AddISPCGeneratedObject(std::vector<std::string>&& objs,
+                              std::string const& config);
+  std::vector<std::string> GetGeneratedISPCObjects(
+    std::string const& config) const;
+
 private:
   void AddSourceCommon(const std::string& src, bool before = false);
 
@@ -991,6 +1005,11 @@ private:
 
   std::unordered_set<std::string> UnityBatchedSourceFiles;
 
+  std::unordered_map<std::string, std::vector<std::string>>
+    ISPCGeneratedHeaders;
+  std::unordered_map<std::string, std::vector<std::string>>
+    ISPCGeneratedObjects;
+
   bool IsLinkLookupScope(std::string const& n,
                          cmLocalGenerator const*& lg) const;
 
@@ -1082,5 +1101,3 @@ public:
                     cmGeneratorTarget const* t2) const;
   };
 };
-
-#endif

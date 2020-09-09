@@ -440,6 +440,10 @@ if(BUILD_TESTING)
     ADD_TEST_MACRO(CSharpOnly CSharpOnly)
     ADD_TEST_MACRO(CSharpLinkToCxx CSharpLinkToCxx)
     ADD_TEST_MACRO(CSharpLinkFromCxx CSharpLinkFromCxx)
+    ADD_TEST_MACRO(CSharpWin32GenEx CSharpWin32GenEx)
+    set_tests_properties(CSharpWin32GenEx PROPERTIES
+      PASS_REGULAR_EXPRESSION "Target \"CSharpWin32GenEx\" has a generator expression in its\n  WIN32_EXECUTABLE property\\.  This is not supported on managed executables\\."
+      )
   endif()
 
   ADD_TEST_MACRO(COnly COnly)
@@ -1477,6 +1481,10 @@ ${CMake_SOURCE_DIR}/Utilities/Release/push.bash --dir dev -- '${CMake_BUILD_NIGH
   if(CMake_TEST_CUDA)
     add_subdirectory(Cuda)
     add_subdirectory(CudaOnly)
+  endif()
+
+  if(CMake_TEST_ISPC)
+    add_subdirectory(ISPC)
   endif()
 
   if(CMake_TEST_FindGTest)

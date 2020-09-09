@@ -110,6 +110,28 @@ function(CMAKE_DETERMINE_COMPILER_ID lang flagvar src)
     endif()
   endif()
 
+  # For ISPC we need to explicitly query the version.
+  if(lang STREQUAL "ISPC"
+     AND CMAKE_${lang}_COMPILER
+     AND NOT CMAKE_${lang}_COMPILER_VERSION)
+    execute_process(
+      COMMAND "${CMAKE_${lang}_COMPILER}"
+      --version
+      OUTPUT_VARIABLE output ERROR_VARIABLE output
+      RESULT_VARIABLE result
+      TIMEOUT 10
+    )
+    file(APPEND ${CMAKE_BINARY_DIR}${CMAKE_FILES_DIRECTORY}/CMakeOutput.log
+      "Running the ${lang} compiler: \"${CMAKE_${lang}_COMPILER}\" -version\n"
+      "${output}\n"
+      )
+
+    if(output MATCHES [[ISPC\), ([0-9]+\.[0-9]+(\.[0-9]+)?)]])
+      set(CMAKE_${lang}_COMPILER_VERSION "${CMAKE_MATCH_1}")
+    endif()
+  endif()
+
+
   if (COMPILER_QNXNTO AND CMAKE_${lang}_COMPILER_ID STREQUAL "GNU")
     execute_process(
       COMMAND "${CMAKE_${lang}_COMPILER}"
@@ -606,9 +628,12 @@ ${CMAKE_${lang}_COMPILER_ID_OUTPUT}
 
 ")
     file(APPEND ${CMAKE_BINARY_DIR}${CMAKE_FILES_DIRECTORY}/CMakeError.log "${MSG}")
-    #if(NOT CMAKE_${lang}_COMPILER_ID_ALLOW_FAIL)
-    #  message(FATAL_ERROR "${MSG}")
-    #endif()
+
+    # Some languages may know the correct/desired set of flags and want to fail right away if they don't work.
+    # This is currently only used by CUDA.
+    if(CMAKE_${lang}_COMPILER_ID_REQUIRE_SUCCESS)
+      message(FATAL_ERROR "${MSG}")
+    endif()
 
     # No output files should be inspected.
     set(COMPILER_${lang}_PRODUCED_FILES)
