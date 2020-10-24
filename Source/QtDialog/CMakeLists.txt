@@ -81,16 +81,23 @@ endif()
 set(SRCS
   AddCacheEntry.cxx
   AddCacheEntry.h
-  CMakeSetup.cxx
   CMakeSetupDialog.cxx
   CMakeSetupDialog.h
   Compilers.h
+  EnvironmentDialog.cxx
+  EnvironmentDialog.h
   FirstConfigure.cxx
   FirstConfigure.h
   QCMake.cxx
   QCMake.h
   QCMakeCacheView.cxx
   QCMakeCacheView.h
+  QCMakePreset.cxx
+  QCMakePreset.h
+  QCMakePresetComboBox.cxx
+  QCMakePresetComboBox.h
+  QCMakePresetItemModel.cxx
+  QCMakePresetItemModel.h
   QCMakeWidgets.cxx
   QCMakeWidgets.h
   RegexExplorer.cxx
@@ -103,6 +110,7 @@ qt5_wrap_ui(UI_SRCS
   Compilers.ui
   CrossCompiler.ui
   AddCacheEntry.ui
+  EnvironmentDialog.ui
   RegexExplorer.ui
   WarningMessagesDialog.ui
   )
@@ -110,9 +118,12 @@ qt5_wrap_cpp(MOC_SRCS
   AddCacheEntry.h
   Compilers.h
   CMakeSetupDialog.h
+  EnvironmentDialog.h
   FirstConfigure.h
   QCMake.h
   QCMakeCacheView.h
+  QCMakePresetComboBox.h
+  QCMakePresetItemModel.h
   QCMakeWidgets.h
   RegexExplorer.h
   WarningMessagesDialog.h
@@ -130,16 +141,6 @@ else ()
     ${RC_SRCS})
 endif ()
 
-if(WIN32)
-  list(APPEND SRCS CMakeSetup.rc)
-endif()
-if(APPLE)
-  list(APPEND SRCS CMakeSetup.icns)
-  set(MACOSX_BUNDLE_ICON_FILE CMakeSetup.icns)
-  set_source_files_properties(CMakeSetup.icns PROPERTIES
-    MACOSX_PACKAGE_LOCATION Resources)
-endif()
-
 if(USE_LGPL)
   install(FILES ${CMake_SOURCE_DIR}/Licenses/LGPLv${USE_LGPL}.txt
     DESTINATION ${CMAKE_DATA_DIR}/Licenses
@@ -150,11 +151,24 @@ endif()
 
 set(CMAKE_INCLUDE_CURRENT_DIR ON)
 
-add_executable(cmake-gui WIN32 MACOSX_BUNDLE ${SRCS} ${MANIFEST_FILE})
-target_link_libraries(cmake-gui CMakeLib Qt5::Core Qt5::Widgets ${CMake_QT_EXTRA_LIBRARIES})
+add_library(CMakeGUILib STATIC ${SRCS})
+# CMake_QT_EXTRA_LIBRARIES have to come before the main libraries on the link line
+target_link_libraries(CMakeGUILib PUBLIC CMakeLib ${CMake_QT_EXTRA_LIBRARIES} Qt5::Core Qt5::Widgets)
+
+add_library(CMakeGUIMainLib STATIC CMakeSetup.cxx)
+target_link_libraries(CMakeGUIMainLib PUBLIC CMakeGUILib)
+
+add_executable(cmake-gui WIN32 MACOSX_BUNDLE CMakeGUIExec.cxx ${MANIFEST_FILE})
+target_link_libraries(cmake-gui CMakeGUIMainLib Qt5::Core)
 
 if(WIN32)
-  target_sources(cmake-gui PRIVATE $<TARGET_OBJECTS:CMakeVersion>)
+  target_sources(CMakeGUIMainLib INTERFACE $<TARGET_OBJECTS:CMakeVersion> CMakeSetup.rc)
+endif()
+if(APPLE)
+  target_sources(CMakeGUIMainLib INTERFACE CMakeSetup.icns)
+  set(MACOSX_BUNDLE_ICON_FILE CMakeSetup.icns)
+  set_source_files_properties(CMakeSetup.icns PROPERTIES
+    MACOSX_PACKAGE_LOCATION Resources)
 endif()
 
 if(CMake_JOB_POOL_LINK_BIN)
@@ -163,7 +177,7 @@ endif()
 
 # cmake-gui has not been updated for `include-what-you-use`.
 # Block the tool until this is done.
-set_target_properties(cmake-gui PROPERTIES
+set_target_properties(CMakeGUILib CMakeGUIMainLib cmake-gui PROPERTIES
   CXX_INCLUDE_WHAT_YOU_USE ""
   )
 

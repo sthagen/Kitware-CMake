@@ -254,7 +254,7 @@ EvaluatedTargetPropertyEntries EvaluateTargetPropertyEntries(
 {
   EvaluatedTargetPropertyEntries out;
   out.Entries.reserve(in.size());
-  for (auto& entry : in) {
+  for (auto const& entry : in) {
     out.Entries.emplace_back(EvaluateTargetPropertyEntry(
       thisTarget, config, lang, dagChecker, *entry));
   }
@@ -276,8 +276,8 @@ cmGeneratorTarget::cmGeneratorTarget(cmTarget* t, cmLocalGenerator* lg)
   , DebugLinkDirectoriesDone(false)
   , DebugPrecompileHeadersDone(false)
   , DebugSourcesDone(false)
-  , LinkImplementationLanguageIsContextDependent(true)
   , UtilityItemsDone(false)
+  , SourcesAreContextDependent(Tribool::Indeterminate)
 {
   this->Makefile = this->Target->GetMakefile();
   this->LocalGenerator = lg;
@@ -332,7 +332,7 @@ cmGeneratorTarget::~cmGeneratorTarget() = default;
 const std::string& cmGeneratorTarget::GetSourcesProperty() const
 {
   std::vector<std::string> values;
-  for (auto& se : this->SourceEntries) {
+  for (auto const& se : this->SourceEntries) {
     values.push_back(se->GetInput());
   }
   static std::string value;
@@ -516,9 +516,8 @@ std::string cmGeneratorTarget::GetFilePrefix(
   const std::string& config, cmStateEnums::ArtifactType artifact) const
 {
   if (this->IsImported()) {
-    const char* prefix = this->GetFilePrefixInternal(config, artifact);
-
-    return prefix ? prefix : std::string();
+    cmProp prefix = this->GetFilePrefixInternal(config, artifact);
+    return prefix ? *prefix : std::string();
   }
 
   std::string prefix;
@@ -531,9 +530,8 @@ std::string cmGeneratorTarget::GetFileSuffix(
   const std::string& config, cmStateEnums::ArtifactType artifact) const
 {
   if (this->IsImported()) {
-    const char* suffix = this->GetFileSuffixInternal(config, artifact);
-
-    return suffix ? suffix : std::string();
+    cmProp suffix = this->GetFileSuffixInternal(config, artifact);
+    return suffix ? *suffix : std::string();
   }
 
   std::string prefix;
@@ -587,7 +585,7 @@ std::string cmGeneratorTarget::GetFrameworkMultiConfigPostfix(
   return postfix ? *postfix : std::string();
 }
 
-const char* cmGeneratorTarget::GetFilePrefixInternal(
+cmProp cmGeneratorTarget::GetFilePrefixInternal(
   std::string const& config, cmStateEnums::ArtifactType artifact,
   const std::string& language) const
 {
@@ -623,8 +621,8 @@ const char* cmGeneratorTarget::GetFilePrefixInternal(
 
   if (!targetPrefix) {
     const char* prefixVar = this->Target->GetPrefixVariableInternal(artifact);
-    if (!language.empty() && prefixVar && *prefixVar) {
-      std::string langPrefix = prefixVar + std::string("_") + language;
+    if (!language.empty() && cmNonempty(prefixVar)) {
+      std::string langPrefix = cmStrCat(prefixVar, "_", language);
       targetPrefix = this->Makefile->GetDefinition(langPrefix);
     }
 
@@ -635,9 +633,10 @@ const char* cmGeneratorTarget::GetFilePrefixInternal(
     }
   }
 
-  return targetPrefix ? targetPrefix->c_str() : nullptr;
+  return targetPrefix;
 }
-const char* cmGeneratorTarget::GetFileSuffixInternal(
+
+cmProp cmGeneratorTarget::GetFileSuffixInternal(
   std::string const& config, cmStateEnums::ArtifactType artifact,
   const std::string& language) const
 {
@@ -673,8 +672,8 @@ const char* cmGeneratorTarget::GetFileSuffixInternal(
 
   if (!targetSuffix) {
     const char* suffixVar = this->Target->GetSuffixVariableInternal(artifact);
-    if (!language.empty() && suffixVar && *suffixVar) {
-      std::string langSuffix = suffixVar + std::string("_") + language;
+    if (!language.empty() && cmNonempty(suffixVar)) {
+      std::string langSuffix = cmStrCat(suffixVar, "_", language);
       targetSuffix = this->Makefile->GetDefinition(langSuffix);
     }
 
@@ -685,14 +684,14 @@ const char* cmGeneratorTarget::GetFileSuffixInternal(
     }
   }
 
-  return targetSuffix ? targetSuffix->c_str() : nullptr;
+  return targetSuffix;
 }
 
 void cmGeneratorTarget::ClearSourcesCache()
 {
   this->AllConfigSources.clear();
   this->KindedSourcesMap.clear();
-  this->LinkImplementationLanguageIsContextDependent = true;
+  this->SourcesAreContextDependent = Tribool::Indeterminate;
   this->Objects.clear();
   this->VisitedConfigsForObjects.clear();
 }
@@ -1195,8 +1194,8 @@ bool cmGeneratorTarget::IsSystemIncludeDirectory(
     config_upper = cmSystemTools::UpperCase(config);
   }
 
-  using IncludeCacheType = std::map<std::string, std::vector<std::string>>;
-  auto iter = this->SystemIncludesCache.find(config_upper);
+  std::string key = cmStrCat(config_upper, "/", language);
+  auto iter = this->SystemIncludesCache.find(key);
 
   if (iter == this->SystemIncludesCache.end()) {
     cmGeneratorExpressionDAGChecker dagChecker(
@@ -1224,8 +1223,7 @@ bool cmGeneratorTarget::IsSystemIncludeDirectory(
     std::sort(result.begin(), result.end());
     result.erase(std::unique(result.begin(), result.end()), result.end());
 
-    IncludeCacheType::value_type entry(config_upper, result);
-    iter = this->SystemIncludesCache.insert(entry).first;
+    iter = this->SystemIncludesCache.emplace(key, result).first;
   }
 
   return std::binary_search(iter->second.begin(), iter->second.end(), dir);
@@ -1248,8 +1246,7 @@ bool cmGeneratorTarget::MaybeHaveInterfaceProperty(
     bool& maybeInterfaceProp = i->second;
 
     // If this target itself has a non-empty property value, we are done.
-    cmProp p = this->GetProperty(prop);
-    maybeInterfaceProp = cmNonempty(p);
+    maybeInterfaceProp = cmNonempty(this->GetProperty(prop));
 
     // Otherwise, recurse to interface dependencies.
     if (!maybeInterfaceProp) {
@@ -1542,10 +1539,14 @@ bool processSources(cmGeneratorTarget const* tgt,
     for (std::string& src : entry.Values) {
       cmSourceFile* sf = mf->GetOrCreateSource(src);
       std::string e;
-      std::string fullPath = sf->ResolveFullPath(&e);
+      std::string w;
+      std::string fullPath = sf->ResolveFullPath(&e, &w);
+      cmake* cm = tgt->GetLocalGenerator()->GetCMakeInstance();
+      if (!w.empty()) {
+        cm->IssueMessage(MessageType::AUTHOR_WARNING, w, tgt->GetBacktrace());
+      }
       if (fullPath.empty()) {
         if (!e.empty()) {
-          cmake* cm = tgt->GetLocalGenerator()->GetCMakeInstance();
           cm->IssueMessage(MessageType::FATAL_ERROR, e, tgt->GetBacktrace());
         }
         return contextDependent;
@@ -1653,10 +1654,13 @@ std::vector<BT<std::string>> cmGeneratorTarget::GetSourceFilePaths(
                                              uniqueSrcs, debugSources);
   }
 
+  // Determine if sources are context-dependent or not.
   if (!contextDependentDirectSources &&
       !(contextDependentInterfaceSources && numFilesBefore < files.size()) &&
       !(contextDependentObjects && numFilesBefore2 < files.size())) {
-    this->LinkImplementationLanguageIsContextDependent = false;
+    this->SourcesAreContextDependent = Tribool::False;
+  } else {
+    this->SourcesAreContextDependent = Tribool::True;
   }
 
   return files;
@@ -1731,9 +1735,9 @@ cmGeneratorTarget::GetSourceFilesWithoutObjectLibraries(
 cmGeneratorTarget::KindedSources const& cmGeneratorTarget::GetKindedSources(
   std::string const& config) const
 {
-  // If we already processed one configuration and found no dependenc
+  // If we already processed one configuration and found no dependency
   // on configuration then always use the one result.
-  if (!this->LinkImplementationLanguageIsContextDependent) {
+  if (this->SourcesAreContextDependent == Tribool::False) {
     return this->KindedSourcesMap.begin()->second;
   }
 
@@ -2500,7 +2504,7 @@ public:
     }
   }
 
-  bool GetHadLinkLanguageSensitiveCondition()
+  bool GetHadLinkLanguageSensitiveCondition() const
   {
     return HadLinkLanguageSensitiveCondition;
   }
@@ -2986,7 +2990,8 @@ void cmTargetTraceDependencies::FollowName(std::string const& name)
   auto i = this->NameMap.lower_bound(name);
   if (i == this->NameMap.end() || i->first != name) {
     // Check if we know how to generate this file.
-    cmSourcesWithOutput sources = this->Makefile->GetSourcesWithOutput(name);
+    cmSourcesWithOutput sources =
+      this->LocalGenerator->GetSourcesWithOutput(name);
     // If we failed to find a target or source and we have a relative path, it
     // might be a valid source if made relative to the current binary
     // directory.
@@ -2996,7 +3001,7 @@ void cmTargetTraceDependencies::FollowName(std::string const& name)
         cmStrCat(this->Makefile->GetCurrentBinaryDirectory(), '/', name);
       fullname = cmSystemTools::CollapseFullPath(
         fullname, this->Makefile->GetHomeOutputDirectory());
-      sources = this->Makefile->GetSourcesWithOutput(fullname);
+      sources = this->LocalGenerator->GetSourcesWithOutput(fullname);
     }
     i = this->NameMap.emplace_hint(i, name, sources);
   }
@@ -3189,6 +3194,9 @@ void cmGeneratorTarget::GetAppleArchs(const std::string& config,
   }
   if (archs) {
     cmExpandList(*archs, archVec);
+  }
+  if (archVec.empty()) {
+    this->Makefile->GetDefExpandList("_CMAKE_APPLE_ARCHS_DEFAULT", archVec);
   }
 }
 
@@ -4134,6 +4142,16 @@ std::string cmGeneratorTarget::GetPchCreateCompileOptions(
         cmStrCat("CMAKE_", language, "_COMPILE_OPTIONS_INVALID_PCH"));
     }
 
+    if (this->GetPropertyAsBool("PCH_INSTANTIATE_TEMPLATES")) {
+      std::string varName = cmStrCat(
+        "CMAKE_", language, "_COMPILE_OPTIONS_INSTANTIATE_TEMPLATES_PCH");
+      std::string instantiateOption =
+        this->Makefile->GetSafeDefinition(varName);
+      if (!instantiateOption.empty()) {
+        createOptionList = cmStrCat(createOptionList, ";", instantiateOption);
+      }
+    }
+
     const std::string createOptVar =
       cmStrCat("CMAKE_", language, "_COMPILE_OPTIONS_CREATE_PCH");
 
@@ -4930,8 +4948,8 @@ void cmGeneratorTarget::GetFullNameInternal(
 
   // retrieve prefix and suffix
   std::string ll = this->GetLinkerLanguage(config);
-  const char* targetPrefix = this->GetFilePrefixInternal(config, artifact, ll);
-  const char* targetSuffix = this->GetFileSuffixInternal(config, artifact, ll);
+  cmProp targetPrefix = this->GetFilePrefixInternal(config, artifact, ll);
+  cmProp targetSuffix = this->GetFileSuffixInternal(config, artifact, ll);
 
   // The implib option is only allowed for shared libraries, module
   // libraries, and executables.
@@ -4949,18 +4967,18 @@ void cmGeneratorTarget::GetFullNameInternal(
   if (this->IsFrameworkOnApple()) {
     fw_prefix =
       cmStrCat(this->GetFrameworkDirectory(config, ContentLevel), '/');
-    targetPrefix = fw_prefix.c_str();
+    targetPrefix = &fw_prefix;
     targetSuffix = nullptr;
   }
 
   if (this->IsCFBundleOnApple()) {
     fw_prefix = cmStrCat(this->GetCFBundleDirectory(config, FullLevel), '/');
-    targetPrefix = fw_prefix.c_str();
+    targetPrefix = &fw_prefix;
     targetSuffix = nullptr;
   }
 
   // Begin the final name with the prefix.
-  outPrefix = targetPrefix ? targetPrefix : "";
+  outPrefix = targetPrefix ? *targetPrefix : "";
 
   // Append the target name or property-specified name.
   outBase += this->GetOutputName(config, artifact);
@@ -4971,7 +4989,7 @@ void cmGeneratorTarget::GetFullNameInternal(
   // EXECUTABLE_SUFFIX attribute.
   if (this->IsFrameworkOnApple() &&
       GetGlobalGenerator()->GetName() == "Xcode") {
-    targetSuffix = configPostfix.c_str();
+    targetSuffix = &configPostfix;
   } else {
     outBase += configPostfix;
   }
@@ -4987,7 +5005,7 @@ void cmGeneratorTarget::GetFullNameInternal(
   }
 
   // Append the suffix.
-  outSuffix = targetSuffix ? targetSuffix : "";
+  outSuffix = targetSuffix ? *targetSuffix : "";
 }
 
 std::string cmGeneratorTarget::GetLinkerLanguage(
@@ -6472,21 +6490,16 @@ bool cmGeneratorTarget::ComputeOutputDir(const std::string& config,
   // Look for a target property defining the target output directory
   // based on the target type.
   std::string targetTypeName = this->GetOutputTargetType(artifact);
-  const char* propertyName = nullptr;
-  std::string propertyNameStr = targetTypeName;
-  if (!propertyNameStr.empty()) {
-    propertyNameStr += "_OUTPUT_DIRECTORY";
-    propertyName = propertyNameStr.c_str();
+  std::string propertyName;
+  if (!targetTypeName.empty()) {
+    propertyName = cmStrCat(targetTypeName, "_OUTPUT_DIRECTORY");
   }
 
   // Check for a per-configuration output directory target property.
   std::string configUpper = cmSystemTools::UpperCase(conf);
-  const char* configProp = nullptr;
-  std::string configPropStr = targetTypeName;
-  if (!configPropStr.empty()) {
-    configPropStr += "_OUTPUT_DIRECTORY_";
-    configPropStr += configUpper;
-    configProp = configPropStr.c_str();
+  std::string configProp;
+  if (!targetTypeName.empty()) {
+    configProp = cmStrCat(targetTypeName, "_OUTPUT_DIRECTORY_", configUpper);
   }
 
   // Select an output directory.
@@ -6547,22 +6560,17 @@ bool cmGeneratorTarget::ComputePDBOutputDir(const std::string& kind,
 {
   // Look for a target property defining the target output directory
   // based on the target type.
-  const char* propertyName = nullptr;
-  std::string propertyNameStr = kind;
-  if (!propertyNameStr.empty()) {
-    propertyNameStr += "_OUTPUT_DIRECTORY";
-    propertyName = propertyNameStr.c_str();
+  std::string propertyName;
+  if (!kind.empty()) {
+    propertyName = cmStrCat(kind, "_OUTPUT_DIRECTORY");
   }
   std::string conf = config;
 
   // Check for a per-configuration output directory target property.
   std::string configUpper = cmSystemTools::UpperCase(conf);
-  const char* configProp = nullptr;
-  std::string configPropStr = kind;
-  if (!configPropStr.empty()) {
-    configPropStr += "_OUTPUT_DIRECTORY_";
-    configPropStr += configUpper;
-    configProp = configPropStr.c_str();
+  std::string configProp;
+  if (!kind.empty()) {
+    configProp = cmStrCat(kind, "_OUTPUT_DIRECTORY_", configUpper);
   }
 
   // Select an output directory.
@@ -7516,6 +7524,11 @@ bool cmGeneratorTarget::GetImplibGNUtoMS(std::string const& config,
     return true;
   }
   return false;
+}
+
+bool cmGeneratorTarget::HasContextDependentSources() const
+{
+  return this->SourcesAreContextDependent == Tribool::True;
 }
 
 bool cmGeneratorTarget::IsExecutableWithExports() const

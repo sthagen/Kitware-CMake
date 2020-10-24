@@ -125,6 +125,10 @@ if(CMake_TEST_CUDA)
 endif()
 add_RunCMake_test(CMP0106)
 add_RunCMake_test(CMP0111)
+add_RunCMake_test(CMP0115)
+if(CMAKE_GENERATOR MATCHES "Ninja")
+  add_RunCMake_test(CMP0116)
+endif()
 
 # The test for Policy 65 requires the use of the
 # CMAKE_SHARED_LIBRARY_LINK_CXX_FLAGS variable, which both the VS and Xcode
@@ -238,6 +242,9 @@ add_RunCMake_test(GenEx-GENEX_EVAL)
 add_RunCMake_test(GeneratorExpression)
 add_RunCMake_test(GeneratorInstance)
 add_RunCMake_test(GeneratorPlatform)
+if(XCODE_VERSION)
+  set(GeneratorToolset_ARGS -DXCODE_VERSION=${XCODE_VERSION})
+endif()
 add_RunCMake_test(GeneratorToolset)
 add_RunCMake_test(GetPrerequisites)
 add_RunCMake_test(GNUInstallDirs -DSYSTEM_NAME=${CMAKE_SYSTEM_NAME})
@@ -308,7 +315,11 @@ add_RunCMake_test(cmake_parse_arguments)
 add_RunCMake_test(cmake_path)
 add_RunCMake_test(continue)
 add_executable(color_warning color_warning.c)
-add_RunCMake_test(ctest_build -DCOLOR_WARNING=$<TARGET_FILE:color_warning>)
+add_executable(fake_build_command fake_build_command.c)
+add_RunCMake_test(ctest_build
+  -DCOLOR_WARNING=$<TARGET_FILE:color_warning>
+  -DFAKE_BUILD_COMMAND_EXE=$<TARGET_FILE:fake_build_command>
+)
 add_RunCMake_test(ctest_cmake_error)
 add_RunCMake_test(ctest_configure)
 if(COVERAGE_COMMAND)
@@ -531,13 +542,28 @@ add_RunCMake_test(target_compile_features)
 add_RunCMake_test(target_compile_options -DCMAKE_C_COMPILER_ID=${CMAKE_C_COMPILER_ID})
 add_RunCMake_test(target_include_directories)
 add_RunCMake_test(target_sources)
+add_RunCMake_test(CheckCompilerFlag   -DCMake_TEST_CUDA=${CMake_TEST_CUDA}
+                                      -DCMake_TEST_ISPC=${CMake_TEST_ISPC})
+add_RunCMake_test(CheckSourceCompiles -DCMake_TEST_CUDA=${CMake_TEST_CUDA}
+                                      -DCMake_TEST_ISPC=${CMake_TEST_ISPC})
+add_RunCMake_test(CheckSourceRuns     -DCMake_TEST_CUDA=${CMake_TEST_CUDA})
+set_property(TEST RunCMake.CheckCompilerFlag
+                  RunCMake.CheckSourceCompiles
+                  RunCMake.CheckSourceRuns
+    APPEND PROPERTY LABELS "CUDA")
+set_property(TEST RunCMake.CheckSourceCompiles
+                  RunCMake.CheckCompilerFlag
+    APPEND PROPERTY LABELS "ISPC")
 add_RunCMake_test(CheckModules)
 add_RunCMake_test(CheckIPOSupported)
 if (CMAKE_SYSTEM_NAME MATCHES "(Linux|Darwin)"
     AND (CMAKE_C_COMPILER_ID MATCHES "Clang|GNU" OR CMAKE_Fortran_COMPILER_ID MATCHES "GNU"))
   add_RunCMake_test(CheckLinkerFlag -DCMAKE_C_COMPILER_ID=${CMAKE_C_COMPILER_ID}
-                                    -DCMAKE_Fortran_COMPILER_ID=${CMAKE_Fortran_COMPILER_ID})
+                                    -DCMAKE_Fortran_COMPILER_ID=${CMAKE_Fortran_COMPILER_ID}
+                                    -DCMake_TEST_CUDA=${CMake_TEST_CUDA})
+  set_property(TEST RunCMake.CheckLinkerFlag APPEND PROPERTY LABELS "CUDA")
 endif()
+
 
 add_RunCMake_test(CommandLine -DCMAKE_SYSTEM_NAME=${CMAKE_SYSTEM_NAME} -DCYGWIN=${CYGWIN} -DPYTHON_EXECUTABLE=${PYTHON_EXECUTABLE})
 add_RunCMake_test(CommandLineTar)
@@ -566,6 +592,9 @@ add_RunCMake_test(file-GET_RUNTIME_DEPENDENCIES
 add_RunCMake_test(CPackCommandLine)
 add_RunCMake_test(CPackConfig)
 add_RunCMake_test(CPackInstallProperties)
+if(XCODE_VERSION)
+  set(ExternalProject_ARGS -DXCODE_VERSION=${XCODE_VERSION})
+endif()
 add_RunCMake_test(ExternalProject)
 add_RunCMake_test(FetchContent)
 set(CTestCommandLine_ARGS -DPYTHON_EXECUTABLE=${PYTHON_EXECUTABLE})
@@ -740,8 +769,12 @@ endif()
 
 add_RunCMake_test("CTestCommandExpandLists")
 
-add_RunCMake_test(PrecompileHeaders -DCMAKE_C_COMPILER_ID=${CMAKE_C_COMPILER_ID})
+add_RunCMake_test(PrecompileHeaders -DCMAKE_C_COMPILER_ID=${CMAKE_C_COMPILER_ID}
+  -DCMAKE_C_COMPILER_VERSION=${CMAKE_C_COMPILER_VERSION})
+
 add_RunCMake_test("UnityBuild")
+add_RunCMake_test(CMakePresets -DPYTHON_EXECUTABLE=${PYTHON_EXECUTABLE} -DCMake_TEST_JSON_SCHEMA=${CMake_TEST_JSON_SCHEMA})
+add_RunCMake_test(TransformDepfile)
 
 if(WIN32)
   add_RunCMake_test(Win32GenEx)

@@ -15,6 +15,7 @@
 #include <vector>
 
 #include <cm/memory>
+#include <cm/string_view>
 #include <cmext/algorithm>
 #include <cmext/string_view>
 
@@ -28,6 +29,7 @@
 
 #include "cmAlgorithms.h"
 #include "cmArgumentParser.h"
+#include "cmCMakePath.h"
 #include "cmCryptoHash.h"
 #include "cmExecutionStatus.h"
 #include "cmFSPermissions.h"
@@ -1234,6 +1236,50 @@ bool HandleInstallCommand(std::vector<std::string> const& args,
   return installer.Run(args);
 }
 
+bool HandleRealPathCommand(std::vector<std::string> const& args,
+                           cmExecutionStatus& status)
+{
+  if (args.size() < 3) {
+    status.SetError("REAL_PATH requires a path and an output variable");
+    return false;
+  }
+
+  struct Arguments
+  {
+    std::string BaseDirectory;
+  };
+  static auto const parser = cmArgumentParser<Arguments>{}.Bind(
+    "BASE_DIRECTORY"_s, &Arguments::BaseDirectory);
+
+  std::vector<std::string> unparsedArguments;
+  std::vector<std::string> keywordsMissingValue;
+  std::vector<std::string> parsedKeywords;
+  auto arguments =
+    parser.Parse(cmMakeRange(args).advance(3), &unparsedArguments,
+                 &keywordsMissingValue, &parsedKeywords);
+
+  if (!unparsedArguments.empty()) {
+    status.SetError("REAL_PATH called with unexpected arguments");
+    return false;
+  }
+  if (!keywordsMissingValue.empty()) {
+    status.SetError("BASE_DIRECTORY requires a value");
+    return false;
+  }
+
+  if (parsedKeywords.empty()) {
+    arguments.BaseDirectory = status.GetMakefile().GetCurrentSourceDirectory();
+  }
+
+  cmCMakePath path(args[1]);
+  path = path.Absolute(arguments.BaseDirectory).Normal();
+  auto realPath = cmSystemTools::GetRealPath(path.GenericString());
+
+  status.GetMakefile().AddDefinition(args[2], realPath);
+
+  return true;
+}
+
 bool HandleRelativePathCommand(std::vector<std::string> const& args,
                                cmExecutionStatus& status)
 {
@@ -2269,49 +2315,92 @@ bool HandleGenerateCommand(std::vector<std::string> const& args,
     status.SetError("Incorrect arguments to GENERATE subcommand.");
     return false;
   }
-  if (args[1] != "OUTPUT") {
+
+  struct Arguments
+  {
+    std::string Output;
+    std::string Input;
+    std::string Content;
+    std::string Condition;
+    std::string Target;
+  };
+
+  static auto const parser = cmArgumentParser<Arguments>{}
+                               .Bind("OUTPUT"_s, &Arguments::Output)
+                               .Bind("INPUT"_s, &Arguments::Input)
+                               .Bind("CONTENT"_s, &Arguments::Content)
+                               .Bind("CONDITION"_s, &Arguments::Condition)
+                               .Bind("TARGET"_s, &Arguments::Target);
+
+  std::vector<std::string> unparsedArguments;
+  std::vector<std::string> keywordsMissingValues;
+  std::vector<std::string> parsedKeywords;
+  Arguments const arguments =
+    parser.Parse(cmMakeRange(args).advance(1), &unparsedArguments,
+                 &keywordsMissingValues, &parsedKeywords);
+
+  if (!keywordsMissingValues.empty()) {
     status.SetError("Incorrect arguments to GENERATE subcommand.");
     return false;
   }
 
-  std::string condition;
-  std::string target;
-
-  for (std::size_t i = 5; i < args.size();) {
-    const std::string& arg = args[i++];
-
-    if (args.size() - i == 0) {
-      status.SetError("Incorrect arguments to GENERATE subcommand.");
-      return false;
-    }
-
-    const std::string& value = args[i++];
-
-    if (value.empty()) {
-      status.SetError(
-        arg + " of sub-command GENERATE must not be empty if specified.");
-      return false;
-    }
-
-    if (arg == "CONDITION") {
-      condition = value;
-    } else if (arg == "TARGET") {
-      target = value;
-    } else {
-      status.SetError("Unknown argument to GENERATE subcommand.");
-      return false;
-    }
+  if (!unparsedArguments.empty()) {
+    status.SetError("Unknown argument to GENERATE subcommand.");
+    return false;
   }
 
-  std::string output = args[2];
-  const bool inputIsContent = args[3] != "INPUT";
-  if (inputIsContent && args[3] != "CONTENT") {
+  bool mandatoryOptionsSpecified = false;
+  if (parsedKeywords.size() > 1) {
+    const bool outputOprionSpecified = parsedKeywords[0] == "OUTPUT"_s;
+    const bool inputOrContentSpecified =
+      parsedKeywords[1] == "INPUT"_s || parsedKeywords[1] == "CONTENT"_s;
+    if (outputOprionSpecified && inputOrContentSpecified) {
+      mandatoryOptionsSpecified = true;
+    }
+  }
+  if (!mandatoryOptionsSpecified) {
     status.SetError("Incorrect arguments to GENERATE subcommand.");
     return false;
   }
-  std::string input = args[4];
 
-  AddEvaluationFile(input, target, output, condition, inputIsContent, status);
+  const bool conditionOptionSpecified =
+    std::find(parsedKeywords.begin(), parsedKeywords.end(), "CONDITION"_s) !=
+    parsedKeywords.end();
+  if (conditionOptionSpecified && arguments.Condition.empty()) {
+    status.SetError("CONDITION of sub-command GENERATE must not be empty "
+                    "if specified.");
+    return false;
+  }
+
+  const bool targetOptionSpecified =
+    std::find(parsedKeywords.begin(), parsedKeywords.end(), "TARGET"_s) !=
+    parsedKeywords.end();
+  if (targetOptionSpecified && arguments.Target.empty()) {
+    status.SetError("TARGET of sub-command GENERATE must not be empty "
+                    "if specified.");
+    return false;
+  }
+
+  const bool outputOptionSpecified =
+    std::find(parsedKeywords.begin(), parsedKeywords.end(), "OUTPUT"_s) !=
+    parsedKeywords.end();
+  if (outputOptionSpecified && parsedKeywords[0] != "OUTPUT"_s) {
+    status.SetError("Incorrect arguments to GENERATE subcommand.");
+    return false;
+  }
+
+  const bool inputIsContent = parsedKeywords[1] != "INPUT"_s;
+  if (inputIsContent && parsedKeywords[1] != "CONTENT") {
+    status.SetError("Unknown argument to GENERATE subcommand.");
+  }
+
+  std::string input = arguments.Input;
+  if (inputIsContent) {
+    input = arguments.Content;
+  }
+
+  AddEvaluationFile(input, arguments.Target, arguments.Output,
+                    arguments.Condition, inputIsContent, status);
   return true;
 }
 
@@ -2900,15 +2989,7 @@ bool HandleConfigureCommand(std::vector<std::string> const& args,
   std::string outputFile = cmSystemTools::CollapseFullPath(
     args[2], status.GetMakefile().GetCurrentBinaryDirectory());
 
-  std::string::size_type pos = input.find_first_of("<>");
-  if (pos != std::string::npos) {
-    status.SetError(cmStrCat("CONFIGURE called with CONTENT containing a \"",
-                             input[pos],
-                             "\".  This character is not allowed."));
-    return false;
-  }
-
-  pos = outputFile.find_first_of("<>");
+  std::string::size_type pos = outputFile.find_first_of("<>");
   if (pos != std::string::npos) {
     status.SetError(cmStrCat("CONFIGURE called with OUTPUT containing a \"",
                              outputFile[pos],
@@ -2978,18 +3059,21 @@ bool HandleArchiveCreateCommand(std::vector<std::string> const& args,
     std::string Output;
     std::string Format;
     std::string Compression;
+    std::string CompressionLevel;
     std::string MTime;
     bool Verbose = false;
     std::vector<std::string> Paths;
   };
 
-  static auto const parser = cmArgumentParser<Arguments>{}
-                               .Bind("OUTPUT"_s, &Arguments::Output)
-                               .Bind("FORMAT"_s, &Arguments::Format)
-                               .Bind("COMPRESSION"_s, &Arguments::Compression)
-                               .Bind("MTIME"_s, &Arguments::MTime)
-                               .Bind("VERBOSE"_s, &Arguments::Verbose)
-                               .Bind("PATHS"_s, &Arguments::Paths);
+  static auto const parser =
+    cmArgumentParser<Arguments>{}
+      .Bind("OUTPUT"_s, &Arguments::Output)
+      .Bind("FORMAT"_s, &Arguments::Format)
+      .Bind("COMPRESSION"_s, &Arguments::Compression)
+      .Bind("COMPRESSION_LEVEL"_s, &Arguments::CompressionLevel)
+      .Bind("MTIME"_s, &Arguments::MTime)
+      .Bind("VERBOSE"_s, &Arguments::Verbose)
+      .Bind("PATHS"_s, &Arguments::Paths);
 
   std::vector<std::string> unrecognizedArguments;
   std::vector<std::string> keywordsMissingValues;
@@ -3003,9 +3087,9 @@ bool HandleArchiveCreateCommand(std::vector<std::string> const& args,
     return false;
   }
 
-  const std::vector<std::string> LIST_ARGS = { "OUTPUT", "FORMAT",
-                                               "COMPRESSION", "MTIME",
-                                               "PATHS" };
+  const std::vector<std::string> LIST_ARGS = {
+    "OUTPUT", "FORMAT", "COMPRESSION", "COMPRESSION_LEVEL", "MTIME", "PATHS"
+  };
   auto kwbegin = keywordsMissingValues.cbegin();
   auto kwend = cmRemoveMatching(keywordsMissingValues, LIST_ARGS);
   if (kwend != kwbegin) {
@@ -3054,6 +3138,33 @@ bool HandleArchiveCreateCommand(std::vector<std::string> const& args,
     return false;
   }
 
+  int compressionLevel = 0;
+  if (!parsedArgs.CompressionLevel.empty()) {
+    if (parsedArgs.CompressionLevel.size() != 1 &&
+        !std::isdigit(parsedArgs.CompressionLevel[0])) {
+      status.SetError(cmStrCat("compression level ",
+                               parsedArgs.CompressionLevel,
+                               " should be in range 0 to 9"));
+      cmSystemTools::SetFatalErrorOccured();
+      return false;
+    }
+    compressionLevel = std::stoi(parsedArgs.CompressionLevel);
+    if (compressionLevel < 0 || compressionLevel > 9) {
+      status.SetError(cmStrCat("compression level ",
+                               parsedArgs.CompressionLevel,
+                               " should be in range 0 to 9"));
+      cmSystemTools::SetFatalErrorOccured();
+      return false;
+    }
+    if (compress == cmSystemTools::TarCompressNone) {
+      status.SetError(cmStrCat("compression level is not supported for "
+                               "compression \"None\"",
+                               parsedArgs.Compression));
+      cmSystemTools::SetFatalErrorOccured();
+      return false;
+    }
+  }
+
   if (parsedArgs.Paths.empty()) {
     status.SetError("ARCHIVE_CREATE requires a non-empty list of PATHS");
     cmSystemTools::SetFatalErrorOccured();
@@ -3062,7 +3173,7 @@ bool HandleArchiveCreateCommand(std::vector<std::string> const& args,
 
   if (!cmSystemTools::CreateTar(parsedArgs.Output, parsedArgs.Paths, compress,
                                 parsedArgs.Verbose, parsedArgs.MTime,
-                                parsedArgs.Format)) {
+                                parsedArgs.Format, compressionLevel)) {
     status.SetError(cmStrCat("failed to compress: ", parsedArgs.Output));
     cmSystemTools::SetFatalErrorOccured();
     return false;
@@ -3360,6 +3471,7 @@ bool cmFileCommand(std::vector<std::string> const& args,
     { "RPATH_CHECK"_s, HandleRPathCheckCommand },
     { "RPATH_REMOVE"_s, HandleRPathRemoveCommand },
     { "READ_ELF"_s, HandleReadElfCommand },
+    { "REAL_PATH"_s, HandleRealPathCommand },
     { "RELATIVE_PATH"_s, HandleRelativePathCommand },
     { "TO_CMAKE_PATH"_s, HandleCMakePathCommand },
     { "TO_NATIVE_PATH"_s, HandleNativePathCommand },

@@ -169,17 +169,29 @@ if(NOT CMAKE_CUDA_COMPILER_ID_RUN)
     endif()
 
     get_filename_component(CMAKE_CUDA_COMPILER_TOOLKIT_ROOT "${_CUDA_NVCC_EXECUTABLE}" DIRECTORY)
+    set(CMAKE_CUDA_DEVICE_LINKER "${CMAKE_CUDA_COMPILER_TOOLKIT_ROOT}/nvlink${CMAKE_EXECUTABLE_SUFFIX}")
+    set(CMAKE_CUDA_FATBINARY "${CMAKE_CUDA_COMPILER_TOOLKIT_ROOT}/fatbinary${CMAKE_EXECUTABLE_SUFFIX}")
     get_filename_component(CMAKE_CUDA_COMPILER_TOOLKIT_ROOT "${CMAKE_CUDA_COMPILER_TOOLKIT_ROOT}" DIRECTORY)
 
-    # CMAKE_CUDA_COMPILER_LIBRARY_ROOT contains the device library and version file.
-    # In a non-scattered installation this is equivalent to CMAKE_CUDA_COMPILER_TOOLKIT_ROOT.
+    # In a non-scattered installation the following are equivalent to CMAKE_CUDA_COMPILER_TOOLKIT_ROOT.
     # We first check for a non-scattered installation to prefer it over a scattered installation.
+
+    # CMAKE_CUDA_COMPILER_LIBRARY_ROOT contains the device library and version file.
     if(EXISTS "${CMAKE_CUDA_COMPILER_TOOLKIT_ROOT}/version.txt")
       set(CMAKE_CUDA_COMPILER_LIBRARY_ROOT "${CMAKE_CUDA_COMPILER_TOOLKIT_ROOT}")
     elseif(CMAKE_SYSROOT_LINK AND EXISTS "${CMAKE_SYSROOT_LINK}/usr/lib/cuda/version.txt")
       set(CMAKE_CUDA_COMPILER_LIBRARY_ROOT "${CMAKE_SYSROOT_LINK}/usr/lib/cuda")
     elseif(EXISTS "${CMAKE_SYSROOT}/usr/lib/cuda/version.txt")
       set(CMAKE_CUDA_COMPILER_LIBRARY_ROOT "${CMAKE_SYSROOT}/usr/lib/cuda")
+    endif()
+
+    # CMAKE_CUDA_COMPILER_TOOLKIT_LIBRARY_ROOT contains the linking stubs necessary for device linking and other low-level library files.
+    if(CMAKE_SYSROOT_LINK AND EXISTS "${CMAKE_SYSROOT_LINK}/usr/lib/nvidia-cuda-toolkit/bin/crt/link.stub")
+      set(CMAKE_CUDA_COMPILER_TOOLKIT_LIBRARY_ROOT "${CMAKE_SYSROOT_LINK}/usr/lib/nvidia-cuda-toolkit")
+    elseif(EXISTS "${CMAKE_SYSROOT}/usr/lib/nvidia-cuda-toolkit/bin/crt/link.stub")
+      set(CMAKE_CUDA_COMPILER_TOOLKIT_LIBRARY_ROOT "${CMAKE_SYSROOT}/usr/lib/nvidia-cuda-toolkit")
+    else()
+      set(CMAKE_CUDA_COMPILER_TOOLKIT_LIBRARY_ROOT "${CMAKE_CUDA_COMPILER_TOOLKIT_ROOT}")
     endif()
   endif()
 
@@ -300,7 +312,7 @@ elseif(CMAKE_CUDA_COMPILER_ID STREQUAL "Clang")
     endforeach()
   endif()
 
-  # Find target directory. Account for crosscompiling.
+  # Find target directory when crosscompiling.
   if(CMAKE_CROSSCOMPILING)
     if(CMAKE_SYSTEM_PROCESSOR STREQUAL "armv7-a")
       # Support for NVPACK
@@ -320,7 +332,10 @@ elseif(CMAKE_CUDA_COMPILER_ID STREQUAL "Clang")
     if(EXISTS "${CMAKE_CUDA_COMPILER_TOOLKIT_ROOT}/targets/${_CUDA_TARGET_NAME}")
       set(_CUDA_TARGET_DIR "${CMAKE_CUDA_COMPILER_TOOLKIT_ROOT}/targets/${_CUDA_TARGET_NAME}")
     endif()
-  else()
+  endif()
+
+  # If not already set we can simply use the toolkit root or it's a scattered installation.
+  if(NOT _CUDA_TARGET_DIR)
     set(_CUDA_TARGET_DIR "${CMAKE_CUDA_COMPILER_TOOLKIT_ROOT}")
   endif()
 

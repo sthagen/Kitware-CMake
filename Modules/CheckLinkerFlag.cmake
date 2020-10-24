@@ -51,7 +51,7 @@ function(CHECK_LINKER_FLAG _lang _flag _var)
     return()
   endif()
 
-  include (Check${_lang}SourceCompiles)
+  include (CheckSourceCompiles)
 
   set(CMAKE_REQUIRED_LINK_OPTIONS "${_flag}")
 
@@ -66,6 +66,8 @@ function(CHECK_LINKER_FLAG _lang _flag _var)
     set (_source "int main() { return 0; }")
   elseif (_lang STREQUAL "Fortran")
     set (_source "       program test\n       stop\n       end program")
+  elseif (_lang MATCHES "CUDA")
+    set (_source "__host__ int main() { return 0; }")
   elseif (_lang MATCHES "^(OBJC|OBJCXX)$")
     set (_source "#ifndef __OBJC__\n#  error \"Not an Objective-C++ compiler\"\n#endif\nint main(void) { return 0; }")
   else()
@@ -74,7 +76,7 @@ function(CHECK_LINKER_FLAG _lang _flag _var)
   endif()
   check_compiler_flag_common_patterns(_common_patterns)
 
-  cmake_language (CALL check_${_lang}_source_compiles "${_source}" ${_var} ${_common_patterns})
+  check_source_compiles(${_lang} "${_source}" ${_var} ${_common_patterns})
 
   foreach(v IN LISTS _locale_vars)
     set(ENV{${v}} ${_locale_vars_saved_${v}})

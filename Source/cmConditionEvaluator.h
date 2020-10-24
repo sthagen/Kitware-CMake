@@ -12,6 +12,7 @@
 #include "cmListFileCache.h"
 #include "cmMessageType.h"
 #include "cmPolicies.h"
+#include "cmProperty.h"
 
 class cmMakefile;
 
@@ -20,8 +21,7 @@ class cmConditionEvaluator
 public:
   using cmArgumentList = std::list<cmExpandedCommandArgument>;
 
-  cmConditionEvaluator(cmMakefile& makefile, cmListFileContext context,
-                       cmListFileBacktrace bt);
+  cmConditionEvaluator(cmMakefile& makefile, cmListFileBacktrace bt);
 
   // this is a shared function for both If and Else to determine if the
   // arguments were valid, and if so, was the response true. If there is
@@ -31,11 +31,10 @@ public:
 
 private:
   // Filter the given variable definition based on policy CMP0054.
-  const char* GetDefinitionIfUnquoted(
+  cmProp GetDefinitionIfUnquoted(
     const cmExpandedCommandArgument& argument) const;
 
-  const char* GetVariableOrString(
-    const cmExpandedCommandArgument& argument) const;
+  cmProp GetVariableOrString(const cmExpandedCommandArgument& argument) const;
 
   bool IsKeyword(std::string const& keyword,
                  cmExpandedCommandArgument& argument) const;
@@ -79,7 +78,6 @@ private:
                     MessageType& status);
 
   cmMakefile& Makefile;
-  cmListFileContext ExecutionContext;
   cmListFileBacktrace Backtrace;
   cmPolicies::PolicyStatus Policy12Status;
   cmPolicies::PolicyStatus Policy54Status;

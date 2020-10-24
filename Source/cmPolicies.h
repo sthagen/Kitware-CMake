@@ -327,13 +327,25 @@ class cmMakefile;
          "add_test() supports arbitrary characters in test names.", 3, 19, 0, \
          cmPolicies::WARN)                                                    \
   SELECT(POLICY, CMP0111,                                                     \
-         "An imported target with a missing location fails during "           \
+         "An imported target missing its location property fails during "     \
          "generation.",                                                       \
          3, 19, 0, cmPolicies::WARN)                                          \
   SELECT(POLICY, CMP0112,                                                     \
          "Target file component generator expressions do not add target "     \
          "dependencies.",                                                     \
-         3, 19, 0, cmPolicies::WARN)
+         3, 19, 0, cmPolicies::WARN)                                          \
+  SELECT(POLICY, CMP0113,                                                     \
+         "Makefile generators do not repeat custom commands from target "     \
+         "dependencies.",                                                     \
+         3, 19, 0, cmPolicies::WARN)                                          \
+  SELECT(POLICY, CMP0114,                                                     \
+         "ExternalProject step targets fully adopt their steps.", 3, 19, 0,   \
+         cmPolicies::WARN)                                                    \
+  SELECT(POLICY, CMP0115, "Source file extensions must be explicit.", 3, 20,  \
+         0, cmPolicies::WARN)                                                 \
+  SELECT(POLICY, CMP0116,                                                     \
+         "Ninja generators transform DEPFILEs from add_custom_command().", 3, \
+         20, 0, cmPolicies::WARN)
 
 #define CM_SELECT_ID(F, A1, A2, A3, A4, A5, A6) F(A1)
 #define CM_FOR_EACH_POLICY_ID(POLICY)                                         \
@@ -367,7 +379,8 @@ class cmMakefile;
   F(CMP0104)                                                                  \
   F(CMP0105)                                                                  \
   F(CMP0108)                                                                  \
-  F(CMP0112)
+  F(CMP0112)                                                                  \
+  F(CMP0113)
 
 /** \class cmPolicies
  * \brief Handles changes in CMake behavior and policies

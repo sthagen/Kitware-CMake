@@ -240,8 +240,6 @@ if(BUILD_TESTING)
 
   if(NOT CMake_TEST_EXTERNAL_CMAKE)
     add_subdirectory(CMakeLib)
-
-    add_subdirectory(CMakeServerLib)
   endif()
   add_subdirectory(CMakeOnly)
   add_subdirectory(RunCMake)
@@ -786,27 +784,6 @@ if(BUILD_TESTING)
       )
     set_tests_properties ( SubProject-Stage2 PROPERTIES DEPENDS SubProject)
     list(APPEND TEST_BUILD_DIRS "${CMake_BINARY_DIR}/Tests/SubProject")
-  endif()
-
-  # macro to add a test that will build a nightly release
-  # of CMake for given platform using the release scripts
-  macro(ADD_NIGHTLY_BUILD_TEST name script)
-    set(_TEST_DIR "${CMake_BINARY_DIR}/Tests/${name}")
-    file(MAKE_DIRECTORY "${_TEST_DIR}")
-    file(WRITE "${_TEST_DIR}/nightly-cmake.sh"
-      "set -e
-cd ${_TEST_DIR}
-${CMake_BINARY_DIR}/bin/cmake -DCMAKE_CREATE_VERSION=nightly -P ${CMake_SOURCE_DIR}/Utilities/Release/${script}
-${CMake_SOURCE_DIR}/Utilities/Release/push.bash --dir dev -- '${CMake_BUILD_NIGHTLY_RELEASES}'
-    ")
-    add_test(${name} /bin/sh ${_TEST_DIR}/nightly-cmake.sh)
-    if(COMMAND SET_TESTS_PROPERTIES AND COMMAND GET_TEST_PROPERTY)
-      set_tests_properties (${name} PROPERTIES TIMEOUT ${CMAKE_LONG_TEST_TIMEOUT})
-    endif()
-  endmacro()
-  if(CMake_BUILD_NIGHTLY_RELEASES)
-    ADD_NIGHTLY_BUILD_TEST(CMakeNightlyOSX
-      osx_release.cmake)
   endif()
 
   # add tests with more complex invocations
@@ -1443,6 +1420,7 @@ ${CMake_SOURCE_DIR}/Utilities/Release/push.bash --dir dev -- '${CMake_BUILD_NIGH
             GTK2
             Iconv
             ICU
+            Intl
             JPEG
             JsonCpp
             LAPACK
@@ -1654,7 +1632,7 @@ ${CMake_SOURCE_DIR}/Utilities/Release/push.bash --dir dev -- '${CMake_BUILD_NIGH
     set_tests_properties(${tutorial_test_name} PROPERTIES
       PASS_REGULAR_EXPRESSION ${pass_regex})
 
-    list(APPEND TEST_BUILD_DIRS "${CMake_BINARY_DIR}/${tutorial_build_dir}_Build")
+    list(APPEND TEST_BUILD_DIRS "${tutorial_build_dir}_Build")
   endfunction()
 
   if(NOT CMake_TEST_EXTERNAL_CMAKE)
@@ -1672,6 +1650,44 @@ ${CMake_SOURCE_DIR}/Utilities/Release/push.bash --dir dev -- '${CMake_BUILD_NIGH
       add_tutorial_test(Step${STP} FALSE 25 ${pass_regex})
     endforeach()
     add_tutorial_test(Complete FALSE 25 ${pass_regex})
+  endif()
+
+  function(add_importexport_test export_name import_name)
+    set(install_dir
+      "${CMake_BINARY_DIR}/Tests/ImportExport/Install${export_name}")
+    set(export_build_dir "${CMake_BINARY_DIR}/Tests/ImportExport/${export_name}Build")
+    set(export_test_name "Guide.ImportExport.${export_name}")
+    add_test(${export_test_name} ${CMAKE_CTEST_COMMAND}
+      -C "Release"
+      --build-and-test
+      "${CMake_SOURCE_DIR}/Help/guide/importing-exporting/${export_name}"
+      "${export_build_dir}"
+      ${build_generator_args}
+      --build-project ${export_name}
+      --build-target install
+      --build-options
+      "-DCMAKE_INSTALL_PREFIX:PATH=${install_dir}")
+    list(APPEND TEST_BUILD_DIRS "${export_build_dir}")
+
+    set(import_build_dir "${CMake_BINARY_DIR}/Tests/ImportExport/${import_name}Build")
+    set(import_test_name "Guide.ImportExport.${import_name}")
+    add_test(${import_test_name} ${CMAKE_CTEST_COMMAND}
+      -C "Release"
+      --build-and-test
+      "${CMake_SOURCE_DIR}/Help/guide/importing-exporting/${import_name}"
+      "${import_build_dir}"
+      ${build_generator_args}
+      --build-project ${import_name}
+      --build-options
+      "-DCMAKE_PREFIX_PATH:PATH=${install_dir}/lib/cmake")
+    set_tests_properties(${import_test_name} PROPERTIES DEPENDS ${export_test_name})
+    list(APPEND TEST_BUILD_DIRS "${import_build_dir}")
+  endfunction()
+
+  if(NOT CMake_TEST_EXTERNAL_CMAKE)
+    add_importexport_test("MyExe" "Importing")
+    add_importexport_test("MathFunctions" "Downstream")
+    add_importexport_test("MathFunctionsComponents" "DownstreamComponents")
   endif()
 
   add_test(testing ${CMAKE_CTEST_COMMAND} -C \${CTEST_CONFIGURATION_TYPE}
@@ -2893,13 +2909,6 @@ ${CMake_SOURCE_DIR}/Utilities/Release/push.bash --dir dev -- '${CMake_BUILD_NIGH
   ADD_TEST_MACRO(CMakeCommands.link_directories)
   ADD_TEST_MACRO(CMakeCommands.target_link_directories)
 
-  # The cmake server-mode test requires python for a simple client.
-  find_package(PythonInterp QUIET)
-  if(PYTHON_EXECUTABLE)
-    set(Server_BUILD_OPTIONS -DPYTHON_EXECUTABLE:FILEPATH=${PYTHON_EXECUTABLE})
-    ADD_TEST_MACRO(Server Server)
-  endif()
-
   configure_file(
     "${CMake_SOURCE_DIR}/Tests/CTestTestCrash/test.cmake.in"
     "${CMake_BINARY_DIR}/Tests/CTestTestCrash/test.cmake"
@@ -3513,6 +3522,10 @@ ${CMake_SOURCE_DIR}/Utilities/Release/push.bash --dir dev -- '${CMake_BUILD_NIGH
 
   if(NOT CMake_TEST_EXTERNAL_CMAKE)
     add_subdirectory(CMakeTests)
+  endif()
+
+  if(BUILD_QtDialog AND CMake_TEST_GUI AND NOT CMake_TEST_EXTERNAL_CMAKE)
+    add_subdirectory(CMakeGUI)
   endif()
 
   # If this is not an in-source build, provide a target to wipe out

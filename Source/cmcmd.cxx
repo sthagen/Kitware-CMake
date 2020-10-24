@@ -7,6 +7,7 @@
 #include <cm3p/uv.h>
 #include <fcntl.h>
 
+#include "cmConsoleBuf.h"
 #include "cmDuration.h"
 #include "cmGlobalGenerator.h"
 #include "cmLocalGenerator.h"
@@ -19,6 +20,7 @@
 #include "cmStateSnapshot.h"
 #include "cmStringAlgorithms.h"
 #include "cmSystemTools.h"
+#include "cmTransformDepfile.h"
 #include "cmUVProcessChain.h"
 #include "cmUtils.hxx"
 #include "cmVersion.h"
@@ -27,14 +29,8 @@
 #if !defined(CMAKE_BOOTSTRAP)
 #  include "cmDependsFortran.h" // For -E cmake_copy_f90_mod callback.
 #  include "cmFileTime.h"
-#  include "cmServer.h"
-#  include "cmServerConnection.h"
 
 #  include "bindexplib.h"
-#endif
-
-#if !defined(CMAKE_BOOTSTRAP) && defined(_WIN32)
-#  include "cmsys/ConsoleBuf.hxx"
 #endif
 
 #if !defined(CMAKE_BOOTSTRAP) && defined(_WIN32) && !defined(__CYGWIN__)
@@ -51,14 +47,18 @@
 #include <sstream>
 #include <utility>
 
+#ifdef _WIN32
+#  include <fcntl.h> // for _O_BINARY
+#  include <io.h>    // for _setmode
+#  include <stdio.h> // for std{out,err} and fileno
+#endif
+
 #include <cm/string_view>
 
 #include "cmsys/Directory.hxx"
 #include "cmsys/FStream.hxx"
 #include "cmsys/Process.h"
 #include "cmsys/Terminal.h"
-
-class cmConnection;
 
 int cmcmd_cmake_ninja_depends(std::vector<std::string>::const_iterator argBeg,
                               std::vector<std::string>::const_iterator argEnd);
@@ -118,7 +118,6 @@ void CMakeCommandUsage(const char* program)
        "(on one volume)\n"
     << "  rm [-rRf] <file/dir>...    - remove files or directories, use -f to "
        "force it, r or R to remove directories and their contents recursively\n"
-    << "  server                    - start cmake in server mode\n"
     << "  sleep <number>...         - sleep for given number of seconds\n"
     << "  tar [cxt][vf][zjJ] file.tar [file/dir1 file/dir2 ...]\n"
     << "                            - create or extract a tar or zip archive\n"
@@ -182,6 +181,9 @@ static bool cmTarFilesFrom(std::string const& file,
 
 static void cmCatFile(const std::string& fileToAppend)
 {
+#ifdef _WIN32
+  _setmode(fileno(stdout), _O_BINARY);
+#endif
   cmsys::ifstream source(fileToAppend.c_str(),
                          (std::ios::binary | std::ios::in));
   std::cout << source.rdbuf();
@@ -501,7 +503,8 @@ int cmcmd::HandleCoCompileCommands(std::vector<std::string> const& args)
   return ret;
 }
 
-int cmcmd::ExecuteCMakeCommand(std::vector<std::string> const& args)
+int cmcmd::ExecuteCMakeCommand(std::vector<std::string> const& args,
+                               std::unique_ptr<cmConsoleBuf> consoleBuf)
 {
   // IF YOU ADD A NEW COMMAND, DOCUMENT IT ABOVE and in cmakemain.cxx
   if (args.size() > 1) {
@@ -951,6 +954,8 @@ int cmcmd::ExecuteCMakeCommand(std::vector<std::string> const& args)
           cmSystemTools::Error(arg + ": no such file or directory (ignoring)");
           return_value = 1;
         } else {
+          // Destroy console buffers to drop cout/cerr encoding transform.
+          consoleBuf.reset();
           cmCatFile(arg);
         }
       }
@@ -1350,47 +1355,8 @@ int cmcmd::ExecuteCMakeCommand(std::vector<std::string> const& args)
     }
 
     if (args[1] == "server") {
-      const std::string pipePrefix = "--pipe=";
-      bool supportExperimental = false;
-      bool isDebug = false;
-      std::string pipe;
-
-      for (auto const& arg : cmMakeRange(args).advance(2)) {
-        if (arg == "--experimental") {
-          supportExperimental = true;
-        } else if (arg == "--debug") {
-          pipe.clear();
-          isDebug = true;
-        } else if (cmHasPrefix(arg, pipePrefix)) {
-          isDebug = false;
-          pipe = arg.substr(pipePrefix.size());
-          if (pipe.empty()) {
-            cmSystemTools::Error("No pipe given after --pipe=");
-            return 2;
-          }
-        } else {
-          cmSystemTools::Error("Unknown argument for server mode");
-          return 1;
-        }
-      }
-#if !defined(CMAKE_BOOTSTRAP)
-      cmConnection* conn;
-      if (isDebug) {
-        conn = new cmServerStdIoConnection;
-      } else {
-        conn = new cmServerPipeConnection(pipe);
-      }
-      cmServer server(conn, supportExperimental);
-      std::string errorMessage;
-      if (server.Serve(&errorMessage)) {
-        return 0;
-      }
-      cmSystemTools::Error(errorMessage);
-#else
-      static_cast<void>(supportExperimental);
-      static_cast<void>(isDebug);
-      cmSystemTools::Error("CMake was not built with server mode enabled");
-#endif
+      cmSystemTools::Error(
+        "CMake server mode has been removed in favor of the file-api.");
       return 1;
     }
 
@@ -1426,6 +1392,23 @@ int cmcmd::ExecuteCMakeCommand(std::vector<std::string> const& args)
       return cmcmd::WindowsCEEnvironment("9.0", args[2]);
     }
 #endif
+
+    // Internal depfile transformation
+    if (args[1] == "cmake_transform_depfile" && args.size() == 6) {
+      auto format = cmDepfileFormat::GccDepfile;
+      if (args[2] == "gccdepfile") {
+        format = cmDepfileFormat::GccDepfile;
+      } else if (args[2] == "vstlog") {
+        format = cmDepfileFormat::VsTlog;
+      } else {
+        return 1;
+      }
+      std::string prefix = args[3];
+      if (prefix == "./") {
+        prefix.clear();
+      }
+      return cmTransformDepfile(format, prefix, args[4], args[5]) ? 0 : 1;
+    }
   }
 
   ::CMakeCommandUsage(args[0].c_str());
@@ -1889,14 +1872,11 @@ private:
 // still works.
 int cmcmd::VisualStudioLink(std::vector<std::string> const& args, int type)
 {
-#if defined(_WIN32) && !defined(CMAKE_BOOTSTRAP)
   // Replace streambuf so we output in the system codepage. CMake is set up
   // to output in Unicode (see SetUTF8Pipes) but the Visual Studio linker
   // outputs using the system codepage so we need to change behavior when
   // we run the link command.
-  cmsys::ConsoleBuf::Manager consoleOut(std::cout);
-  cmsys::ConsoleBuf::Manager consoleErr(std::cerr, true);
-#endif
+  cmConsoleBuf consoleBuf;
 
   if (args.size() < 2) {
     return -1;

@@ -49,6 +49,7 @@ Synopsis
     file(`CHMOD_RECURSE`_ <files>... <directories>... PERMISSIONS <permissions>... [...])
 
   `Path Conversion`_
+    file(`REAL_PATH`_ <path> <out-var> [BASE_DIRECTORY <dir>])
     file(`RELATIVE_PATH`_ <out-var> <directory> <file>)
     file({`TO_CMAKE_PATH`_ | `TO_NATIVE_PATH`_} <path> <out-var>)
 
@@ -806,6 +807,19 @@ the ``<directories>..`` recursively.
 Path Conversion
 ^^^^^^^^^^^^^^^
 
+.. _REAL_PATH:
+
+.. code-block:: cmake
+
+  file(REAL_PATH <path> <out-var> [BASE_DIRECTORY <dir>])
+
+Compute the absolute path to an existing file or directory with symlinks
+resolved.
+
+If the provided ``<path>`` is a relative path, it is evaluated relative to the
+given base directory ``<dir>``. If no base directory is provided, the default
+base directory will be :variable:`CMAKE_CURRENT_SOURCE_DIR`.
+
 .. _RELATIVE_PATH:
 
 .. code-block:: cmake
@@ -973,6 +987,7 @@ Archiving
     PATHS <paths>...
     [FORMAT <format>]
     [COMPRESSION <compression>]
+    [COMPRESSION_LEVEL <compression level>]
     [MTIME <mtime>]
     [VERBOSE])
 
@@ -989,6 +1004,10 @@ The ``7zip`` and ``zip`` archive formats already imply a specific type of
 compression.  The other formats use no compression by default, but can be
 directed to do so with the ``COMPRESSION`` option.  Valid values for
 ``<compression>`` are ``None``, ``BZip2``, ``GZip``, ``XZ``, and ``Zstd``.
+
+Compression level can be specied by using ``COMPRESSION_LEVEL`` option.
+Compression level should be between 0-9. 0 is the default compression.
+``COMPRESSION`` option must be specified for ``COMPRESSION_LEVEL``.
 
 .. note::
   With ``FORMAT`` set to ``raw`` only one file will be compressed with the

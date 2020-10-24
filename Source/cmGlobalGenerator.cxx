@@ -15,6 +15,7 @@
 
 #include <cm/memory>
 #include <cmext/algorithm>
+#include <cmext/string_view>
 
 #include "cmsys/Directory.hxx"
 #include "cmsys/FStream.hxx"
@@ -197,12 +198,12 @@ std::string cmGlobalGenerator::SelectMakeProgram(
 {
   std::string makeProgram = inMakeProgram;
   if (cmIsOff(makeProgram)) {
-    const char* makeProgramCSTR =
+    cmProp makeProgramCSTR =
       this->CMakeInstance->GetCacheDefinition("CMAKE_MAKE_PROGRAM");
     if (cmIsOff(makeProgramCSTR)) {
       makeProgram = makeDefault;
     } else {
-      makeProgram = makeProgramCSTR;
+      makeProgram = *makeProgramCSTR;
     }
     if (cmIsOff(makeProgram) && !makeProgram.empty()) {
       makeProgram = "CMAKE_MAKE_PROGRAM-NOTFOUND";
@@ -1211,6 +1212,7 @@ void cmGlobalGenerator::Configure()
 {
   this->FirstTimeProgress = 0.0f;
   this->ClearGeneratorMembers();
+  this->NextDeferId = 0;
 
   cmStateSnapshot snapshot = this->CMakeInstance->GetCurrentSnapshot();
 
@@ -1640,6 +1642,8 @@ bool cmGlobalGenerator::AddAutomaticSources()
 {
   for (const auto& lg : this->LocalGenerators) {
     lg->CreateEvaluationFileOutputs();
+  }
+  for (const auto& lg : this->LocalGenerators) {
     for (const auto& gt : lg->GetGeneratorTargets()) {
       if (!gt->CanCompileSources()) {
         continue;
@@ -2151,10 +2155,11 @@ void cmGlobalGenerator::EnableLanguagesFromGenerator(cmGlobalGenerator* gen,
 {
   this->SetConfiguredFilesPath(gen);
   this->TryCompileOuterMakefile = mf;
-  const char* make =
+  cmProp make =
     gen->GetCMakeInstance()->GetCacheDefinition("CMAKE_MAKE_PROGRAM");
-  this->GetCMakeInstance()->AddCacheEntry(
-    "CMAKE_MAKE_PROGRAM", make, "make program", cmStateEnums::FILEPATH);
+  this->GetCMakeInstance()->AddCacheEntry("CMAKE_MAKE_PROGRAM", cmToCStr(make),
+                                          "make program",
+                                          cmStateEnums::FILEPATH);
   // copy the enabled languages
   this->GetCMakeInstance()->GetState()->SetEnabledLanguages(
     gen->GetCMakeInstance()->GetState()->GetEnabledLanguages());
@@ -2351,13 +2356,13 @@ std::string cmGlobalGenerator::IndexGeneratorTargetUniquely(
 
 void cmGlobalGenerator::IndexMakefile(cmMakefile* mf)
 {
-  // FIXME: add_subdirectory supports multiple build directories
-  // sharing the same source directory.  We currently index only the
-  // first one, because that is what FindMakefile has always returned.
-  // All of its callers will need to be modified to support looking
-  // up directories by build directory path.
+  // We index by both source and binary directory.  add_subdirectory
+  // supports multiple build directories sharing the same source directory.
+  // The source directory index will reference only the first time it is used.
   this->MakefileSearchIndex.insert(
     MakefileMap::value_type(mf->GetCurrentSourceDirectory(), mf));
+  this->MakefileSearchIndex.insert(
+    MakefileMap::value_type(mf->GetCurrentBinaryDirectory(), mf));
 }
 
 void cmGlobalGenerator::IndexLocalGenerator(cmLocalGenerator* lg)
@@ -2596,7 +2601,7 @@ void cmGlobalGenerator::AddGlobalTarget_Test(
 }
 
 void cmGlobalGenerator::AddGlobalTarget_EditCache(
-  std::vector<GlobalTargetInfo>& targets)
+  std::vector<GlobalTargetInfo>& targets) const
 {
   const char* editCacheTargetName = this->GetEditCacheTargetName();
   if (!editCacheTargetName) {
@@ -2630,7 +2635,7 @@ void cmGlobalGenerator::AddGlobalTarget_EditCache(
 }
 
 void cmGlobalGenerator::AddGlobalTarget_RebuildCache(
-  std::vector<GlobalTargetInfo>& targets)
+  std::vector<GlobalTargetInfo>& targets) const
 {
   const char* rebuildCacheTargetName = this->GetRebuildCacheTargetName();
   if (!rebuildCacheTargetName) {
@@ -2753,7 +2758,7 @@ void cmGlobalGenerator::AddGlobalTarget_Install(
   }
 }
 
-std::string cmGlobalGenerator::GetPredefinedTargetsFolder()
+std::string cmGlobalGenerator::GetPredefinedTargetsFolder() const
 {
   cmProp prop = this->GetCMakeInstance()->GetState()->GetGlobalProperty(
     "PREDEFINED_TARGETS_FOLDER");
@@ -3251,6 +3256,11 @@ const std::string& cmGlobalGenerator::GetRealPath(const std::string& dir)
     i = this->RealPaths.emplace_hint(i, dir, cmSystemTools::GetRealPath(dir));
   }
   return i->second;
+}
+
+std::string cmGlobalGenerator::NewDeferId()
+{
+  return cmStrCat("__"_s, std::to_string(this->NextDeferId++));
 }
 
 void cmGlobalGenerator::ProcessEvaluationFiles()

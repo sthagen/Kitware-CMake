@@ -2,7 +2,13 @@
 
 #include "extra.ispc.h"
 
-int extra()
+#ifdef _WIN32
+#  define EXPORT __declspec(dllexport)
+#else
+#  define EXPORT
+#endif
+
+EXPORT int extra()
 {
   float vin[16], vout[16];
   for (int i = 0; i < 16; ++i)

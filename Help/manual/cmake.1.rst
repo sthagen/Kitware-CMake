@@ -12,6 +12,7 @@ Synopsis
   cmake [<options>] <path-to-source>
   cmake [<options>] <path-to-existing-build>
   cmake [<options>] -S <path-to-source> -B <path-to-build>
+  cmake [<options>] -S <path-to-source> --preset=<preset-name>
 
  `Build a Project`_
   cmake --build <dir> [<options>] [-- <build-tool-options>]
@@ -147,6 +148,22 @@ source and build trees and generate a buildsystem:
   .. code-block:: console
 
     $ cmake -S src -B build
+
+``cmake [<options>] -S <path-to-source> --preset=<preset-name>``
+  Uses ``<path-to-source>`` as the source tree and reads a
+  :manual:`preset <cmake-presets(7)>` from
+  ``<path-to-source>/CMakePresets.json`` and
+  ``<path-to-source>/CMakeUserPresets.json``. The preset specifies the
+  generator and the build directory, and optionally a list of variables and
+  other arguments to pass to CMake. The :manual:`CMake GUI <cmake-gui(1)>` can
+  also recognize ``CMakePresets.json`` and ``CMakeUserPresets.json`` files. For
+  full details on these files, see :manual:`cmake-presets(7)`.
+
+  The presets are read before all other command line options. The options
+  specified by the preset (variables, generator, etc.) can all be overridden by
+  manually specifying them on the command line. For example, if the preset sets
+  a variable called ``MYVAR`` to ``1``, but the user sets it to ``2`` with a
+  ``-D`` argument, the value ``2`` is preferred.
 
 In all cases the ``<options>`` may be zero or more of the `Options`_ below.
 
@@ -295,6 +312,11 @@ Options
      ``line``
        The line in ``file`` of the function call.
 
+     ``defer``
+       Optional member that is present when the function call was deferred
+       by :command:`cmake_language(DEFER)`.  If present, its value is a
+       string containing the deferred call ``<id>``.
+
      ``cmd``
        The name of the function that was called.
 
@@ -317,7 +339,7 @@ Options
        {
          "version": {
            "major": 1,
-           "minor": 0
+           "minor": 1
          }
        }
 
@@ -560,6 +582,7 @@ Available commands are:
 
   ``serverMode``
     ``true`` if cmake supports server-mode and ``false`` otherwise.
+    Always false since CMake 3.20.
 
 ``cat <files>...``
   Concatenate files and print on the standard output.
@@ -808,6 +831,11 @@ with one of the following options:
 
 .. include:: OPTIONS_HELP.txt
 
+To view the presets available for a project, use
+
+.. code-block:: shell
+
+  cmake <source-dir> --list-presets
 
 See Also
 ========

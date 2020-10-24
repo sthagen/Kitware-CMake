@@ -25,8 +25,7 @@ run_cmake_command(E_compare_files-ignore-eol-nonexistent ${CMAKE_COMMAND} -E com
 run_cmake_command(E_compare_files-invalid-arguments ${CMAKE_COMMAND} -E compare_files file1.txt file2.txt file3.txt)
 run_cmake_command(E_echo_append ${CMAKE_COMMAND} -E echo_append)
 run_cmake_command(E_rename-no-arg ${CMAKE_COMMAND} -E rename)
-run_cmake_command(E_server-arg ${CMAKE_COMMAND} -E server --extra-arg)
-run_cmake_command(E_server-pipe ${CMAKE_COMMAND} -E server --pipe=)
+run_cmake_command(E_server ${CMAKE_COMMAND} -E server)
 run_cmake_command(E_true ${CMAKE_COMMAND} -E true)
 run_cmake_command(E_true-extraargs ${CMAKE_COMMAND} -E true ignored)
 run_cmake_command(E_false ${CMAKE_COMMAND} -E false)
@@ -562,6 +561,9 @@ file(WRITE "${out}/unicode_file.txt" "àéùç - 한국어") # Korean in Korean
 run_cmake_command(E_cat_good_cat
   ${CMAKE_COMMAND} -E cat "${out}/first_file.txt" "${out}/second_file.txt" "${out}/unicode_file.txt")
 unset(out)
+
+run_cmake_command(E_cat_good_binary_cat
+  ${CMAKE_COMMAND} -E cat "${RunCMake_SOURCE_DIR}/E_cat_binary_files/binary.obj" "${RunCMake_SOURCE_DIR}/E_cat_binary_files/binary.obj")
 
 run_cmake_command(E_env-no-command0 ${CMAKE_COMMAND} -E env)
 run_cmake_command(E_env-no-command1 ${CMAKE_COMMAND} -E env TEST_ENV=1)

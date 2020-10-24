@@ -19,6 +19,7 @@ class cmCustomCommandGenerator;
 class cmGeneratorTarget;
 class cmGlobalGenerator;
 class cmMakefile;
+class cmSourceFile;
 
 /** \class cmLocalUnixMakefileGenerator3
  * \brief Write a LocalUnix makefiles.
@@ -177,11 +178,11 @@ public:
   /** Get whether to create rules to generate preprocessed and
       assembly sources.  This could be converted to a variable lookup
       later.  */
-  bool GetCreatePreprocessedSourceRules()
+  bool GetCreatePreprocessedSourceRules() const
   {
     return !this->SkipPreprocessedSourceRules;
   }
-  bool GetCreateAssemblySourceRules()
+  bool GetCreateAssemblySourceRules() const
   {
     return !this->SkipAssemblySourceRules;
   }
@@ -294,4 +295,13 @@ private:
   bool ColorMakefile;
   bool SkipPreprocessedSourceRules;
   bool SkipAssemblySourceRules;
+
+  std::set<cmSourceFile const*>& GetCommandsVisited(
+    cmGeneratorTarget const* target)
+  {
+    return this->CommandsVisited[target];
+  };
+
+  std::map<cmGeneratorTarget const*, std::set<cmSourceFile const*>>
+    CommandsVisited;
 };

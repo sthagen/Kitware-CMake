@@ -15,6 +15,7 @@
 #include <vector>
 
 #include <cm/memory>
+#include <cm/optional>
 #include <cm/string_view>
 #include <cmext/algorithm>
 
@@ -26,7 +27,6 @@
 #include "cmCryptoHash.h"
 #include "cmFileTime.h"
 #include "cmGccDepfileReader.h"
-#include "cmGccDepfileReaderTypes.h"
 #include "cmGeneratedFileStream.h"
 #include "cmQtAutoGen.h"
 #include "cmQtAutoGenerator.h"
@@ -192,7 +192,7 @@ public:
   {
   public:
     // -- Parse Cache
-    bool ParseCacheChanged = false;
+    std::atomic<bool> ParseCacheChanged = ATOMIC_VAR_INIT(false);
     cmFileTime ParseCacheTime;
     ParseCacheT ParseCache;
 
@@ -1777,16 +1777,24 @@ bool cmQtAutoMocUicT::JobProbeDepsMocT::Probe(MappingT const& mapping,
   {
     // Check dependency timestamps
     std::string const sourceDir = SubDirPrefix(sourceFile);
-    for (std::string const& dep : mapping.SourceFile->ParseData->Moc.Depends) {
+    auto& dependencies = mapping.SourceFile->ParseData->Moc.Depends;
+    for (auto it = dependencies.begin(); it != dependencies.end(); ++it) {
+      auto& dep = *it;
+
       // Find dependency file
       auto const depMatch = FindDependency(sourceDir, dep);
       if (depMatch.first.empty()) {
-        Log().Warning(GenT::MOC,
-                      cmStrCat(MessagePath(sourceFile), " depends on ",
-                               MessagePath(dep),
-                               " but the file does not exist."));
-        continue;
+        if (reason != nullptr) {
+          *reason =
+            cmStrCat("Generating ", MessagePath(outputFile), " from ",
+                     MessagePath(sourceFile), ", because its dependency ",
+                     MessagePath(dep), " vanished.");
+        }
+        dependencies.erase(it);
+        BaseEval().ParseCacheChanged = true;
+        return true;
       }
+
       // Test if dependency file is older
       if (outputFileTime.Older(depMatch.second)) {
         if (reason != nullptr) {
@@ -2833,14 +2841,14 @@ bool cmQtAutoMocUicT::CreateDirectories()
 std::vector<std::string> cmQtAutoMocUicT::dependenciesFromDepFile(
   const char* filePath)
 {
-  cmGccDepfileContent content = cmReadGccDepfile(filePath);
-  if (content.empty()) {
+  auto const content = cmReadGccDepfile(filePath);
+  if (!content || content->empty()) {
     return {};
   }
 
   // Moc outputs a depfile with exactly one rule.
   // Discard the rule and return the dependencies.
-  return content.front().paths;
+  return content->front().paths;
 }
 
 void cmQtAutoMocUicT::Abort(bool error)

@@ -10,6 +10,10 @@ FindPython3
 Find Python 3 interpreter, compiler and development environment (include
 directories and libraries).
 
+When a version is requested, it can be specified as a simple value or as a
+range. For a detailed description of version range usage and capabilities,
+refer to the :command:`find_package` command.
+
 The following components are supported:
 
 * ``Interpreter``: search for Python 3 interpreter
@@ -139,6 +143,9 @@ This module will set the following variables in your project
   System has the Python 3 development artifacts for Python embedding.
 ``Python3_INCLUDE_DIRS``
   The Python 3 include directories.
+``Python3_LINK_OPTIONS``
+  The Python 3 link options. Some configurations require specific link options
+  for a correct build and execution.
 ``Python3_LIBRARIES``
   The Python 3 libraries.
 ``Python3_LIBRARY_DIRS``
@@ -325,7 +332,7 @@ setting the following variables:
 
 ``Python3_LIBRARY``
   The path to the library. It will be used to compute the
-  variables ``Python3_LIBRARIES``, ``Python3_LIBRAY_DIRS`` and
+  variables ``Python3_LIBRARIES``, ``Python3_LIBRARY_DIRS`` and
   ``Python3_RUNTIME_LIBRARY_DIRS``.
 
 ``Python3_INCLUDE_DIR``
