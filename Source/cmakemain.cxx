@@ -49,8 +49,7 @@ const char* cmDocumentationUsage[][2] = {
   { nullptr,
     "  cmake [options] <path-to-source>\n"
     "  cmake [options] <path-to-existing-build>\n"
-    "  cmake [options] -S <path-to-source> -B <path-to-build>\n"
-    "  cmake [options] -S <path-to-source> --preset=<preset-name>" },
+    "  cmake [options] -S <path-to-source> -B <path-to-build>" },
   { nullptr,
     "Specify a source directory to (re-)generate a build system for "
     "it in the current working directory.  Specify an existing build "
@@ -65,6 +64,8 @@ const char* cmDocumentationUsageNote[][2] = {
 
 const char* cmDocumentationOptions[][2] = {
   CMAKE_STANDARD_OPTIONS_TABLE,
+  { "--preset=<preset>", "Specify a configure preset." },
+  { "--list-presets", "List available presets." },
   { "-E", "CMake command mode." },
   { "-L[A][H]", "List non-advanced cached variables." },
   { "--build <dir>", "Build a CMake-generated project binary tree." },

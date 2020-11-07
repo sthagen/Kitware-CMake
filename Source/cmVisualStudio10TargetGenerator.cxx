@@ -676,7 +676,7 @@ void cmVisualStudio10TargetGenerator::Generate()
           cmStrCat(this->DefaultArtifactDir, "\\nasm.props");
         ConvertToWindowsSlash(propsLocal);
         this->Makefile->ConfigureFile(propsTemplate, propsLocal, false, true,
-                                      true, true);
+                                      true);
         Elem(e1, "Import").Attribute("Project", propsLocal);
       }
     }
@@ -1020,9 +1020,9 @@ void cmVisualStudio10TargetGenerator::WriteEmbeddedResourceGroup(Elem& e0)
             cm::string_view tagName =
               cm::string_view(p).substr(propNamePrefix.length());
             if (!tagName.empty()) {
-              const std::string& value = *props.GetPropertyValue(p);
-              if (!value.empty()) {
-                e2.Element(tagName, value);
+              cmProp value = props.GetPropertyValue(p);
+              if (cmNonempty(value)) {
+                e2.Element(tagName, *value);
               }
             }
           }
@@ -3106,7 +3106,8 @@ bool cmVisualStudio10TargetGenerator::ComputeCudaOptions()
     return true;
   }
   for (std::string const& c : this->Configurations) {
-    if (!this->ComputeCudaOptions(c)) {
+    if (this->GeneratorTarget->IsLanguageUsed("CUDA", c) &&
+        !this->ComputeCudaOptions(c)) {
       return false;
     }
   }
@@ -3246,7 +3247,8 @@ bool cmVisualStudio10TargetGenerator::ComputeCudaOptions(
 void cmVisualStudio10TargetGenerator::WriteCudaOptions(
   Elem& e1, std::string const& configName)
 {
-  if (!this->MSTools || !this->GlobalGenerator->IsCudaEnabled()) {
+  if (!this->MSTools || !this->GlobalGenerator->IsCudaEnabled() ||
+      !this->GeneratorTarget->IsLanguageUsed("CUDA", configName)) {
     return;
   }
   Elem e2(e1, "CudaCompile");
@@ -4208,8 +4210,7 @@ void cmVisualStudio10TargetGenerator::WriteProjectReferences(Elem& e0)
     cmLocalGenerator* lg = dt->GetLocalGenerator();
     std::string name = dt->GetName();
     std::string path;
-    cmProp p = dt->GetProperty("EXTERNAL_MSPROJECT");
-    if (p) {
+    if (cmProp p = dt->GetProperty("EXTERNAL_MSPROJECT")) {
       path = *p;
     } else {
       path = cmStrCat(lg->GetCurrentBinaryDirectory(), '/', dt->GetName(),
@@ -4997,9 +4998,9 @@ void cmVisualStudio10TargetGenerator::GetCSharpSourceProperties(
       if (cmHasPrefix(p, propNamePrefix)) {
         std::string tagName = p.substr(propNamePrefix.length());
         if (!tagName.empty()) {
-          const std::string& val = *props.GetPropertyValue(p);
-          if (!val.empty()) {
-            tags[tagName] = val;
+          cmProp val = props.GetPropertyValue(p);
+          if (cmNonempty(val)) {
+            tags[tagName] = *val;
           } else {
             tags.erase(tagName);
           }

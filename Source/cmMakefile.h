@@ -20,6 +20,8 @@
 
 #include "cmsys/RegularExpression.hxx"
 
+#include "cm_sys_stat.h"
+
 #include "cmAlgorithms.h"
 #include "cmCustomCommandTypes.h"
 #include "cmListFileCache.h"
@@ -399,8 +401,7 @@ public:
   }
   const char* GetIncludeRegularExpression() const
   {
-    cmProp p = this->GetProperty("INCLUDE_REGULAR_EXPRESSION");
-    return p ? p->c_str() : nullptr;
+    return cmToCStr(this->GetProperty("INCLUDE_REGULAR_EXPRESSION"));
   }
 
   /**
@@ -659,8 +660,7 @@ public:
    */
   int ConfigureFile(const std::string& infile, const std::string& outfile,
                     bool copyonly, bool atOnly, bool escapeQuotes,
-                    bool use_source_permissions,
-                    cmNewLineStyle = cmNewLineStyle());
+                    mode_t permissions = 0, cmNewLineStyle = cmNewLineStyle());
 
   /**
    * Print a command's invocation

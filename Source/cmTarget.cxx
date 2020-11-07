@@ -372,6 +372,8 @@ cmTarget::cmTarget(std::string const& name, cmStateEnums::TargetType type,
     initProp("ISPC_INSTRUCTION_SETS");
     initProp("LINK_SEARCH_START_STATIC");
     initProp("LINK_SEARCH_END_STATIC");
+    initProp("OBJC_CLANG_TIDY");
+    initProp("OBJCXX_CLANG_TIDY");
     initProp("Swift_LANGUAGE_VERSION");
     initProp("Swift_MODULE_DIRECTORY");
     initProp("VS_JUST_MY_CODE_DEBUGGING");
@@ -621,6 +623,11 @@ void cmTarget::AddUtility(std::string const& name, bool cross, cmMakefile* mf)
 {
   impl->Utilities.insert(BT<std::pair<std::string, bool>>(
     { name, cross }, mf ? mf->GetBacktrace() : cmListFileBacktrace()));
+}
+
+void cmTarget::AddUtility(BT<std::pair<std::string, bool>> util)
+{
+  impl->Utilities.emplace(std::move(util));
 }
 
 std::set<BT<std::pair<std::string, bool>>> const& cmTarget::GetUtilities()

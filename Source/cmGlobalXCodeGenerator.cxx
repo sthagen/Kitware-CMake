@@ -503,16 +503,15 @@ cmGlobalXCodeGenerator::GenerateBuildCommand(
     }
   }
 
-  if (this->XcodeBuildSystem >= BuildSystem::Twelve) {
+  if ((this->XcodeBuildSystem >= BuildSystem::Twelve) ||
+      (jobs != cmake::NO_BUILD_PARALLEL_LEVEL)) {
     makeCommand.Add("-parallelizeTargets");
   }
   makeCommand.Add("-configuration", (config.empty() ? "Debug" : config));
 
-  if (jobs != cmake::NO_BUILD_PARALLEL_LEVEL) {
-    makeCommand.Add("-jobs");
-    if (jobs != cmake::DEFAULT_BUILD_PARALLEL_LEVEL) {
-      makeCommand.Add(std::to_string(jobs));
-    }
+  if ((jobs != cmake::NO_BUILD_PARALLEL_LEVEL) &&
+      (jobs != cmake::DEFAULT_BUILD_PARALLEL_LEVEL)) {
+    makeCommand.Add("-jobs", std::to_string(jobs));
   }
 
   if (this->XcodeVersion >= 70) {
@@ -1423,7 +1422,7 @@ bool cmGlobalXCodeGenerator::CreateXCodeTarget(
     cmGeneratorTarget::SourceFileFlags tsFlags =
       gtgt->GetTargetSourceFileFlags(sourceFile);
 
-    if (filetype && IsLibraryType(filetype->GetString())) {
+    if (filetype && filetype->GetString() == "compiled.mach-o.objfile") {
       if (sourceFile->GetObjectLibrary().empty()) {
         externalObjFiles.push_back(xsf);
       }
@@ -1591,7 +1590,7 @@ bool cmGlobalXCodeGenerator::CreateXCodeTarget(
     }
   }
 
-  // always create framework build phase
+  // Always create Link Binary With Libraries build phase
   cmXCodeObject* frameworkBuildPhase = nullptr;
   frameworkBuildPhase =
     this->CreateObject(cmXCodeObject::PBXFrameworksBuildPhase);
@@ -1600,6 +1599,7 @@ bool cmGlobalXCodeGenerator::CreateXCodeTarget(
                                     this->CreateString("2147483647"));
   buildFiles = this->CreateObject(cmXCodeObject::OBJECT_LIST);
   frameworkBuildPhase->AddAttribute("files", buildFiles);
+  // Add all collected .o files to this build phase
   for (auto& externalObjFile : externalObjFiles) {
     buildFiles->AddObject(externalObjFile);
   }
@@ -3556,6 +3556,8 @@ void cmGlobalXCodeGenerator::AddDependAndLinkInformation(cmXCodeObject* target)
       for (auto& libDir : linkSearchPaths) {
         libSearchPaths.Add(this->XCodeEscapePath(libDir));
       }
+      // Add paths defined in project-wide build settings
+      libSearchPaths.Add("$(inherited)");
       this->AppendBuildSettingAttribute(target, "LIBRARY_SEARCH_PATHS",
                                         libSearchPaths.CreateList(),
                                         configName);
@@ -3569,6 +3571,8 @@ void cmGlobalXCodeGenerator::AddDependAndLinkInformation(cmXCodeObject* target)
       for (auto& fwDir : frameworkSearchPaths) {
         fwSearchPaths.Add(this->XCodeEscapePath(fwDir));
       }
+      // Add paths defined in project-wide build settings
+      fwSearchPaths.Add("$(inherited)");
       this->AppendBuildSettingAttribute(target, "FRAMEWORK_SEARCH_PATHS",
                                         fwSearchPaths.CreateList(),
                                         configName);

@@ -727,6 +727,7 @@ void cmake::SetArgs(const std::vector<std::string>& args)
 {
   bool haveToolset = false;
   bool havePlatform = false;
+  bool haveBArg = false;
 #if !defined(CMAKE_BOOTSTRAP)
   std::string profilingFormat;
   std::string profilingOutput;
@@ -775,6 +776,7 @@ void cmake::SetArgs(const std::vector<std::string>& args)
       path = cmSystemTools::CollapseFullPath(path);
       cmSystemTools::ConvertToUnixSlashes(path);
       this->SetHomeOutputDirectory(path);
+      haveBArg = true;
     } else if ((i < args.size() - 2) &&
                cmHasLiteralPrefix(arg, "--check-build-system")) {
       this->CheckBuildSystemArgument = args[++i];
@@ -941,19 +943,19 @@ void cmake::SetArgs(const std::vector<std::string>& args)
         return;
       }
 #if !defined(CMAKE_BOOTSTRAP)
-    } else if (cmHasLiteralPrefix(arg, "--profiling-format")) {
+    } else if (cmHasLiteralPrefix(arg, "--profiling-format=")) {
       profilingFormat = arg.substr(strlen("--profiling-format="));
       if (profilingFormat.empty()) {
         cmSystemTools::Error("No format specified for --profiling-format");
       }
-    } else if (cmHasLiteralPrefix(arg, "--profiling-output")) {
+    } else if (cmHasLiteralPrefix(arg, "--profiling-output=")) {
       profilingOutput = arg.substr(strlen("--profiling-output="));
       profilingOutput = cmSystemTools::CollapseFullPath(profilingOutput);
       cmSystemTools::ConvertToUnixSlashes(profilingOutput);
       if (profilingOutput.empty()) {
         cmSystemTools::Error("No path specified for --profiling-output");
       }
-    } else if (cmHasLiteralPrefix(arg, "--preset")) {
+    } else if (cmHasLiteralPrefix(arg, "--preset=")) {
       presetName = arg.substr(strlen("--preset="));
       if (presetName.empty()) {
         cmSystemTools::Error("No preset specified for --preset");
@@ -1003,9 +1005,15 @@ void cmake::SetArgs(const std::vector<std::string>& args)
 
   const bool haveSourceDir = !this->GetHomeDirectory().empty();
   const bool haveBinaryDir = !this->GetHomeOutputDirectory().empty();
+  const bool havePreset =
+#ifdef CMAKE_BOOTSTRAP
+    false;
+#else
+    !presetName.empty();
+#endif
 
   if (this->CurrentWorkingMode == cmake::NORMAL_MODE && !haveSourceDir &&
-      !haveBinaryDir) {
+      !haveBinaryDir && !havePreset) {
     this->IssueMessage(
       MessageType::WARNING,
       "No source or binary directory provided. Both will be assumed to be "
@@ -1057,7 +1065,7 @@ void cmake::SetArgs(const std::vector<std::string>& args)
       return;
     }
 
-    if (!haveBinaryDir) {
+    if (!this->State->IsCacheLoaded() && !haveBArg) {
       this->SetHomeOutputDirectory(expandedPreset->BinaryDir);
     }
     if (!this->GlobalGenerator) {
@@ -2563,8 +2571,7 @@ int cmake::CheckBuildSystem()
 
   if (this->ClearBuildSystem) {
     // Get the generator used for this build system.
-    const char* genName =
-      cmToCStr(mf.GetDefinition("CMAKE_DEPENDS_GENERATOR"));
+    std::string genName = mf.GetSafeDefinition("CMAKE_DEPENDS_GENERATOR");
     if (!cmNonempty(genName)) {
       genName = "Unix Makefiles";
     }

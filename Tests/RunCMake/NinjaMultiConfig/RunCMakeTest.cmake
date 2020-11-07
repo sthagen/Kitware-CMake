@@ -215,7 +215,7 @@ run_ninja(CustomCommandGenerator debug-clean build-Debug.ninja clean)
 run_cmake_build(CustomCommandGenerator release-clean Release clean)
 run_cmake_build(CustomCommandGenerator debug-in-release-graph Release generated:Debug)
 run_cmake_command(CustomCommandGenerator-debug-in-release-graph-generated "${TARGET_FILE_generated_Debug}")
-run_ninja(CustomCommandGenerator debug-in-release-graph-clean build-Debug.ninja clean:Debug)
+run_ninja(CustomCommandGenerator debug-clean-again build-Debug.ninja clean:Debug)
 run_ninja(CustomCommandGenerator release-in-debug-graph build-Debug.ninja generated:Release)
 run_cmake_command(CustomCommandGenerator-release-in-debug-graph-generated "${TARGET_FILE_generated_Release}")
 unset(RunCMake_TEST_NO_CLEAN)
@@ -245,6 +245,10 @@ run_ninja(CustomCommandsAndTargets release-leaf-byproduct build-Release.ninja ma
 unset(RunCMake_TEST_BINARY_DIR)
 
 run_cmake(CustomCommandDepfile)
+
+set(RunCMake_TEST_OPTIONS "-DCMAKE_CROSS_CONFIGS=all")
+run_cmake(PerConfigSources)
+unset(RunCMake_TEST_OPTIONS)
 
 set(RunCMake_TEST_BINARY_DIR ${RunCMake_BINARY_DIR}/PostfixAndLocation-build)
 set(RunCMake_TEST_OPTIONS "-DCMAKE_CONFIGURATION_TYPES=Debug\\;Release;-DCMAKE_CROSS_CONFIGS=all")
