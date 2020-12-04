@@ -129,6 +129,7 @@ add_RunCMake_test(CMP0115)
 if(CMAKE_GENERATOR MATCHES "Ninja")
   add_RunCMake_test(CMP0116)
 endif()
+add_RunCMake_test(CMP0118)
 
 # The test for Policy 65 requires the use of the
 # CMAKE_SHARED_LIBRARY_LINK_CXX_FLAGS variable, which both the VS and Xcode
@@ -171,7 +172,7 @@ if(NOT CMake_TEST_EXTERNAL_CMAKE)
     -DPSEUDO_BC=$<TARGET_FILE:pseudo_BC>
     -DPSEUDO_PURIFY=$<TARGET_FILE:pseudo_purify>
     -DPSEUDO_VALGRIND=$<TARGET_FILE:pseudo_valgrind>
-    -DPSEUDO_CUDA_MEMCHECK=$<TARGET_FILE:pseudo_cuda-memcheck>
+    -DPSEUDO_CUDA_SANITIZER=$<TARGET_FILE:pseudo_cuda-memcheck>
     -DPSEUDO_BC_NOLOG=$<TARGET_FILE:pseudonl_BC>
     -DPSEUDO_PURIFY_NOLOG=$<TARGET_FILE:pseudonl_purify>
     -DPSEUDO_VALGRIND_NOLOG=$<TARGET_FILE:pseudonl_valgrind>
@@ -203,7 +204,10 @@ if(NOT DEFINED CMake_TEST_BuildDepends_GNU_AS
     set(CMake_TEST_BuildDepends_GNU_AS "${_gnu_as}")
   endif()
 endif()
+
 add_RunCMake_test(BuildDepends
+  -DMSVC_VERSION=${MSVC_VERSION}
+  -DCMAKE_C_COMPILER_ID=${CMAKE_C_COMPILER_ID}
   -DCMake_TEST_BuildDepends_GNU_AS=${CMake_TEST_BuildDepends_GNU_AS}
   )
 if(UNIX AND "${CMAKE_GENERATOR}" MATCHES "Unix Makefiles|Ninja")
@@ -262,6 +266,7 @@ if(CMAKE_CXX_COMPILER_ID MATCHES "^(Cray|PGI|XL|XLClang)$")
 endif()
 if(MSVC)
   add_RunCMake_test(MSVCRuntimeLibrary)
+  add_RunCMake_test(MSVCRuntimeTypeInfo)
   add_RunCMake_test(MSVCWarningFlags)
 endif()
 add_RunCMake_test(ObjectLibrary)
@@ -512,6 +517,7 @@ endif()
 
 if(XCODE_VERSION)
   add_RunCMake_test(XcodeProject -DXCODE_VERSION=${XCODE_VERSION})
+  add_RunCMake_test(XcodeProject-Embed)
 
   # This test can take a very long time due to lots of combinations.
   # Use a long default timeout and provide an option to customize it.
@@ -547,10 +553,13 @@ add_RunCMake_test(target_compile_options -DCMAKE_C_COMPILER_ID=${CMAKE_C_COMPILE
 add_RunCMake_test(target_include_directories)
 add_RunCMake_test(target_sources)
 add_RunCMake_test(CheckCompilerFlag   -DCMake_TEST_CUDA=${CMake_TEST_CUDA}
-                                      -DCMake_TEST_ISPC=${CMake_TEST_ISPC})
+                                      -DCMake_TEST_ISPC=${CMake_TEST_ISPC}
+                                      -DCMAKE_Fortran_COMPILER_ID=${CMAKE_Fortran_COMPILER_ID})
 add_RunCMake_test(CheckSourceCompiles -DCMake_TEST_CUDA=${CMake_TEST_CUDA}
-                                      -DCMake_TEST_ISPC=${CMake_TEST_ISPC})
-add_RunCMake_test(CheckSourceRuns     -DCMake_TEST_CUDA=${CMake_TEST_CUDA})
+                                      -DCMake_TEST_ISPC=${CMake_TEST_ISPC}
+                                      -DCMAKE_Fortran_COMPILER_ID=${CMAKE_Fortran_COMPILER_ID})
+add_RunCMake_test(CheckSourceRuns     -DCMake_TEST_CUDA=${CMake_TEST_CUDA}
+                                      -DCMAKE_Fortran_COMPILER_ID=${CMAKE_Fortran_COMPILER_ID})
 set_property(TEST RunCMake.CheckCompilerFlag
                   RunCMake.CheckSourceCompiles
                   RunCMake.CheckSourceRuns

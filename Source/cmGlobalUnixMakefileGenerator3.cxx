@@ -44,6 +44,7 @@ cmGlobalUnixMakefileGenerator3::cmGlobalUnixMakefileGenerator3(cmake* cm)
 #endif
 
   this->IncludeDirective = "include";
+  this->LineContinueDirective = "\\\n";
   this->DefineWindowsNULL = false;
   this->PassMakeflags = false;
   this->UnixCD = true;
@@ -588,6 +589,11 @@ cmGlobalUnixMakefileGenerator3::GenerateBuildCommand(
     makeCommand.Add("VERBOSE=1");
   }
   makeCommand.Add(this->SelectMakeProgram(makeProgram));
+
+  // Explicitly tell the make tool to use the Makefile written by
+  // cmLocalUnixMakefileGenerator3::WriteLocalMakefile
+  makeCommand.Add("-f");
+  makeCommand.Add("Makefile");
 
   if (jobs != cmake::NO_BUILD_PARALLEL_LEVEL) {
     if (jobs == cmake::DEFAULT_BUILD_PARALLEL_LEVEL) {

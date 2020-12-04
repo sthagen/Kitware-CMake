@@ -121,15 +121,6 @@ if(BUILD_TESTING)
     string(APPEND SUBMIT_URL "${DROP_SITE}${DROP_LOCATION}")
   endif()
 
-  find_program(CVSCOMMAND cvs )
-  set(CVS_UPDATE_OPTIONS "-d -A -P" CACHE STRING
-    "Options passed to the cvs update command.")
-  find_program(SVNCOMMAND svn)
-  find_program(BZRCOMMAND bzr)
-  find_program(HGCOMMAND hg)
-  find_program(GITCOMMAND git)
-  find_program(P4COMMAND p4)
-
   if(NOT UPDATE_TYPE)
     if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/CVS")
       set(UPDATE_TYPE cvs)
@@ -146,21 +137,29 @@ if(BUILD_TESTING)
 
   string(TOLOWER "${UPDATE_TYPE}" _update_type)
   if("${_update_type}" STREQUAL "cvs")
+    find_program(CVSCOMMAND cvs )
+    set(CVS_UPDATE_OPTIONS "-d -A -P" CACHE STRING
+      "Options passed to the cvs update command.")
     set(UPDATE_COMMAND "${CVSCOMMAND}")
     set(UPDATE_OPTIONS "${CVS_UPDATE_OPTIONS}")
   elseif("${_update_type}" STREQUAL "svn")
+    find_program(SVNCOMMAND svn)
     set(UPDATE_COMMAND "${SVNCOMMAND}")
     set(UPDATE_OPTIONS "${SVN_UPDATE_OPTIONS}")
   elseif("${_update_type}" STREQUAL "bzr")
+    find_program(BZRCOMMAND bzr)
     set(UPDATE_COMMAND "${BZRCOMMAND}")
     set(UPDATE_OPTIONS "${BZR_UPDATE_OPTIONS}")
   elseif("${_update_type}" STREQUAL "hg")
+    find_program(HGCOMMAND hg)
     set(UPDATE_COMMAND "${HGCOMMAND}")
     set(UPDATE_OPTIONS "${HG_UPDATE_OPTIONS}")
   elseif("${_update_type}" STREQUAL "git")
+    find_program(GITCOMMAND git)
     set(UPDATE_COMMAND "${GITCOMMAND}")
     set(UPDATE_OPTIONS "${GIT_UPDATE_OPTIONS}")
   elseif("${_update_type}" STREQUAL "p4")
+    find_program(P4COMMAND p4)
     set(UPDATE_COMMAND "${P4COMMAND}")
     set(UPDATE_OPTIONS "${P4_UPDATE_OPTIONS}")
   endif()
@@ -178,12 +177,6 @@ if(BUILD_TESTING)
     PATHS
     "[HKEY_LOCAL_MACHINE\\SOFTWARE\\Rational Software\\Purify\\Setup;InstallFolder]"
     DOC "Path to the memory checking command, used for memory error detection."
-    )
-  find_program(SLURM_SBATCH_COMMAND sbatch DOC
-    "Path to the SLURM sbatch executable"
-    )
-  find_program(SLURM_SRUN_COMMAND srun DOC
-    "Path to the SLURM srun executable"
     )
   set(MEMORYCHECK_SUPPRESSIONS_FILE "" CACHE FILEPATH
     "File that contains suppressions for the memory checker")
@@ -263,8 +256,6 @@ if(BUILD_TESTING)
     MAKECOMMAND
     MEMORYCHECK_COMMAND
     MEMORYCHECK_SUPPRESSIONS_FILE
-    SLURM_SBATCH_COMMAND
-    SLURM_SRUN_COMMAND
     SITE
     SVNCOMMAND
     )

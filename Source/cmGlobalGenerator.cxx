@@ -584,7 +584,8 @@ void cmGlobalGenerator::EnableLanguage(
     // Find the native build tool for this generator.
     // This has to be done early so that MSBuild can be used to examine the
     // cross-compilation environment.
-    if (!this->FindMakeProgram(mf)) {
+    if (this->GetFindMakeProgramStage() == FindMakeProgramStage::Early &&
+        !this->FindMakeProgram(mf)) {
       return;
     }
   }
@@ -658,6 +659,12 @@ void cmGlobalGenerator::EnableLanguage(
     std::string toolset = mf->GetSafeDefinition("CMAKE_GENERATOR_TOOLSET");
     if (!this->SetGeneratorToolset(toolset, false, mf)) {
       cmSystemTools::SetFatalErrorOccured();
+      return;
+    }
+
+    // Find the native build tool for this generator.
+    if (this->GetFindMakeProgramStage() == FindMakeProgramStage::Late &&
+        !this->FindMakeProgram(mf)) {
       return;
     }
   }
@@ -1814,6 +1821,7 @@ void cmGlobalGenerator::ClearGeneratorMembers()
   this->RuleHashes.clear();
   this->DirectoryContentMap.clear();
   this->BinaryDirectories.clear();
+  this->GeneratedFiles.clear();
 }
 
 void cmGlobalGenerator::ComputeTargetObjectDirectory(
@@ -2137,6 +2145,16 @@ void cmGlobalGenerator::AddInstallComponent(const std::string& component)
   if (!component.empty()) {
     this->InstallComponents.insert(component);
   }
+}
+
+void cmGlobalGenerator::MarkAsGeneratedFile(const std::string& filepath)
+{
+  this->GeneratedFiles.insert(filepath);
+}
+
+bool cmGlobalGenerator::IsGeneratedFile(const std::string& filepath)
+{
+  return this->GeneratedFiles.find(filepath) != this->GeneratedFiles.end();
 }
 
 void cmGlobalGenerator::EnableInstallTarget()

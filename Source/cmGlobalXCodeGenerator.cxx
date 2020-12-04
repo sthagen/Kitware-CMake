@@ -773,7 +773,9 @@ void cmGlobalXCodeGenerator::ClearXCodeObjects()
   this->TargetGroup.clear();
   this->FileRefs.clear();
   this->ExternalLibRefs.clear();
+  this->EmbeddedLibRefs.clear();
   this->FileRefToBuildFileMap.clear();
+  this->FileRefToEmbedBuildFileMap.clear();
   this->CommandsVisited.clear();
 }
 
@@ -936,14 +938,6 @@ cmXCodeObject* cmGlobalXCodeGenerator::CreateXCodeSourceFile(
     default:
       break;
   }
-
-  // explicitly add the explicit language flag before any other flag
-  // this way backwards compatibility with user flags is maintained
-  if (sf->GetProperty("LANGUAGE")) {
-    this->CurrentLocalGenerator->AppendFeatureOptions(flags, lang,
-                                                      "EXPLICIT_LANGUAGE");
-  }
-
   const std::string COMPILE_FLAGS("COMPILE_FLAGS");
   if (cmProp cflags = sf->GetProperty(COMPILE_FLAGS)) {
     lg->AppendFlags(flags, genexInterpreter.Evaluate(*cflags, COMPILE_FLAGS));
@@ -1205,7 +1199,7 @@ cmXCodeObject* cmGlobalXCodeGenerator::CreateXCodeFileReferenceFromPath(
     }
   }
   // Make a copy so that we can override it later
-  std::string path = fullpath;
+  std::string path = cmSystemTools::CollapseFullPath(fullpath);
   // Compute the extension without leading '.'.
   std::string ext = cmSystemTools::GetFilenameLastExtension(path);
   if (!ext.empty()) {
@@ -1801,6 +1795,10 @@ void cmGlobalXCodeGenerator::CreateCustomCommands(
   if (frameworkBuildPhase) {
     buildPhases->AddObject(frameworkBuildPhase);
   }
+
+  // When this build phase is present, it must be last. More build phases may
+  // be added later for embedding things and they will insert themselves just
+  // before this last build phase.
   if (postBuildPhase) {
     buildPhases->AddObject(postBuildPhase);
   }
@@ -1972,6 +1970,15 @@ cmXCodeObject* cmGlobalXCodeGenerator::CreateRunScriptBuildPhase(
   return buildPhase;
 }
 
+namespace {
+void ReplaceScriptVars(std::string& cmd)
+{
+  cmSystemTools::ReplaceString(cmd, "$(CONFIGURATION)", "$CONFIGURATION");
+  cmSystemTools::ReplaceString(cmd, "$(EFFECTIVE_PLATFORM_NAME)",
+                               "$EFFECTIVE_PLATFORM_NAME");
+}
+}
+
 std::string cmGlobalXCodeGenerator::ConstructScript(
   cmCustomCommandGenerator const& ccg)
 {
@@ -1982,6 +1989,7 @@ std::string cmGlobalXCodeGenerator::ConstructScript(
     wd = lg->GetCurrentBinaryDirectory();
   }
   wd = lg->ConvertToOutputFormat(wd, cmOutputConverter::SHELL);
+  ReplaceScriptVars(wd);
   script = cmStrCat(script, "  cd ", wd, "\n");
   for (unsigned int c = 0; c < ccg.GetNumberOfCommands(); ++c) {
     std::string cmd = ccg.GetCommand(c);
@@ -1991,9 +1999,7 @@ std::string cmGlobalXCodeGenerator::ConstructScript(
     cmSystemTools::ReplaceString(cmd, "/./", "/");
     cmd = lg->ConvertToOutputFormat(cmd, cmOutputConverter::SHELL);
     ccg.AppendArguments(c, cmd);
-    cmSystemTools::ReplaceString(cmd, "$(CONFIGURATION)", "$CONFIGURATION");
-    cmSystemTools::ReplaceString(cmd, "$(EFFECTIVE_PLATFORM_NAME)",
-                                 "$EFFECTIVE_PLATFORM_NAME");
+    ReplaceScriptVars(cmd);
     script = cmStrCat(script, "  ", cmd, '\n');
   }
   return script;
@@ -3441,10 +3447,16 @@ void cmGlobalXCodeGenerator::AddDependAndLinkInformation(cmXCodeObject* target)
     if (!libTarget) {
       if (libItem->IsPath) {
         // Get or create a direct file ref in the root project
-        auto it = this->ExternalLibRefs.find(libItem->Value.Value);
+        auto cleanPath = libItem->Value.Value;
+        if (cmSystemTools::FileIsFullPath(cleanPath)) {
+          // Some arguments are reported as paths, but they are actually not,
+          // so we can't collapse them, and neither can we collapse relative
+          // paths
+          cleanPath = cmSystemTools::CollapseFullPath(cleanPath);
+        }
+        auto it = this->ExternalLibRefs.find(cleanPath);
         if (it == this->ExternalLibRefs.end()) {
-          buildFile = CreateXCodeBuildFileFromPath(libItem->Value.Value, gt,
-                                                   "", nullptr);
+          buildFile = CreateXCodeBuildFileFromPath(cleanPath, gt, "", nullptr);
           if (!buildFile) {
             // Add this library item back to a regular linker flag list
             for (const auto& conf : configItemMap) {
@@ -3452,7 +3464,7 @@ void cmGlobalXCodeGenerator::AddDependAndLinkInformation(cmXCodeObject* target)
             }
             continue;
           }
-          this->ExternalLibRefs.emplace(libItem->Value.Value, buildFile);
+          this->ExternalLibRefs.emplace(cleanPath, buildFile);
         } else {
           buildFile = it->second;
         }
@@ -3584,7 +3596,11 @@ void cmGlobalXCodeGenerator::AddDependAndLinkInformation(cmXCodeObject* target)
       for (auto const& libItem : configItemMap[configName]) {
         auto const& libName = *libItem;
         if (libName.IsPath) {
-          const auto libPath = GetLibraryOrFrameworkPath(libName.Value.Value);
+          auto cleanPath = libName.Value.Value;
+          if (cmSystemTools::FileIsFullPath(cleanPath)) {
+            cleanPath = cmSystemTools::CollapseFullPath(cleanPath);
+          }
+          const auto libPath = GetLibraryOrFrameworkPath(cleanPath);
           if (cmSystemTools::StringEndsWith(libPath.c_str(), ".framework")) {
             const auto fwName =
               cmSystemTools::GetFilenameWithoutExtension(libPath);
@@ -3592,17 +3608,17 @@ void cmGlobalXCodeGenerator::AddDependAndLinkInformation(cmXCodeObject* target)
             libPaths.Add("-F " + this->XCodeEscapePath(fwDir));
             libPaths.Add("-framework " + fwName);
           } else {
-            libPaths.Add(this->XCodeEscapePath(libName.Value.Value));
+            libPaths.Add(this->XCodeEscapePath(cleanPath));
           }
           if ((!libName.Target || libName.Target->IsImported()) &&
               IsLinkPhaseLibraryExtension(libPath)) {
             // Create file reference for embedding
-            auto it = this->ExternalLibRefs.find(libName.Value.Value);
+            auto it = this->ExternalLibRefs.find(cleanPath);
             if (it == this->ExternalLibRefs.end()) {
-              auto* buildFile = this->CreateXCodeBuildFileFromPath(
-                libName.Value.Value, gt, "", nullptr);
+              auto* buildFile =
+                this->CreateXCodeBuildFileFromPath(cleanPath, gt, "", nullptr);
               if (buildFile) {
-                this->ExternalLibRefs.emplace(libName.Value.Value, buildFile);
+                this->ExternalLibRefs.emplace(cleanPath, buildFile);
               }
             }
           }
@@ -3620,6 +3636,130 @@ void cmGlobalXCodeGenerator::AddDependAndLinkInformation(cmXCodeObject* target)
                                         libPaths.CreateList(), configName);
     }
   }
+}
+
+void cmGlobalXCodeGenerator::AddEmbeddedFrameworks(cmXCodeObject* target)
+{
+  cmGeneratorTarget* gt = target->GetTarget();
+  if (!gt) {
+    cmSystemTools::Error("Error no target on xobject\n");
+    return;
+  }
+  if (!gt->IsInBuildSystem()) {
+    return;
+  }
+  bool isFrameworkTarget = gt->IsFrameworkOnApple();
+  bool isBundleTarget = gt->GetPropertyAsBool("MACOSX_BUNDLE");
+  bool isCFBundleTarget = gt->IsCFBundleOnApple();
+  if (!(isFrameworkTarget || isBundleTarget || isCFBundleTarget)) {
+    return;
+  }
+  cmProp files = gt->GetProperty("XCODE_EMBED_FRAMEWORKS");
+  if (!files) {
+    return;
+  }
+
+  // Create an "Embedded Frameworks" build phase
+  auto* copyFilesBuildPhase =
+    this->CreateObject(cmXCodeObject::PBXCopyFilesBuildPhase);
+  std::string copyFilesBuildPhaseName = "Embed Frameworks";
+  std::string destinationFrameworks = "10";
+  copyFilesBuildPhase->SetComment(copyFilesBuildPhaseName);
+  copyFilesBuildPhase->AddAttribute("buildActionMask",
+                                    this->CreateString("2147483647"));
+  copyFilesBuildPhase->AddAttribute("dstSubfolderSpec",
+                                    this->CreateString(destinationFrameworks));
+  copyFilesBuildPhase->AddAttribute(
+    "name", this->CreateString(copyFilesBuildPhaseName));
+  if (cmProp fwEmbedPath = gt->GetProperty("XCODE_EMBED_FRAMEWORKS_PATH")) {
+    copyFilesBuildPhase->AddAttribute("dstPath",
+                                      this->CreateString(*fwEmbedPath));
+  } else {
+    copyFilesBuildPhase->AddAttribute("dstPath", this->CreateString(""));
+  }
+  copyFilesBuildPhase->AddAttribute("runOnlyForDeploymentPostprocessing",
+                                    this->CreateString("0"));
+  cmXCodeObject* buildFiles = this->CreateObject(cmXCodeObject::OBJECT_LIST);
+  // Collect all embedded frameworks and add them to build phase
+  std::vector<std::string> relFiles = cmExpandedList(*files);
+  for (std::string const& relFile : relFiles) {
+    cmXCodeObject* buildFile{ nullptr };
+    std::string filePath = relFile;
+    auto* genTarget = FindGeneratorTarget(relFile);
+    if (genTarget) {
+      // This is a target - get it's product path reference
+      auto* xcTarget = FindXCodeTarget(genTarget);
+      if (!xcTarget) {
+        cmSystemTools::Error("Can not find a target for " +
+                             genTarget->GetName());
+        continue;
+      }
+      // Add the target output file as a build reference for other targets
+      // to link against
+      auto* fileRefObject = xcTarget->GetAttribute("productReference");
+      if (!fileRefObject) {
+        cmSystemTools::Error("Target " + genTarget->GetName() +
+                             " is missing product reference");
+        continue;
+      }
+      auto it = FileRefToEmbedBuildFileMap.find(fileRefObject);
+      if (it == FileRefToEmbedBuildFileMap.end()) {
+        buildFile = this->CreateObject(cmXCodeObject::PBXBuildFile);
+        buildFile->AddAttribute("fileRef", fileRefObject);
+        FileRefToEmbedBuildFileMap[fileRefObject] = buildFile;
+      } else {
+        buildFile = it->second;
+      }
+    } else if (cmSystemTools::IsPathToFramework(relFile)) {
+      // This is a regular string path - create file reference
+      auto it = EmbeddedLibRefs.find(relFile);
+      if (it == EmbeddedLibRefs.end()) {
+        cmXCodeObject* fileRef =
+          this->CreateXCodeFileReferenceFromPath(relFile, gt, "", nullptr);
+        if (fileRef) {
+          buildFile = this->CreateObject(cmXCodeObject::PBXBuildFile);
+          buildFile->SetComment(fileRef->GetComment());
+          buildFile->AddAttribute("fileRef",
+                                  this->CreateObjectReference(fileRef));
+        }
+        if (!buildFile) {
+          cmSystemTools::Error("Can't create build file for " + relFile);
+          continue;
+        }
+        this->EmbeddedLibRefs.emplace(filePath, buildFile);
+      } else {
+        buildFile = it->second;
+      }
+    }
+    if (!buildFile) {
+      cmSystemTools::Error("Can't find a build file for " + relFile);
+      continue;
+    }
+    // Set build file configuration
+    cmXCodeObject* settings =
+      this->CreateObject(cmXCodeObject::ATTRIBUTE_GROUP);
+    cmXCodeObject* attrs = this->CreateObject(cmXCodeObject::OBJECT_LIST);
+    const auto& rmHeadersProp =
+      gt->GetSafeProperty("XCODE_EMBED_FRAMEWORKS_REMOVE_HEADERS_ON_COPY");
+    if (cmIsOn(rmHeadersProp)) {
+      attrs->AddObject(this->CreateString("RemoveHeadersOnCopy"));
+    }
+    const auto& codeSignProp =
+      gt->GetSafeProperty("XCODE_EMBED_FRAMEWORKS_CODE_SIGN_ON_COPY");
+    if (cmIsOn(codeSignProp)) {
+      attrs->AddObject(this->CreateString("CodeSignOnCopy"));
+    }
+    settings->AddAttributeIfNotEmpty("ATTRIBUTES", attrs);
+    buildFile->AddAttributeIfNotEmpty("settings", settings);
+    if (!buildFiles->HasObject(buildFile)) {
+      buildFiles->AddObject(buildFile);
+    }
+  }
+  copyFilesBuildPhase->AddAttribute("files", buildFiles);
+  auto* buildPhases = target->GetAttribute("buildPhases");
+  // Insert embed build phase right before the post-build command
+  buildPhases->InsertObject(buildPhases->GetObjectCount() - 1,
+                            copyFilesBuildPhase);
 }
 
 bool cmGlobalXCodeGenerator::CreateGroups(
@@ -4000,7 +4140,9 @@ bool cmGlobalXCodeGenerator::CreateXCodeObjects(
   // loop over all targets and add link and depend info
   for (auto t : targets) {
     this->AddDependAndLinkInformation(t);
+    this->AddEmbeddedFrameworks(t);
   }
+
   if (this->XcodeBuildSystem == BuildSystem::One) {
     this->CreateXCodeDependHackMakefile(targets);
   }

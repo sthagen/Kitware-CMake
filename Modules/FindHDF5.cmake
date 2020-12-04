@@ -32,6 +32,9 @@ static link to a dynamic link for ``HDF5`` and all of it's dependencies.
 To use this feature, make sure that the ``HDF5_USE_STATIC_LIBRARIES``
 variable is set before the call to find_package.
 
+.. versionadded:: 3.10
+  Support for ``HDF5_USE_STATIC_LIBRARIES`` on Windows.
+
 Both the serial and parallel ``HDF5`` wrappers are considered and the first
 directory to contain either one will be used.  In the event that both appear
 in the same directory the serial version is preferentially selected. This
@@ -51,7 +54,8 @@ This module will set the following variables in your project:
 ``HDF5_FOUND``
   HDF5 was found on the system
 ``HDF5_VERSION``
-  HDF5 library version
+  .. versionadded:: 3.3
+    HDF5 library version
 ``HDF5_INCLUDE_DIRS``
   Location of the HDF5 header files
 ``HDF5_DEFINITIONS``
@@ -128,12 +132,18 @@ Hints
 The following variables can be set to guide the search for HDF5 libraries and includes:
 
 ``HDF5_PREFER_PARALLEL``
+  .. versionadded:: 3.4
+
   set ``true`` to prefer parallel HDF5 (by default, serial is preferred)
 
 ``HDF5_FIND_DEBUG``
+  .. versionadded:: 3.9
+
   Set ``true`` to get extra debugging output.
 
 ``HDF5_NO_FIND_PACKAGE_CONFIG_FILE``
+  .. versionadded:: 3.8
+
   Set ``true`` to skip trying to find ``hdf5-config.cmake``.
 #]=======================================================================]
 
@@ -1026,7 +1036,7 @@ if (HDF5_FOUND)
           # Error if we still don't have the location.
           message(SEND_ERROR
             "HDF5 was found, but a different variable was set which contains "
-            "its location.")
+            "the location of the `hdf5::${hdf5_target_name}` library.")
         endif ()
         add_library("hdf5::${hdf5_target_name}" UNKNOWN IMPORTED)
         string(REPLACE "-D" "" _hdf5_definitions "${HDF5_${hdf5_lang}_DEFINITIONS}")
@@ -1057,12 +1067,14 @@ if (HDF5_FOUND)
       continue ()
     endif ()
 
+    set(hdf5_alt_target_name "")
     if (hdf5_lang STREQUAL "C")
       set(hdf5_target_name "hdf5_hl")
     elseif (hdf5_lang STREQUAL "CXX")
       set(hdf5_target_name "hdf5_hl_cpp")
     elseif (hdf5_lang STREQUAL "Fortran")
       set(hdf5_target_name "hdf5_hl_fortran")
+      set(hdf5_alt_target_name "hdf5hl_fortran")
     else ()
       continue ()
     endif ()
@@ -1081,11 +1093,13 @@ if (HDF5_FOUND)
           set(_hdf5_location "${HDF5_${hdf5_lang}_HL_LIBRARY}")
         elseif (DEFINED "HDF5_${hdf5_lang}_LIBRARY_${hdf5_target_name}")
           set(_hdf5_location "${HDF5_${hdf5_lang}_LIBRARY_${hdf5_target_name}}")
+        elseif (hdf5_alt_target_name AND DEFINED "HDF5_${hdf5_lang}_LIBRARY_${hdf5_alt_target_name}")
+          set(_hdf5_location "${HDF5_${hdf5_lang}_LIBRARY_${hdf5_alt_target_name}}")
         else ()
           # Error if we still don't have the location.
           message(SEND_ERROR
             "HDF5 was found, but a different variable was set which contains "
-            "its location.")
+            "the location of the `hdf5::${hdf5_target_name}` library.")
         endif ()
         add_library("hdf5::${hdf5_target_name}" UNKNOWN IMPORTED)
         string(REPLACE "-D" "" _hdf5_definitions "${HDF5_${hdf5_lang}_HL_DEFINITIONS}")

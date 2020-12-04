@@ -7,10 +7,14 @@ FindGTest
 
 Locate the Google C++ Testing Framework.
 
+.. versionadded:: 3.20
+  Upstream ``GTestConfig.cmake`` is used if possible.
+
 Imported targets
 ^^^^^^^^^^^^^^^^
 
-This module defines the following :prop_tgt:`IMPORTED` targets:
+.. versionadded:: 3.20
+  This module defines the following :prop_tgt:`IMPORTED` targets:
 
 ``GTest::gtest``
   The Google Test ``gtest`` library, if found; adds Thread::Thread
@@ -18,8 +22,9 @@ This module defines the following :prop_tgt:`IMPORTED` targets:
 ``GTest::gtest_main``
   The Google Test ``gtest_main`` library, if found
 
-For backwards compatibility, this module defines additionally the
-following deprecated :prop_tgt:`IMPORTED` targets:
+.. deprecated:: 3.20
+  For backwards compatibility, this module defines additionally the
+  following deprecated :prop_tgt:`IMPORTED` targets (available since 3.5):
 
 ``GTest::GTest``
   The Google Test ``gtest`` library, if found; adds Thread::Thread
@@ -81,6 +86,10 @@ Deeper integration with CTest
 
 See :module:`GoogleTest` for information on the :command:`gtest_add_tests`
 and :command:`gtest_discover_tests` commands.
+
+.. versionchanged:: 3.9
+  Previous CMake versions defined :command:`gtest_add_tests` macro in this
+  module.
 #]=======================================================================]
 
 include(${CMAKE_CURRENT_LIST_DIR}/GoogleTest.cmake)
@@ -103,27 +112,6 @@ function(__gtest_find_library _name)
         PATH_SUFFIXES ${_gtest_libpath_suffixes}
     )
     mark_as_advanced(${_name})
-endfunction()
-
-function(__gtest_find_library_configuration _name _lib _cfg_suffix)
-    set(_libs ${_lib})
-    if(MSVC AND GTEST_MSVC_SEARCH STREQUAL "MD")
-        # The provided /MD project files for Google Test add -md suffixes to the
-        # library names.
-        list(INSERT _libs 0 ${_lib}-md)
-    endif()
-    list(TRANSFORM _libs APPEND "${_cfg_suffix}")
-
-    __gtest_find_library(${_name} ${_libs})
-endfunction()
-
-include(${CMAKE_CURRENT_LIST_DIR}/SelectLibraryConfigurations.cmake)
-function(__gtest_find_and_select_library_configurations _basename _lib)
-    __gtest_find_library_configuration(${_basename}_LIBRARY_RELEASE ${_lib} "")
-    __gtest_find_library_configuration(${_basename}_LIBRARY_DEBUG   ${_lib} "d")
-
-    select_library_configurations(${_basename})
-    set(${_basename}_LIBRARY ${${_basename}_LIBRARY} PARENT_SCOPE)
 endfunction()
 
 macro(__gtest_determine_windows_library_type _var)
@@ -250,11 +238,18 @@ find_path(GTEST_INCLUDE_DIR gtest/gtest.h
 )
 mark_as_advanced(GTEST_INCLUDE_DIR)
 
-if(NOT GTEST_LIBRARY)
-    __gtest_find_and_select_library_configurations(GTEST gtest)
-endif()
-if(NOT GTEST_MAIN_LIBRARY)
-    __gtest_find_and_select_library_configurations(GTEST_MAIN gtest_main)
+if(MSVC AND GTEST_MSVC_SEARCH STREQUAL "MD")
+    # The provided /MD project files for Google Test add -md suffixes to the
+    # library names.
+    __gtest_find_library(GTEST_LIBRARY            gtest-md  gtest)
+    __gtest_find_library(GTEST_LIBRARY_DEBUG      gtest-mdd gtestd)
+    __gtest_find_library(GTEST_MAIN_LIBRARY       gtest_main-md  gtest_main)
+    __gtest_find_library(GTEST_MAIN_LIBRARY_DEBUG gtest_main-mdd gtest_maind)
+else()
+    __gtest_find_library(GTEST_LIBRARY            gtest)
+    __gtest_find_library(GTEST_LIBRARY_DEBUG      gtestd)
+    __gtest_find_library(GTEST_MAIN_LIBRARY       gtest_main)
+    __gtest_find_library(GTEST_MAIN_LIBRARY_DEBUG gtest_maind)
 endif()
 
 FIND_PACKAGE_HANDLE_STANDARD_ARGS(GTest DEFAULT_MSG GTEST_LIBRARY GTEST_INCLUDE_DIR GTEST_MAIN_LIBRARY)
