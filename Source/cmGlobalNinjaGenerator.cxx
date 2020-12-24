@@ -56,6 +56,52 @@ std::string const cmGlobalNinjaGenerator::SHELL_NOOP = "cd .";
 std::string const cmGlobalNinjaGenerator::SHELL_NOOP = ":";
 #endif
 
+bool operator==(
+  const cmGlobalNinjaGenerator::ByConfig::TargetDependsClosureKey& lhs,
+  const cmGlobalNinjaGenerator::ByConfig::TargetDependsClosureKey& rhs)
+{
+  return lhs.Target == rhs.Target && lhs.Config == rhs.Config &&
+    lhs.GenexOutput == rhs.GenexOutput;
+}
+
+bool operator!=(
+  const cmGlobalNinjaGenerator::ByConfig::TargetDependsClosureKey& lhs,
+  const cmGlobalNinjaGenerator::ByConfig::TargetDependsClosureKey& rhs)
+{
+  return !(lhs == rhs);
+}
+
+bool operator<(
+  const cmGlobalNinjaGenerator::ByConfig::TargetDependsClosureKey& lhs,
+  const cmGlobalNinjaGenerator::ByConfig::TargetDependsClosureKey& rhs)
+{
+  return lhs.Target < rhs.Target ||
+    (lhs.Target == rhs.Target &&
+     (lhs.Config < rhs.Config ||
+      (lhs.Config == rhs.Config && lhs.GenexOutput < rhs.GenexOutput)));
+}
+
+bool operator>(
+  const cmGlobalNinjaGenerator::ByConfig::TargetDependsClosureKey& lhs,
+  const cmGlobalNinjaGenerator::ByConfig::TargetDependsClosureKey& rhs)
+{
+  return rhs < lhs;
+}
+
+bool operator<=(
+  const cmGlobalNinjaGenerator::ByConfig::TargetDependsClosureKey& lhs,
+  const cmGlobalNinjaGenerator::ByConfig::TargetDependsClosureKey& rhs)
+{
+  return !(lhs > rhs);
+}
+
+bool operator>=(
+  const cmGlobalNinjaGenerator::ByConfig::TargetDependsClosureKey& lhs,
+  const cmGlobalNinjaGenerator::ByConfig::TargetDependsClosureKey& rhs)
+{
+  return rhs <= lhs;
+}
+
 void cmGlobalNinjaGenerator::Indent(std::ostream& os, int count)
 {
   for (int i = 0; i < count; ++i) {
@@ -582,18 +628,9 @@ void cmGlobalNinjaGenerator::CleanMetaData()
 
   // Skip some ninja tools if they need 'build.ninja' but it is missing.
   bool const missingBuildManifest = expectBuildManifest &&
-    (this->NinjaSupportsCleanDeadTool ||
-     this->NinjaSupportsUnconditionalRecompactTool) &&
+    this->NinjaSupportsUnconditionalRecompactTool &&
     !cmSystemTools::FileExists("build.ninja");
 
-  // The `cleandead` tool needs to know about all outputs in the build we just
-  // wrote out. Ninja-Multi doesn't have a single `build.ninja` we can use that
-  // is the union of all generated configurations, so we can't run it reliably
-  // in that case.
-  if (this->NinjaSupportsCleanDeadTool && !this->DisableCleandead &&
-      expectBuildManifest && !missingBuildManifest) {
-    run_ninja_tool({ "cleandead" });
-  }
   // The `recompact` tool loads the manifest. As above, we don't have a single
   // `build.ninja` to load for this in Ninja-Multi. This may be relaxed in the
   // future pending further investigation into how Ninja works upstream
@@ -680,9 +717,6 @@ void cmGlobalNinjaGenerator::CheckNinjaFeatures()
       }
     }
   }
-  this->NinjaSupportsCleanDeadTool = !cmSystemTools::VersionCompare(
-    cmSystemTools::OP_LESS, this->NinjaVersion.c_str(),
-    RequiredNinjaVersionForCleanDeadTool().c_str());
   this->NinjaSupportsUnconditionalRecompactTool =
     !cmSystemTools::VersionCompare(
       cmSystemTools::OP_LESS, this->NinjaVersion.c_str(),
@@ -1206,23 +1240,30 @@ void cmGlobalNinjaGenerator::AppendTargetDepends(
 
 void cmGlobalNinjaGenerator::AppendTargetDependsClosure(
   cmGeneratorTarget const* target, cmNinjaDeps& outputs,
-  const std::string& config)
+  const std::string& config, const std::string& fileConfig, bool genexOutput)
 {
   cmNinjaOuts outs;
-  this->AppendTargetDependsClosure(target, outs, config, true);
+  this->AppendTargetDependsClosure(target, outs, config, fileConfig,
+                                   genexOutput, true);
   cm::append(outputs, outs);
 }
 
 void cmGlobalNinjaGenerator::AppendTargetDependsClosure(
   cmGeneratorTarget const* target, cmNinjaOuts& outputs,
-  const std::string& config, bool omit_self)
+  const std::string& config, const std::string& fileConfig, bool genexOutput,
+  bool omit_self)
 {
 
   // try to locate the target in the cache
-  auto find = this->Configs[config].TargetDependsClosures.lower_bound(target);
+  ByConfig::TargetDependsClosureKey key{
+    target,
+    config,
+    genexOutput,
+  };
+  auto find = this->Configs[fileConfig].TargetDependsClosures.lower_bound(key);
 
-  if (find == this->Configs[config].TargetDependsClosures.end() ||
-      find->first != target) {
+  if (find == this->Configs[fileConfig].TargetDependsClosures.end() ||
+      find->first != key) {
     // We now calculate the closure outputs by inspecting the dependent
     // targets recursively.
     // For that we have to distinguish between a local result set that is only
@@ -1232,18 +1273,27 @@ void cmGlobalNinjaGenerator::AppendTargetDependsClosure(
     cmNinjaOuts this_outs; // this will be the new cache entry
 
     for (auto const& dep_target : this->GetTargetDirectDepends(target)) {
-      if (!dep_target->IsInBuildSystem() ||
-          (target->GetType() != cmStateEnums::UTILITY &&
-           dep_target->GetType() != cmStateEnums::UTILITY &&
-           this->EnableCrossConfigBuild() && !dep_target.IsCross())) {
+      if (!dep_target->IsInBuildSystem()) {
         continue;
       }
 
-      // Collect the dependent targets for _this_ target
-      this->AppendTargetDependsClosure(dep_target, this_outs, config, false);
+      if (!this->IsSingleConfigUtility(target) &&
+          !this->IsSingleConfigUtility(dep_target) &&
+          this->EnableCrossConfigBuild() && !dep_target.IsCross() &&
+          !genexOutput) {
+        continue;
+      }
+
+      if (dep_target.IsCross()) {
+        this->AppendTargetDependsClosure(dep_target, this_outs, fileConfig,
+                                         fileConfig, genexOutput, false);
+      } else {
+        this->AppendTargetDependsClosure(dep_target, this_outs, config,
+                                         fileConfig, genexOutput, false);
+      }
     }
-    find = this->Configs[config].TargetDependsClosures.emplace_hint(
-      find, target, std::move(this_outs));
+    find = this->Configs[fileConfig].TargetDependsClosures.emplace_hint(
+      find, key, std::move(this_outs));
   }
 
   // now fill the outputs of the final result from the newly generated cache
@@ -2488,6 +2538,13 @@ std::set<std::string> cmGlobalNinjaGenerator::GetCrossConfigs(
   auto result = this->CrossConfigs;
   result.insert(fileConfig);
   return result;
+}
+
+bool cmGlobalNinjaGenerator::IsSingleConfigUtility(
+  cmGeneratorTarget const* target) const
+{
+  return target->GetType() == cmStateEnums::UTILITY &&
+    !this->PerConfigUtilityTargets.count(target->GetName());
 }
 
 const char* cmGlobalNinjaMultiGenerator::NINJA_COMMON_FILE =

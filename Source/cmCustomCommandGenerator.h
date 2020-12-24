@@ -9,6 +9,8 @@
 #include <utility>
 #include <vector>
 
+#include <cm/optional>
+
 #include "cmCustomCommandLines.h"
 #include "cmListFileCache.h"
 
@@ -18,12 +20,14 @@ class cmLocalGenerator;
 class cmCustomCommandGenerator
 {
   cmCustomCommand const* CC;
-  std::string Config;
+  std::string OutputConfig;
+  std::string CommandConfig;
   cmLocalGenerator* LG;
   bool OldStyle;
   bool MakeVars;
   cmCustomCommandLines CommandLines;
   std::vector<std::vector<std::string>> EmulatorsWithArguments;
+  std::vector<std::string> Outputs;
   std::vector<std::string> Byproducts;
   std::vector<std::string> Depends;
   std::string WorkingDirectory;
@@ -35,7 +39,8 @@ class cmCustomCommandGenerator
 
 public:
   cmCustomCommandGenerator(cmCustomCommand const& cc, std::string config,
-                           cmLocalGenerator* lg, bool transformDepfile = true);
+                           cmLocalGenerator* lg, bool transformDepfile = true,
+                           cm::optional<std::string> crossConfig = {});
   cmCustomCommandGenerator(const cmCustomCommandGenerator&) = delete;
   cmCustomCommandGenerator(cmCustomCommandGenerator&&) = default;
   cmCustomCommandGenerator& operator=(const cmCustomCommandGenerator&) =
@@ -54,4 +59,7 @@ public:
   bool HasOnlyEmptyCommandLines() const;
   std::string GetFullDepfile() const;
   std::string GetInternalDepfile() const;
+
+  const std::string& GetOutputConfig() const { return this->OutputConfig; }
+  const std::string& GetCommandConfig() const { return this->CommandConfig; }
 };

@@ -243,11 +243,6 @@ public:
                           bool excludeFromAll = false);
 
   /**
-   * Return the utility target output source file name and the CMP0049 name.
-   */
-  cmUtilityOutput GetUtilityOutput(cmTarget* target);
-
-  /**
    * Dispatch adding a utility to the build.  A utility target is a command
    * that is run every time the target is built.
    */
@@ -904,7 +899,7 @@ public:
     const std::string& inputFile, const std::string& targetName,
     std::unique_ptr<cmCompiledGeneratorExpression> outputName,
     std::unique_ptr<cmCompiledGeneratorExpression> condition,
-    bool inputIsContent);
+    mode_t permissions, bool inputIsContent);
   const std::vector<std::unique_ptr<cmGeneratorExpressionEvaluationFile>>&
   GetEvaluationFiles() const;
 

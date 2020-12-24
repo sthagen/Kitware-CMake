@@ -3064,7 +3064,7 @@ bool cmTargetTraceDependencies::IsUtility(std::string const& dep)
     } else {
       // The original name of the dependency was not a full path.  It
       // must name a target, so add the target-level dependency.
-      this->GeneratorTarget->Target->AddUtility(util, false);
+      this->GeneratorTarget->Target->AddUtility(util, true);
       return true;
     }
   }
@@ -3079,15 +3079,16 @@ void cmTargetTraceDependencies::CheckCustomCommand(cmCustomCommand const& cc)
   std::set<std::string> depends;
   for (std::string const& config :
        this->Makefile->GetGeneratorConfigs(cmMakefile::IncludeEmptyConfig)) {
-    cmCustomCommandGenerator ccg(cc, config, this->LocalGenerator);
+    for (cmCustomCommandGenerator const& ccg :
+         this->LocalGenerator->MakeCustomCommandGenerators(cc, config)) {
+      // Collect target-level dependencies referenced in command lines.
+      for (auto const& util : ccg.GetUtilities()) {
+        this->GeneratorTarget->Target->AddUtility(util);
+      }
 
-    // Collect target-level dependencies referenced in command lines.
-    for (auto const& util : ccg.GetUtilities()) {
-      this->GeneratorTarget->Target->AddUtility(util);
+      // Collect file-level dependencies referenced in DEPENDS.
+      depends.insert(ccg.GetDepends().begin(), ccg.GetDepends().end());
     }
-
-    // Collect file-level dependencies referenced in DEPENDS.
-    depends.insert(ccg.GetDepends().begin(), ccg.GetDepends().end());
   }
 
   // Queue file-level dependencies.
@@ -5086,9 +5087,14 @@ void cmGeneratorTarget::GetTargetObjectNames(
     objects.push_back(map_it->second);
   }
 
+  // We need to compute the relative path from the root of
+  // of the object directory to handle subdirectory paths
+  std::string rootObjectDir = this->GetObjectDirectory(config);
+  rootObjectDir = cmSystemTools::CollapseFullPath(rootObjectDir);
   auto ispcObjects = this->GetGeneratedISPCObjects(config);
   for (std::string const& output : ispcObjects) {
-    objects.push_back(cmSystemTools::GetFilenameName(output));
+    auto relativePathFromObjectDir = output.substr(rootObjectDir.size());
+    objects.push_back(relativePathFromObjectDir);
   }
 }
 
@@ -7033,7 +7039,7 @@ const cmLinkImplementation* cmGeneratorTarget::GetLinkImplementation(
   return &impl;
 }
 
-bool cmGeneratorTarget::GetConfigCommonSourceFiles(
+bool cmGeneratorTarget::GetConfigCommonSourceFilesForXcode(
   std::vector<cmSourceFile*>& files) const
 {
   std::vector<std::string> const& configs =

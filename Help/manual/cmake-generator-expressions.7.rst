@@ -648,6 +648,9 @@ which is just the string ``tgt``.
   expression is evaluated on.
 ``$<TARGET_FILE_NAME:tgt>``
   The ``tgt`` filename.
+
+  Note that ``tgt`` is not added as a dependency of the target this
+  expression is evaluated on (see policy :policy:`CMP0112`).
 ``$<TARGET_FILE_DIR:tgt>``
   Directory of the ``tgt`` binary file.
 
@@ -812,6 +815,24 @@ Output-Related Expressions
   list is generated using the shell path separator (``:`` on POSIX and
   ``;`` on Windows).  Be sure to enclose the argument containing this genex
   in double quotes in CMake source code so that ``;`` does not split arguments.
+
+``$<OUTPUT_CONFIG:...>``
+  .. versionadded:: 3.20
+
+  Only valid in :command:`add_custom_command` and :command:`add_custom_target`
+  as the outer-most generator expression in an argument.
+  With the :generator:`Ninja Multi-Config` generator, generator expressions
+  in ``...`` are evaluated using the custom command's "output config".
+  With other generators, the content of ``...`` is evaluated normally.
+
+``$<COMMAND_CONFIG:...>``
+  .. versionadded:: 3.20
+
+  Only valid in :command:`add_custom_command` and :command:`add_custom_target`
+  as the outer-most generator expression in an argument.
+  With the :generator:`Ninja Multi-Config` generator, generator expressions
+  in ``...`` are evaluated using the custom command's "command config".
+  With other generators, the content of ``...`` is evaluated normally.
 
 Debugging
 =========
