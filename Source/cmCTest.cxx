@@ -1326,11 +1326,11 @@ int cmCTest::RunTest(std::vector<const char*> argv, std::string* output,
   if (result == cmsysProcess_State_Exited) {
     *retVal = cmsysProcess_GetExitValue(cp);
     if (*retVal != 0 && this->Impl->OutputTestOutputOnTestFailure) {
-      OutputTestErrors(tempOutput);
+      this->OutputTestErrors(tempOutput);
     }
   } else if (result == cmsysProcess_State_Exception) {
     if (this->Impl->OutputTestOutputOnTestFailure) {
-      OutputTestErrors(tempOutput);
+      this->OutputTestErrors(tempOutput);
     }
     *retVal = cmsysProcess_GetExitException(cp);
     std::string outerr = cmStrCat("\n*** Exception executing: ",
@@ -2901,7 +2901,7 @@ bool cmCTest::GetFailover() const
 
 bool cmCTest::GetTestProgressOutput() const
 {
-  return this->Impl->TestProgressOutput;
+  return this->Impl->TestProgressOutput && !GetExtraVerbose();
 }
 
 bool cmCTest::GetVerbose() const

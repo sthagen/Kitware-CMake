@@ -150,7 +150,7 @@ public:
   static void WriteDefault(std::ostream& os, const cmNinjaDeps& targets,
                            const std::string& comment = "");
 
-  bool IsGCCOnWindows() const { return UsingGCCOnWindows; }
+  bool IsGCCOnWindows() const { return this->UsingGCCOnWindows; }
 
 public:
   cmGlobalNinjaGenerator(cmake* cm);
@@ -354,7 +354,10 @@ public:
     outputs.push_back(this->NinjaOutputPath(NINJA_BUILD_FILE));
   }
 
-  int GetRuleCmdLength(const std::string& name) { return RuleCmdLength[name]; }
+  int GetRuleCmdLength(const std::string& name)
+  {
+    return this->RuleCmdLength[name];
+  }
 
   void AddTargetAlias(const std::string& alias, cmGeneratorTarget* target,
                       const std::string& config);
@@ -393,15 +396,13 @@ public:
   bool HasOutputPathPrefix() const { return !this->OutputPathPrefix.empty(); }
   void StripNinjaOutputPathPrefixAsSuffix(std::string& path);
 
-  bool WriteDyndepFile(std::string const& dir_top_src,
-                       std::string const& dir_top_bld,
-                       std::string const& dir_cur_src,
-                       std::string const& dir_cur_bld,
-                       std::string const& arg_dd,
-                       std::vector<std::string> const& arg_ddis,
-                       std::string const& module_dir,
-                       std::vector<std::string> const& linked_target_dirs,
-                       std::string const& arg_lang);
+  bool WriteDyndepFile(
+    std::string const& dir_top_src, std::string const& dir_top_bld,
+    std::string const& dir_cur_src, std::string const& dir_cur_bld,
+    std::string const& arg_dd, std::vector<std::string> const& arg_ddis,
+    std::string const& module_dir,
+    std::vector<std::string> const& linked_target_dirs,
+    std::string const& arg_lang, std::string const& arg_modmapfmt);
 
   virtual std::string BuildAlias(const std::string& alias,
                                  const std::string& /*config*/) const
@@ -444,6 +445,8 @@ public:
   }
 
   bool IsSingleConfigUtility(cmGeneratorTarget const* target) const;
+
+  bool CheckCxxModuleSupport();
 
 protected:
   void Generate() override;
@@ -564,6 +567,8 @@ private:
   bool NinjaSupportsUnconditionalRecompactTool = false;
   bool NinjaSupportsMultipleOutputs = false;
   bool NinjaSupportsMetadataOnRegeneration = false;
+
+  bool DiagnosedCxxModuleSupport = false;
 
 private:
   void InitOutputPathPrefix();

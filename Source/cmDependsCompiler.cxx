@@ -196,30 +196,39 @@ void cmDependsCompiler::WriteDependencies(
   const auto& lineContinue = static_cast<cmGlobalUnixMakefileGenerator3*>(
                                this->LocalGenerator->GetGlobalGenerator())
                                ->LineContinueDirective;
+  bool supportLongLineDepend = static_cast<cmGlobalUnixMakefileGenerator3*>(
+                                 this->LocalGenerator->GetGlobalGenerator())
+                                 ->SupportsLongLineDependencies();
   const auto& binDir = this->LocalGenerator->GetBinaryDirectory();
   cmDepends::DependencyMap makeDependencies(dependencies);
   std::unordered_set<cm::string_view> phonyTargets;
 
   // external dependencies file
   for (auto& node : makeDependencies) {
-    auto target = LocalGenerator->ConvertToMakefilePath(
+    auto target = this->LocalGenerator->ConvertToMakefilePath(
       this->LocalGenerator->MaybeConvertToRelativePath(binDir, node.first));
     auto& deps = node.second;
     std::transform(
       deps.cbegin(), deps.cend(), deps.begin(),
       [this, &binDir](const std::string& dep) {
-        return LocalGenerator->ConvertToMakefilePath(
+        return this->LocalGenerator->ConvertToMakefilePath(
           this->LocalGenerator->MaybeConvertToRelativePath(binDir, dep));
       });
 
     bool first_dep = true;
-    makeDepends << target << ": ";
+    if (supportLongLineDepend) {
+      makeDepends << target << ": ";
+    }
     for (const auto& dep : deps) {
-      if (first_dep) {
-        first_dep = false;
-        makeDepends << dep;
+      if (supportLongLineDepend) {
+        if (first_dep) {
+          first_dep = false;
+          makeDepends << dep;
+        } else {
+          makeDepends << ' ' << lineContinue << "  " << dep;
+        }
       } else {
-        makeDepends << ' ' << lineContinue << "  " << dep;
+        makeDepends << target << ": " << dep << std::endl;
       }
 
       phonyTargets.emplace(dep.data(), dep.length());
