@@ -200,6 +200,7 @@ public:
     platforms.emplace_back("Win32");
     platforms.emplace_back("ARM");
     platforms.emplace_back("ARM64");
+    platforms.emplace_back("ARM64EC");
     return platforms;
   }
 
@@ -540,7 +541,8 @@ bool cmGlobalVisualStudioVersionedGenerator::IsWin81SDKInstalled() const
   return false;
 }
 
-std::string cmGlobalVisualStudioVersionedGenerator::GetWindows10SDKMaxVersion(
+std::string
+cmGlobalVisualStudioVersionedGenerator::GetWindows10SDKMaxVersionDefault(
   cmMakefile*) const
 {
   return std::string();

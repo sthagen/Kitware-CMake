@@ -1853,17 +1853,12 @@ bool cmLocalGenerator::AllAppleArchSysrootsAreTheSame(
     return false;
   }
 
-  for (std::string const& arch : archs) {
-    std::string const& archSysroot = this->AppleArchSysroots[arch];
-    if (cmIsOff(archSysroot)) {
-      continue;
-    }
-    if (archSysroot != sysroot) {
-      return false;
-    }
-  }
-
-  return true;
+  return std::all_of(archs.begin(), archs.end(),
+                     [this, &sysroot](std::string const& arch) -> bool {
+                       std::string const& archSysroot =
+                         this->AppleArchSysroots[arch];
+                       return cmIsOff(archSysroot) || archSysroot == sysroot;
+                     });
 }
 
 void cmLocalGenerator::AddArchitectureFlags(std::string& flags,
@@ -2553,7 +2548,7 @@ void cmLocalGenerator::AddPchDependencies(cmGeneratorTarget* target)
         cmProp ReuseFrom =
           target->GetProperty("PRECOMPILE_HEADERS_REUSE_FROM");
 
-        auto pch_sf = this->Makefile->GetOrCreateSource(
+        auto* pch_sf = this->Makefile->GetOrCreateSource(
           pchSource, false, cmSourceFileLocationKind::Known);
 
         if (!this->GetGlobalGenerator()->IsXcode()) {
@@ -2570,7 +2565,7 @@ void cmLocalGenerator::AddPchDependencies(cmGeneratorTarget* target)
                 "OBJECT_OUTPUTS",
                 cmStrCat("$<$<CONFIG:", config, ">:", pchFile, ">"));
             } else {
-              auto reuseTarget =
+              auto* reuseTarget =
                 this->GlobalGenerator->FindGeneratorTarget(*ReuseFrom);
 
               if (this->Makefile->IsOn("CMAKE_PCH_COPY_COMPILE_PDB")) {
@@ -2615,16 +2610,25 @@ void cmLocalGenerator::AddPchDependencies(cmGeneratorTarget* target)
                 }
               }
 
-              if (reuseTarget->GetType() != cmStateEnums::OBJECT_LIBRARY) {
-                std::string pchSourceObj =
-                  reuseTarget->GetPchFileObject(config, lang, arch);
+              // Link to the pch object file
+              std::string pchSourceObj =
+                reuseTarget->GetPchFileObject(config, lang, arch);
 
-                // Link to the pch object file
+              if (target->GetType() != cmStateEnums::OBJECT_LIBRARY) {
+                std::string linkerProperty = "LINK_FLAGS_";
+                if (target->GetType() == cmStateEnums::STATIC_LIBRARY) {
+                  linkerProperty = "STATIC_LIBRARY_FLAGS_";
+                }
                 target->Target->AppendProperty(
-                  cmStrCat("LINK_FLAGS_", configUpper),
+                  cmStrCat(linkerProperty, configUpper),
                   cmStrCat(" ",
                            this->ConvertToOutputFormat(pchSourceObj, SHELL)),
                   true);
+              } else {
+                target->Target->AppendProperty(
+                  "INTERFACE_LINK_LIBRARIES",
+                  cmStrCat("$<$<CONFIG:", config,
+                           ">:$<LINK_ONLY:", pchSourceObj, ">>"));
               }
             }
           } else {
@@ -2633,7 +2637,7 @@ void cmLocalGenerator::AddPchDependencies(cmGeneratorTarget* target)
 
           // Add pchHeader to source files, which will
           // be grouped as "Precompile Header File"
-          auto pchHeader_sf = this->Makefile->GetOrCreateSource(
+          auto* pchHeader_sf = this->Makefile->GetOrCreateSource(
             pchHeader, false, cmSourceFileLocationKind::Known);
           std::string err;
           pchHeader_sf->ResolveFullPath(&err);
@@ -2743,7 +2747,7 @@ void cmLocalGenerator::CopyPchCompilePdb(
     this->AddCustomCommandToTarget(
       target->GetName(), outputs, no_deps, commandLines,
       cmCustomCommandType::PRE_BUILD, no_message, no_current_dir, true, false,
-      "", "", false, cmObjectLibraryCommands::Reject, stdPipesUTF8);
+      "", "", false, cmObjectLibraryCommands::Accept, stdPipesUTF8);
   } else {
     cmImplicitDependsList no_implicit_depends;
     cmSourceFile* copy_rule = this->AddCustomCommandToOutput(
@@ -2768,17 +2772,32 @@ inline void RegisterUnitySources(cmGeneratorTarget* target, cmSourceFile* sf,
   target->AddSourceFileToUnityBatch(sf->ResolveFullPath());
   sf->SetProperty("UNITY_SOURCE_FILE", filename.c_str());
 }
+}
 
-inline void IncludeFileInUnitySources(cmGeneratedFileStream& unity_file,
-                                      std::string const& sf_full_path,
-                                      cmProp beforeInclude,
-                                      cmProp afterInclude, cmProp uniqueIdName)
+void cmLocalGenerator::IncludeFileInUnitySources(
+  cmGeneratedFileStream& unity_file, std::string const& sf_full_path,
+  cmProp beforeInclude, cmProp afterInclude, cmProp uniqueIdName) const
 {
-
   if (uniqueIdName && !uniqueIdName->empty()) {
-    unity_file << "#undef " << *uniqueIdName << "\n"
+    std::string pathToHash;
+    auto PathEqOrSubDir = [](std::string const& a, std::string const& b) {
+      return (cmSystemTools::ComparePath(a, b) ||
+              cmSystemTools::IsSubDirectory(a, b));
+    };
+    const auto path = cmSystemTools::GetFilenamePath(sf_full_path);
+    if (PathEqOrSubDir(path, this->GetBinaryDirectory())) {
+      pathToHash = "BLD_" +
+        cmSystemTools::RelativePath(this->GetBinaryDirectory(), sf_full_path);
+    } else if (PathEqOrSubDir(path, this->GetSourceDirectory())) {
+      pathToHash = "SRC_" +
+        cmSystemTools::RelativePath(this->GetSourceDirectory(), sf_full_path);
+    } else {
+      pathToHash = "ABS_" + sf_full_path;
+    }
+    unity_file << "/* " << pathToHash << " */\n"
+               << "#undef " << *uniqueIdName << "\n"
                << "#define " << *uniqueIdName << " unity_"
-               << cmSystemTools::ComputeStringMD5(sf_full_path) << "\n";
+               << cmSystemTools::ComputeStringMD5(pathToHash) << "\n";
   }
 
   if (beforeInclude) {
@@ -2790,9 +2809,10 @@ inline void IncludeFileInUnitySources(cmGeneratedFileStream& unity_file,
   if (afterInclude) {
     unity_file << *afterInclude << "\n";
   }
+  unity_file << "\n";
 }
 
-std::vector<std::string> AddUnityFilesModeAuto(
+std::vector<std::string> cmLocalGenerator::AddUnityFilesModeAuto(
   cmGeneratorTarget* target, std::string const& lang,
   std::vector<cmSourceFile*> const& filtered_sources, cmProp beforeInclude,
   cmProp afterInclude, std::string const& filename_base, size_t batchSize)
@@ -2835,7 +2855,7 @@ std::vector<std::string> AddUnityFilesModeAuto(
   return unity_files;
 }
 
-std::vector<std::string> AddUnityFilesModeGroup(
+std::vector<std::string> cmLocalGenerator::AddUnityFilesModeGroup(
   cmGeneratorTarget* target, std::string const& lang,
   std::vector<cmSourceFile*> const& filtered_sources, cmProp beforeInclude,
   cmProp afterInclude, std::string const& filename_base)
@@ -2882,7 +2902,6 @@ std::vector<std::string> AddUnityFilesModeGroup(
   }
 
   return unity_files;
-}
 }
 
 void cmLocalGenerator::AddUnityBuild(cmGeneratorTarget* target)
@@ -2946,7 +2965,7 @@ void cmLocalGenerator::AddUnityBuild(cmGeneratorTarget* target)
     }
 
     for (auto const& file : unity_files) {
-      auto unity = this->GetMakefile()->GetOrCreateSource(file);
+      auto* unity = this->GetMakefile()->GetOrCreateSource(file);
       target->AddSource(file, true);
       unity->SetProperty("SKIP_UNITY_BUILD_INCLUSION", "ON");
       unity->SetProperty("UNITY_SOURCE_FILE", file.c_str());
@@ -4024,26 +4043,23 @@ cmSourceFile* AddCustomCommand(
 bool AnyOutputMatches(const std::string& name,
                       const std::vector<std::string>& outputs)
 {
-  for (std::string const& output : outputs) {
-    std::string::size_type pos = output.rfind(name);
-    // If the output matches exactly
-    if (pos != std::string::npos && pos == output.size() - name.size() &&
-        (pos == 0 || output[pos - 1] == '/')) {
-      return true;
-    }
-  }
-  return false;
+  return std::any_of(outputs.begin(), outputs.end(),
+                     [&name](std::string const& output) -> bool {
+                       std::string::size_type pos = output.rfind(name);
+                       // If the output matches exactly
+                       return (pos != std::string::npos &&
+                               pos == output.size() - name.size() &&
+                               (pos == 0 || output[pos - 1] == '/'));
+                     });
 }
 
 bool AnyTargetCommandOutputMatches(
   const std::string& name, const std::vector<cmCustomCommand>& commands)
 {
-  for (cmCustomCommand const& command : commands) {
-    if (AnyOutputMatches(name, command.GetByproducts())) {
-      return true;
-    }
-  }
-  return false;
+  return std::any_of(commands.begin(), commands.end(),
+                     [&name](cmCustomCommand const& command) -> bool {
+                       return AnyOutputMatches(name, command.GetByproducts());
+                     });
 }
 }
 

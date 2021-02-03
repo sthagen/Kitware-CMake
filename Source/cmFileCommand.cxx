@@ -334,7 +334,7 @@ bool HandleStringsCommand(std::vector<std::string> const& args,
     arg_limit_count,
     arg_length_minimum,
     arg_length_maximum,
-    arg__maximum,
+    arg_maximum,
     arg_regex,
     arg_encoding
   };
@@ -558,8 +558,7 @@ bool HandleStringsCommand(std::vector<std::string> const& args,
       // back subsequent characters
       if ((current_str.length() != num_utf8_bytes)) {
         for (unsigned int j = 0; j < current_str.size() - 1; j++) {
-          c = current_str[current_str.size() - 1 - j];
-          fin.putback(static_cast<char>(c));
+          fin.putback(current_str[current_str.size() - 1 - j]);
         }
         current_str.clear();
       }
@@ -2291,7 +2290,8 @@ void AddEvaluationFile(const std::string& inputName,
                        const std::string& targetName,
                        const std::string& outputExpr,
                        const std::string& condition, bool inputIsContent,
-                       mode_t permissions, cmExecutionStatus& status)
+                       const std::string& newLineCharacter, mode_t permissions,
+                       cmExecutionStatus& status)
 {
   cmListFileBacktrace lfbt = status.GetMakefile().GetBacktrace();
 
@@ -2305,7 +2305,7 @@ void AddEvaluationFile(const std::string& inputName,
 
   status.GetMakefile().AddEvaluationFile(
     inputName, targetName, std::move(outputCge), std::move(conditionCge),
-    permissions, inputIsContent);
+    newLineCharacter, permissions, inputIsContent);
 }
 
 bool HandleGenerateCommand(std::vector<std::string> const& args,
@@ -2323,6 +2323,7 @@ bool HandleGenerateCommand(std::vector<std::string> const& args,
     std::string Content;
     std::string Condition;
     std::string Target;
+    std::string NewLineStyle;
     bool NoSourcePermissions = false;
     bool UseSourcePermissions = false;
     std::vector<std::string> FilePermissions;
@@ -2337,7 +2338,8 @@ bool HandleGenerateCommand(std::vector<std::string> const& args,
       .Bind("TARGET"_s, &Arguments::Target)
       .Bind("NO_SOURCE_PERMISSIONS"_s, &Arguments::NoSourcePermissions)
       .Bind("USE_SOURCE_PERMISSIONS"_s, &Arguments::UseSourcePermissions)
-      .Bind("FILE_PERMISSIONS"_s, &Arguments::FilePermissions);
+      .Bind("FILE_PERMISSIONS"_s, &Arguments::FilePermissions)
+      .Bind("NEWLINE_STYLE"_s, &Arguments::NewLineStyle);
 
   std::vector<std::string> unparsedArguments;
   std::vector<std::string> keywordsMissingValues;
@@ -2399,6 +2401,18 @@ bool HandleGenerateCommand(std::vector<std::string> const& args,
   const bool inputIsContent = parsedKeywords[1] != "INPUT"_s;
   if (inputIsContent && parsedKeywords[1] != "CONTENT") {
     status.SetError("Unknown argument to GENERATE subcommand.");
+  }
+
+  const bool newLineStyleSpecified =
+    std::find(parsedKeywords.begin(), parsedKeywords.end(),
+              "NEWLINE_STYLE"_s) != parsedKeywords.end();
+  cmNewLineStyle newLineStyle;
+  if (newLineStyleSpecified) {
+    std::string errorMessage;
+    if (!newLineStyle.ReadFromArguments(args, errorMessage)) {
+      status.SetError(cmStrCat("GENERATE ", errorMessage));
+      return false;
+    }
   }
 
   std::string input = arguments.Input;
@@ -2464,7 +2478,8 @@ bool HandleGenerateCommand(std::vector<std::string> const& args,
   }
 
   AddEvaluationFile(input, arguments.Target, arguments.Output,
-                    arguments.Condition, inputIsContent, permisiions, status);
+                    arguments.Condition, inputIsContent,
+                    newLineStyle.GetCharacters(), permisiions, status);
   return true;
 }
 
@@ -3106,11 +3121,11 @@ bool HandleConfigureCommand(std::vector<std::string> const& args,
     cmSystemTools::MakeDirectory(path);
   }
 
-  std::string newLineCharacters;
+  std::string newLineCharacters = "\n";
   bool open_with_binary_flag = false;
   if (newLineStyle.IsValid()) {
-    open_with_binary_flag = true;
     newLineCharacters = newLineStyle.GetCharacters();
+    open_with_binary_flag = true;
   }
 
   cmGeneratedFileStream fout;
@@ -3127,11 +3142,15 @@ bool HandleConfigureCommand(std::vector<std::string> const& args,
   std::stringstream sin(parsedArgs.Content, std::ios::in);
   std::string inLine;
   std::string outLine;
-  while (cmSystemTools::GetLineFromStream(sin, inLine)) {
+  bool hasNewLine = false;
+  while (cmSystemTools::GetLineFromStream(sin, inLine, &hasNewLine)) {
     outLine.clear();
     makeFile.ConfigureString(inLine, outLine, parsedArgs.AtOnly,
                              parsedArgs.EscapeQuotes);
-    fout << outLine << newLineCharacters;
+    fout << outLine;
+    if (hasNewLine || newLineStyle.IsValid()) {
+      fout << newLineCharacters;
+    }
   }
 
   // close file before attempting to copy

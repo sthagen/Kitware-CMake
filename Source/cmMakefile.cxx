@@ -865,13 +865,13 @@ void cmMakefile::EnforceDirectoryLevelRules() const
 void cmMakefile::AddEvaluationFile(
   const std::string& inputFile, const std::string& targetName,
   std::unique_ptr<cmCompiledGeneratorExpression> outputName,
-  std::unique_ptr<cmCompiledGeneratorExpression> condition, mode_t permissions,
-  bool inputIsContent)
+  std::unique_ptr<cmCompiledGeneratorExpression> condition,
+  const std::string& newLineCharacter, mode_t permissions, bool inputIsContent)
 {
   this->EvaluationFiles.push_back(
     cm::make_unique<cmGeneratorExpressionEvaluationFile>(
       inputFile, targetName, std::move(outputName), std::move(condition),
-      inputIsContent, permissions,
+      inputIsContent, newLineCharacter, permissions,
       this->GetPolicyStatus(cmPolicies::CMP0070)));
 }
 
@@ -1824,7 +1824,7 @@ void cmMakefile::AddSubDirectory(const std::string& srcPath,
 
   auto subMfu =
     cm::make_unique<cmMakefile>(this->GlobalGenerator, newSnapshot);
-  auto subMf = subMfu.get();
+  auto* subMf = subMfu.get();
   this->GetGlobalGenerator()->AddMakefile(std::move(subMfu));
 
   if (excludeFromAll) {
@@ -1838,7 +1838,7 @@ void cmMakefile::AddSubDirectory(const std::string& srcPath,
   }
 
   this->AddInstallGenerator(cm::make_unique<cmInstallSubdirectoryGenerator>(
-    subMf, binPath, excludeFromAll));
+    subMf, binPath, excludeFromAll, this->GetBacktrace()));
 }
 
 const std::string& cmMakefile::GetCurrentSourceDirectory() const
@@ -3370,7 +3370,7 @@ cmSourceFile* cmMakefile::GetSource(const std::string& sourceName,
 #endif
   auto sfsi = this->SourceFileSearchIndex.find(name);
   if (sfsi != this->SourceFileSearchIndex.end()) {
-    for (auto sf : sfsi->second) {
+    for (auto* sf : sfsi->second) {
       if (sf->Matches(sfl)) {
         return sf;
       }

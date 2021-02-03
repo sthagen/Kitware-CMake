@@ -4051,7 +4051,7 @@ std::string cmGeneratorTarget::GetPchFileObject(const std::string& config,
     }
     std::string& filename = inserted.first->second;
 
-    auto pchSf = this->Makefile->GetOrCreateSource(
+    auto* pchSf = this->Makefile->GetOrCreateSource(
       pchSource, false, cmSourceFileLocationKind::Known);
 
     filename = cmStrCat(this->ObjectDirectory, this->GetObjectName(pchSf));
@@ -6491,15 +6491,14 @@ bool cmGeneratorTarget::ComputeOutputDir(const std::string& config,
   if (cmProp config_outdir = this->GetProperty(configProp)) {
     // Use the user-specified per-configuration output directory.
     out = cmGeneratorExpression::Evaluate(*config_outdir, this->LocalGenerator,
-                                          config);
+                                          config, this);
 
     // Skip per-configuration subdirectory.
     conf.clear();
   } else if (cmProp outdir = this->GetProperty(propertyName)) {
     // Use the user-specified output directory.
-    out =
-      cmGeneratorExpression::Evaluate(*outdir, this->LocalGenerator, config);
-
+    out = cmGeneratorExpression::Evaluate(*outdir, this->LocalGenerator,
+                                          config, this);
     // Skip per-configuration subdirectory if the value contained a
     // generator expression.
     if (out != *outdir) {
@@ -7360,7 +7359,7 @@ void cmGeneratorTarget::ComputeLinkImplementationLibraries(
       std::string name = this->CheckCMP0004(lib);
       if (this->GetPolicyStatusCMP0108() == cmPolicies::NEW) {
         // resolve alias name
-        auto target = this->Makefile->FindTargetToUse(name);
+        auto* target = this->Makefile->FindTargetToUse(name);
         if (target) {
           name = target->GetName();
         }

@@ -197,6 +197,9 @@ if(CMake_TEST_Qt5 AND Qt5Widgets_FOUND)
   set(autogen_with_qt5 TRUE)
 endif ()
 add_RunCMake_test(Autogen -Dwith_qt5=${autogen_with_qt5})
+
+add_RunCMake_test(ArtifactOutputDirs)
+
 if(NOT DEFINED CMake_TEST_BuildDepends_GNU_AS
     AND CMAKE_C_COMPILER_ID STREQUAL "GNU"
     AND CMAKE_GENERATOR MATCHES "^Ninja"
@@ -236,6 +239,9 @@ add_RunCMake_test(FileAPI -DPYTHON_EXECUTABLE=${PYTHON_EXECUTABLE}
 add_RunCMake_test(FindBoost)
 add_RunCMake_test(FindLua)
 add_RunCMake_test(FindOpenGL)
+if(CMake_TEST_FindOpenSSL)
+  add_RunCMake_test(FindOpenSSL)
+endif()
 if(CMake_TEST_UseSWIG)
   add_RunCMake_test(FindSWIG)
   add_RunCMake_test(UseSWIG -DCMake_TEST_FindPython=${CMake_TEST_FindPython})
@@ -265,7 +271,7 @@ add_RunCMake_test(Graphviz)
 add_RunCMake_test(TargetPropertyGeneratorExpressions)
 add_RunCMake_test(Languages)
 add_RunCMake_test(LinkStatic)
-if(CMAKE_CXX_COMPILER_ID MATCHES "^(Cray|PGI|XL|XLClang)$")
+if(CMAKE_CXX_COMPILER_ID MATCHES "^(Cray|PGI|NVHPC|XL|XLClang)$")
   add_RunCMake_test(MetaCompileFeatures)
 endif()
 if(MSVC)
@@ -796,7 +802,10 @@ add_RunCMake_test(PrecompileHeaders -DCMAKE_C_COMPILER_ID=${CMAKE_C_COMPILER_ID}
 
 add_RunCMake_test("UnityBuild")
 add_RunCMake_test(CMakePresets -DPYTHON_EXECUTABLE=${PYTHON_EXECUTABLE} -DCMake_TEST_JSON_SCHEMA=${CMake_TEST_JSON_SCHEMA})
-add_RunCMake_test(TransformDepfile)
+
+if(${CMAKE_GENERATOR} MATCHES "Make|Ninja")
+  add_RunCMake_test(TransformDepfile)
+endif()
 
 if(WIN32)
   add_RunCMake_test(Win32GenEx)
