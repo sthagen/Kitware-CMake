@@ -29,7 +29,10 @@ is using Git, ``CMakePresets.json`` may be tracked, and
 Format
 ======
 
-The files are a JSON document with an object as the root:
+The files are JSON documents.  C-style comments are allowed using
+line-wise ``//`` syntax or block ``/*...*/`` syntax.
+
+Each document has an object as the root:
 
 .. literalinclude:: presets/example.json
   :language: json
@@ -38,8 +41,8 @@ The root object recognizes the following fields:
 
 ``version``
 
-  A required integer representing the version of the JSON schema. Currently,
-  the only supported version is 1.
+  A required integer representing the version of the JSON schema.
+  The supported versions are ``1`` and ``2``.
 
 ``cmakeMinimumRequired``
 
@@ -70,14 +73,17 @@ The root object recognizes the following fields:
 ``configurePresets``
 
   An optional array of `Configure Preset`_ objects.
+  This is allowed in preset files specifying version 1 or above.
 
 ``buildPresets``
 
   An optional array of `Build Preset`_ objects.
+  This is allowed in preset files specifying version 2 or above.
 
 ``testPresets``
 
   An optional array of `Test Preset`_ objects.
+  This is allowed in preset files specifying version 2 or above.
 
 Configure Preset
 ^^^^^^^^^^^^^^^^
@@ -88,9 +94,10 @@ that may contain the following fields:
 ``name``
 
   A required string representing the machine-friendly name of the preset.
-  This identifier is used in the ``--preset`` argument. There must not be
-  two presets in the union of ``CMakePresets.json`` and
-  ``CMakeUserPresets.json`` in the same directory with the same name.
+  This identifier is used in the :ref:`cmake --preset <CMake Options>` option.
+  There must not be two configure presets in the union of ``CMakePresets.json``
+  and ``CMakeUserPresets.json`` in the same directory with the same name.
+  However, a configure preset may have the same name as a build or test preset.
 
 ``hidden``
 
@@ -306,10 +313,11 @@ that may contain the following fields:
 ``name``
 
   A required string representing the machine-friendly name of the preset.
-  This identifier is used in the ``--preset`` argument. There must not be
-  two presets (configure, build, or test) in the union of
-  ``CMakePresets.json`` and ``CMakeUserPresets.json`` in the same
-  directory with the same name.
+  This identifier is used in the
+  :ref:`cmake --build --preset <Build Tool Mode>` option.
+  There must not be two build presets in the union of ``CMakePresets.json``
+  and ``CMakeUserPresets.json`` in the same directory with the same name.
+  However, a build preset may have the same name as a configure or test preset.
 
 ``hidden``
 
@@ -373,8 +381,9 @@ that may contain the following fields:
   An optional string specifying the name of a configure preset to
   associate with this build preset. If ``configurePreset`` is not
   specified, it must be inherited from the inherits preset (unless this
-  preset is hidden). The build tree directory is inferred from the
-  configure preset.
+  preset is hidden). The build directory is inferred from the configure
+  preset, so the build will take place in the same ``binaryDir`` that the
+  configuration did.
 
 ``inheritConfigureEnvironment``
 
@@ -424,10 +433,10 @@ that may contain the following fields:
 ``name``
 
   A required string representing the machine-friendly name of the preset.
-  This identifier is used in the ``--preset`` argument. There must not be
-  two presets (configure, build, or test) in the union of
-  ``CMakePresets.json`` and ``CMakeUserPresets.json`` in the same
-  directory with the same name.
+  This identifier is used in the :ref:`ctest --preset <CTest Options>` option.
+  There must not be two test presets in the union of ``CMakePresets.json``
+  and ``CMakeUserPresets.json`` in the same directory with the same name.
+  However, a test preset may have the same name as a configure or build preset.
 
 ``hidden``
 
@@ -491,8 +500,9 @@ that may contain the following fields:
   An optional string specifying the name of a configure preset to
   associate with this test preset. If ``configurePreset`` is not
   specified, it must be inherited from the inherits preset (unless this
-  preset is hidden). The build tree directory is inferred from the
-  configure preset.
+  preset is hidden). The build directory is inferred from the configure
+  preset, so tests will run in the same ``binaryDir`` that the
+  configuration did and build did.
 
 ``inheritConfigureEnvironment``
 
@@ -720,11 +730,6 @@ that may contain the following fields:
     ``human``
 
     ``json-v1``
-
-  ``rerunFailed``
-
-    An optional bool. If true, equivalent to passing ``--rerun-failed`` on
-    the command line.
 
   ``repeat``
 
