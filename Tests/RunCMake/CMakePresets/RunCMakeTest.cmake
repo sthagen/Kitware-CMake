@@ -63,6 +63,7 @@ endfunction()
 # Test CMakePresets.json errors
 set(CMakePresets_SCHEMA_EXPECTED_RESULT 1)
 run_cmake_presets(NoCMakePresets)
+run_cmake_presets(Comment)
 run_cmake_presets(JSONParseError)
 run_cmake_presets(InvalidRoot)
 run_cmake_presets(NoVersion)
@@ -143,7 +144,8 @@ run_cmake_presets(GoodBinaryUp)
 set(CMakePresets_SOURCE_ARG "../GoodBinaryRelative")
 run_cmake_presets(GoodBinaryRelative)
 unset(CMakePresets_SOURCE_ARG)
-run_cmake_presets(GoodSpaces "--preset=Good Spaces")
+run_cmake_presets(GoodSpaces "--preset" "Good Spaces")
+run_cmake_presets(GoodSpacesEq "--preset=Good Spaces")
 if(WIN32)
   run_cmake_presets(GoodWindowsBackslash)
 endif()
@@ -206,7 +208,8 @@ endif()
 
 # Test bad command line arguments
 run_cmake_presets(NoSuchPreset)
-run_cmake_presets(NoPresetArgument --preset=)
+run_cmake_presets(NoPresetArgument --preset)
+run_cmake_presets(NoPresetArgumentEq --preset= -DA=B)
 run_cmake_presets(UseHiddenPreset)
 
 # Test CMakeUserPresets.json
