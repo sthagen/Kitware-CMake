@@ -63,13 +63,16 @@ endfunction()
 set(CMakePresets_SCHEMA_EXPECTED_RESULT 0)
 
 run_cmake_build_presets(Good "default;other" "build-other;withEnvironment;noEnvironment;macros;vendorObject")
+run_cmake_build_presets(InvalidConfigurePreset "default" "badConfigurePreset")
+run_cmake_build_presets(Condition "default" "enabled;disabled")
 
 set(CMakePresetsBuild_BUILD_ONLY 1)
 run_cmake_build_presets(ListPresets "x" "x" "--list-presets")
 run_cmake_build_presets(NoConfigurePreset "x" "noConfigurePreset")
-run_cmake_build_presets(Invalid "x" "hidden;vendorMacro;badConfigurePreset")
+run_cmake_build_presets(Invalid "x" "hidden;vendorMacro")
 
 set(CMakePresets_SCHEMA_EXPECTED_RESULT 1)
 run_cmake_build_presets(PresetsUnsupported "x" "x")
+run_cmake_build_presets(ConditionFuture "x" "conditionFuture")
 set(CMakePresets_SCHEMA_EXPECTED_RESULT 0)
 set(CMakePresetsBuild_BUILD_ONLY 0)

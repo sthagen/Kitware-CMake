@@ -261,6 +261,7 @@ if(NOT MATLAB_ADDITIONAL_VERSIONS)
 endif()
 
 set(MATLAB_VERSIONS_MAPPING
+  "R2021a=9.10"
   "R2020b=9.9"
   "R2020a=9.8"
   "R2019b=9.7"
@@ -1854,8 +1855,15 @@ endif()
 
 set(Matlab_LIBRARIES
   ${Matlab_MEX_LIBRARY} ${Matlab_MX_LIBRARY}
-  ${Matlab_ENG_LIBRARY} ${Matlab_MAT_LIBRARY}
-  ${Matlab_DATAARRAY_LIBRARY} ${Matlab_ENGINE_LIBRARY})
+  ${Matlab_ENG_LIBRARY} ${Matlab_MAT_LIBRARY})
+
+if(Matlab_ENGINE_LIBRARY)
+  list(APPEND Matlab_LIBRARIES ${Matlab_ENGINE_LIBRARY})
+endif()
+
+if(Matlab_DATAARRAY_LIBRARY)
+  list(APPEND Matlab_LIBRARIES ${Matlab_DATAARRAY_LIBRARY})
+endif()
 
 find_package_handle_standard_args(
   Matlab

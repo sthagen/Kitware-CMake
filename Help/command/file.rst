@@ -39,6 +39,7 @@ Synopsis
   `Filesystem`_
     file({`GLOB`_ | `GLOB_RECURSE`_} <out-var> [...] [<globbing-expr>...])
     file(`RENAME`_ <oldname> <newname> [...])
+    file(`COPY_FILE`_ <oldname> <newname> [...])
     file({`REMOVE`_ | `REMOVE_RECURSE`_ } [<files>...])
     file(`MAKE_DIRECTORY`_ [<dir>...])
     file({`COPY`_ | `INSTALL`_} <file>... DESTINATION <dir> [...])
@@ -49,7 +50,7 @@ Synopsis
     file(`CHMOD_RECURSE`_ <files>... <directories>... PERMISSIONS <permissions>... [...])
 
   `Path Conversion`_
-    file(`REAL_PATH`_ <path> <out-var> [BASE_DIRECTORY <dir>])
+    file(`REAL_PATH`_ <path> <out-var> [BASE_DIRECTORY <dir>] [EXPAND_TILDE])
     file(`RELATIVE_PATH`_ <out-var> <directory> <file>)
     file({`TO_CMAKE_PATH`_ | `TO_NATIVE_PATH`_} <path> <out-var>)
 
@@ -480,8 +481,8 @@ modified.
   file(GENERATE OUTPUT output-file
        <INPUT input-file|CONTENT content>
        [CONDITION expression] [TARGET target]
-       [FILE_PERMISSIONS <permissions>...]
-       [NO_SOURCE_PERMISSIONS] [USE_SOURCE_PERMISSIONS]
+       [NO_SOURCE_PERMISSIONS | USE_SOURCE_PERMISSIONS |
+        FILE_PERMISSIONS <permissions>...]
        [NEWLINE_STYLE [UNIX|DOS|WIN32|LF|CRLF] ])
 
 Generate an output file for each build configuration supported by the current
@@ -523,16 +524,26 @@ from the input content to produce the output content.  The options are:
   require a target for evaluation (e.g. ``$<COMPILE_FEATURES:...>``,
   ``$<TARGET_PROPERTY:prop>``).
 
-``FILE_PERMISSIONS <permissions>...``
-  Use user provided permissions for the generated file.
-
 ``NO_SOURCE_PERMISSIONS``
+  .. versionadded:: 3.20
+
   The generated file permissions default to the standard 644 value
   (-rw-r--r--).
 
 ``USE_SOURCE_PERMISSIONS``
-  Transfer the file permissions of the original file to the generated file.
-  This option expects INPUT option.
+  .. versionadded:: 3.20
+
+  Transfer the file permissions of the ``INPUT`` file to the generated file.
+  This is already the default behavior if none of the three permissions-related
+  keywords are given (``NO_SOURCE_PERMISSIONS``, ``USE_SOURCE_PERMISSIONS``
+  or ``FILE_PERMISSIONS``).  The ``USE_SOURCE_PERMISSIONS`` keyword mostly
+  serves as a way of making the intended behavior clearer at the call site.
+  It is an error to specify this option without ``INPUT``.
+
+``FILE_PERMISSIONS <permissions>...``
+  .. versionadded:: 3.20
+
+  Use the specified permissions for the generated file.
 
 ``NEWLINE_STYLE <style>``
   .. versionadded:: 3.20
@@ -683,6 +694,28 @@ The options are:
   If ``RESULT <result>`` is used, the result variable will be
   set to ``NO_REPLACE``.  Otherwise, an error is emitted.
 
+.. _COPY_FILE:
+
+.. code-block:: cmake
+
+  file(COPY_FILE <oldname> <newname>
+       [RESULT <result>]
+       [ONLY_IF_DIFFERENT])
+
+Copy a file from ``<oldname>`` to ``<newname>``. Directories are not
+supported. Symlinks are ignored and ``<oldfile>``'s content is read and
+written to ``<newname>`` as a new file.
+
+The options are:
+
+``RESULT <result>``
+  Set ``<result>`` variable to ``0`` on success or an error message otherwise.
+  If ``RESULT`` is not specified and the operation fails, an error is emitted.
+
+``ONLY_IF_DIFFERENT``
+  If the ``<newname>`` path already exists, do not replace it if it is the
+  same as ``<oldname>``. Otherwise, an error is emitted.
+
 .. _REMOVE:
 .. _REMOVE_RECURSE:
 
@@ -715,9 +748,9 @@ Create the given directories and their parents as needed.
 .. code-block:: cmake
 
   file(<COPY|INSTALL> <files>... DESTINATION <dir>
+       [NO_SOURCE_PERMISSIONS | USE_SOURCE_PERMISSIONS]
        [FILE_PERMISSIONS <permissions>...]
        [DIRECTORY_PERMISSIONS <permissions>...]
-       [NO_SOURCE_PERMISSIONS] [USE_SOURCE_PERMISSIONS]
        [FOLLOW_SYMLINK_CHAIN]
        [FILES_MATCHING]
        [[PATTERN <pattern> | REGEX <regex>]
@@ -891,16 +924,26 @@ Path Conversion
 
 .. code-block:: cmake
 
-  file(REAL_PATH <path> <out-var> [BASE_DIRECTORY <dir>])
+  file(REAL_PATH <path> <out-var> [BASE_DIRECTORY <dir>] [EXPAND_TILDE])
 
 .. versionadded:: 3.19
 
 Compute the absolute path to an existing file or directory with symlinks
 resolved.
 
-If the provided ``<path>`` is a relative path, it is evaluated relative to the
-given base directory ``<dir>``. If no base directory is provided, the default
-base directory will be :variable:`CMAKE_CURRENT_SOURCE_DIR`.
+``BASE_DIRECTORY <dir>``
+  If the provided ``<path>`` is a relative path, it is evaluated relative to the
+  given base directory ``<dir>``. If no base directory is provided, the default
+  base directory will be :variable:`CMAKE_CURRENT_SOURCE_DIR`.
+
+``EXPAND_TILDE``
+  .. versionadded:: 3.21
+
+  If the ``<path>`` is ``~`` or starts with ``~/``, the ``~`` is replaced by
+  the user's home directory.  The path to the home directory is obtained from
+  environment variables.  On Windows, the ``USERPROFILE`` environment variable
+  is used, falling back to the ``HOME`` environment variable if ``USERPROFILE``
+  is not defined.  On all other platforms, only ``HOME`` is used.
 
 .. _RELATIVE_PATH:
 
@@ -925,7 +968,8 @@ system search path like ``$ENV{PATH}``.  A search path will be converted
 to a cmake-style list separated by ``;`` characters.
 
 The ``TO_NATIVE_PATH`` mode converts a cmake-style ``<path>`` into a native
-path with platform-specific slashes (``\`` on Windows and ``/`` elsewhere).
+path with platform-specific slashes (``\`` on Windows hosts and ``/``
+elsewhere).
 
 Always use double quotes around the ``<path>`` to be sure it is treated
 as a single argument to this command.

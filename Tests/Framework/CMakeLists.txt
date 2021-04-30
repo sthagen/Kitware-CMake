@@ -1,4 +1,4 @@
-cmake_minimum_required (VERSION 2.6)
+cmake_minimum_required (VERSION 2.8.12)
 project(Framework)
 
 add_library(foo SHARED
@@ -81,6 +81,16 @@ if(NOT XCODE OR NOT XCODE_VERSION VERSION_LESS 5)
   )
   add_executable(barStatic bar.cxx)
   target_link_libraries(barStatic fooStatic)
+endif()
+
+if(MAKE_SUPPORTS_SPACES AND NOT CMAKE_GENERATOR STREQUAL "Watcom WMake")
+  add_library(space SHARED space.c)
+  set_target_properties(space PROPERTIES
+    FRAMEWORK TRUE
+    OUTPUT_NAME "space space"
+    )
+  add_executable(use_space use_space.c)
+  target_link_libraries(use_space PRIVATE space)
 endif()
 
 include(CPack)

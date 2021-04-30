@@ -18,10 +18,6 @@
             "environment": {
                 "TEST": "$vendor{bad.TEST}"
             }
-        },
-        {
-            "name": "badConfigurePreset",
-            "configurePreset": "dne"
         }
     ]
 }

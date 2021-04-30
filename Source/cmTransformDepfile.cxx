@@ -2,6 +2,7 @@
    file Copyright.txt or https://cmake.org/licensing for details.  */
 #include "cmTransformDepfile.h"
 
+#include <functional>
 #include <string>
 #include <type_traits>
 #include <utility>
@@ -13,6 +14,7 @@
 
 #include "cmGccDepfileReader.h"
 #include "cmGccDepfileReaderTypes.h"
+#include "cmGlobalGenerator.h"
 #include "cmLocalGenerator.h"
 #include "cmSystemTools.h"
 
@@ -34,10 +36,19 @@ void WriteFilenameGcc(cmsys::ofstream& fout, const std::string& filename)
   }
 }
 
-void WriteGccDepfile(cmsys::ofstream& fout, const cmLocalGenerator& lg,
-                     const cmGccDepfileContent& content)
+void WriteDepfile(cmDepfileFormat format, cmsys::ofstream& fout,
+                  const cmLocalGenerator& lg,
+                  const cmGccDepfileContent& content)
 {
   const auto& binDir = lg.GetBinaryDirectory();
+  std::function<std::string(const std::string&)> formatPath =
+    [&lg, &binDir](const std::string& path) -> std::string {
+    return lg.MaybeConvertToRelativePath(binDir, path);
+  };
+  if (lg.GetGlobalGenerator()->GetName() == "Xcode") {
+    // full paths must be preserved for Xcode compliance
+    formatPath = [](const std::string& path) -> std::string { return path; };
+  }
 
   for (auto const& dep : content) {
     bool first = true;
@@ -46,14 +57,26 @@ void WriteGccDepfile(cmsys::ofstream& fout, const cmLocalGenerator& lg,
         fout << " \\\n  ";
       }
       first = false;
-      WriteFilenameGcc(fout, lg.MaybeConvertToRelativePath(binDir, rule));
+      WriteFilenameGcc(fout, formatPath(rule));
     }
     fout << ':';
     for (auto const& path : dep.paths) {
       fout << " \\\n  ";
-      WriteFilenameGcc(fout, lg.MaybeConvertToRelativePath(binDir, path));
+      WriteFilenameGcc(fout, formatPath(path));
     }
     fout << '\n';
+  }
+
+  if (format == cmDepfileFormat::MakeDepfile) {
+    // In this case, phony targets must be added for all dependencies
+    fout << "\n";
+    for (auto const& dep : content) {
+      for (auto const& path : dep.paths) {
+        fout << "\n";
+        WriteFilenameGcc(fout, formatPath(path));
+        fout << ":\n";
+      }
+    }
   }
 }
 
@@ -112,7 +135,8 @@ bool cmTransformDepfile(cmDepfileFormat format, const cmLocalGenerator& lg,
   }
   switch (format) {
     case cmDepfileFormat::GccDepfile:
-      WriteGccDepfile(fout, lg, content);
+    case cmDepfileFormat::MakeDepfile:
+      WriteDepfile(format, fout, lg, content);
       break;
     case cmDepfileFormat::VsTlog:
       WriteVsTlog(fout, lg, content);

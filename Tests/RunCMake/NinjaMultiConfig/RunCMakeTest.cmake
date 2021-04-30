@@ -193,8 +193,13 @@ run_cmake_build(SimpleCrossConfigs all-relwithdebinfo-in-release-graph Release a
 set(RunCMake_TEST_BINARY_DIR ${RunCMake_BINARY_DIR}/PostBuild-build)
 set(RunCMake_TEST_OPTIONS "-DCMAKE_CROSS_CONFIGS=all")
 run_cmake_configure(PostBuild)
+unset(RunCMake_TEST_OPTIONS)
 run_cmake_build(PostBuild release Release Exe)
 run_cmake_build(PostBuild debug-in-release-graph Release Exe:Debug)
+
+set(RunCMake_TEST_BINARY_DIR ${RunCMake_BINARY_DIR}/LongCommandLine-build)
+run_cmake_configure(LongCommandLine)
+run_cmake_build(LongCommandLine release Release custom)
 
 set(RunCMake_TEST_BINARY_DIR ${RunCMake_BINARY_DIR}/Framework-build)
 set(RunCMake_TEST_OPTIONS "-DCMAKE_CROSS_CONFIGS=all")
@@ -318,6 +323,20 @@ run_ninja(CustomCommandOutputGenex echo_no_cross_byproduct_if-debug build-Debug.
 run_ninja(CustomCommandOutputGenex clean-debug-graph build-Debug.ninja -t clean)
 run_ninja(CustomCommandOutputGenex echo_no_cross_byproduct_if-debug-in-release-graph build-Release.ninja echo_no_cross_byproduct_if:Debug)
 run_ninja(CustomCommandOutputGenex clean-release-graph build-Release.ninja -t clean)
+# echo_dbg
+run_ninja(CustomCommandOutputGenex echo_dbg-debug build-Debug.ninja echo_dbg)
+run_ninja(CustomCommandOutputGenex clean-debug-graph build-Debug.ninja -t clean)
+run_ninja(CustomCommandOutputGenex echo_dbg-release build-Release.ninja echo_dbg)
+run_ninja(CustomCommandOutputGenex clean-release-graph build-Release.ninja -t clean)
+run_ninja(CustomCommandOutputGenex echo_dbg-debug-in-release-graph build-Release.ninja echo_dbg:Debug)
+run_ninja(CustomCommandOutputGenex clean-release-graph build-Release.ninja -t clean)
+# echo_dbgx
+run_ninja(CustomCommandOutputGenex echo_dbgx-debug build-Debug.ninja echo_dbgx)
+run_ninja(CustomCommandOutputGenex clean-debug-graph build-Debug.ninja -t clean)
+run_ninja(CustomCommandOutputGenex echo_dbgx-release build-Release.ninja echo_dbgx)
+run_ninja(CustomCommandOutputGenex clean-release-graph build-Release.ninja -t clean)
+run_ninja(CustomCommandOutputGenex echo_dbgx-debug-in-release-graph build-Release.ninja echo_dbgx:Debug)
+run_ninja(CustomCommandOutputGenex clean-release-graph build-Release.ninja -t clean)
 # echo_target_raw
 run_ninja(CustomCommandOutputGenex echo_target_raw-debug build-Debug.ninja echo_target_raw:Debug)
 run_ninja(CustomCommandOutputGenex clean-debug-graph build-Debug.ninja -t clean)
@@ -345,6 +364,8 @@ run_ninja(CustomCommandOutputGenex target_no_cross_byproduct-debug build-Debug.n
 run_ninja(CustomCommandOutputGenex clean-debug-graph build-Debug.ninja -t clean)
 run_ninja(CustomCommandOutputGenex target_no_cross_byproduct-debug-in-release-graph build-Release.ninja target_no_cross_byproduct:Debug)
 run_ninja(CustomCommandOutputGenex clean-release-graph build-Release.ninja -t clean)
+# target_post_build
+run_ninja(CustomCommandOutputGenex target_post_build-debug build-Debug.ninja target_post_build)
 unset(RunCMake_TEST_NO_CLEAN)
 
 unset(RunCMake_TEST_BINARY_DIR)

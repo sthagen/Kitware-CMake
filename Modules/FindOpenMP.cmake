@@ -113,7 +113,12 @@ function(_OPENMP_FLAG_CANDIDATES LANG)
     else()
       set(OMP_FLAG_Intel "-qopenmp")
     endif()
-    set(OMP_FLAG_IntelLLVM "-fiopenmp")
+    if(CMAKE_${LANG}_COMPILER_ID STREQUAL "IntelLLVM" AND
+      "x${CMAKE_${LANG}_COMPILER_FRONTEND_VARIANT}" STREQUAL "xMSVC")
+      set(OMP_FLAG_IntelLLVM "-Qiopenmp")
+    else()
+      set(OMP_FLAG_IntelLLVM "-fiopenmp")
+    endif()
     set(OMP_FLAG_MSVC "-openmp")
     set(OMP_FLAG_PathScale "-openmp")
     set(OMP_FLAG_NAG "-openmp")
@@ -125,6 +130,8 @@ function(_OPENMP_FLAG_CANDIDATES LANG)
     set(OMP_FLAG_XL "-qsmp=omp")
     # Cray compiler activate OpenMP with -h omp, which is enabled by default.
     set(OMP_FLAG_Cray " " "-h omp")
+    set(OMP_FLAG_Fujitsu "-Kopenmp" "-KOMP")
+    set(OMP_FLAG_FujitsuClang "-fopenmp" "-Kopenmp")
 
     # If we know the correct flags, use those
     if(DEFINED OMP_FLAG_${CMAKE_${LANG}_COMPILER_ID})

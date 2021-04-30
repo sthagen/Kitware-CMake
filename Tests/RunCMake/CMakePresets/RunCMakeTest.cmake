@@ -94,6 +94,7 @@ run_cmake_presets(InvalidVariableValue)
 run_cmake_presets(ExtraRootField)
 run_cmake_presets(ExtraPresetField)
 run_cmake_presets(ExtraVariableField)
+run_cmake_presets(FuturePresetInstallDirField)
 run_cmake_presets(InvalidPresetVendor)
 set(CMakePresets_SCHEMA_EXPECTED_RESULT 0)
 run_cmake_presets(DuplicatePresets)
@@ -116,7 +117,10 @@ run_cmake_presets(NoSuchMacro)
 run_cmake_presets(EnvCycle)
 run_cmake_presets(EmptyEnv)
 run_cmake_presets(EmptyPenv)
+run_cmake_presets(InvalidRegex)
 set(CMakePresets_SCHEMA_EXPECTED_RESULT 1)
+run_cmake_presets(ConditionFuture)
+run_cmake_presets(SubConditionNull)
 
 # Test cmakeMinimumRequired field
 run_cmake_presets(MinimumRequiredInvalid)
@@ -181,6 +185,13 @@ run_cmake_presets(GoodInheritanceMulti)
 run_cmake_presets(GoodInheritanceMultiSecond)
 run_cmake_presets(GoodInheritanceMacro)
 
+set(CMakePresets_FILE "${RunCMake_SOURCE_DIR}/GoodInstall.json.in")
+run_cmake_presets(GoodInstallDefault)
+run_cmake_presets(GoodInstallInherit)
+run_cmake_presets(GoodInstallOverride)
+run_cmake_presets(GoodInstallCommandLine  "--install-prefix=${RunCMake_SOURCE_DIR}/path/passed/on/command_line")
+
+set(CMakePresets_FILE "${RunCMake_SOURCE_DIR}/CMakePresets.json.in")
 # Test bad preset arguments
 run_cmake_presets(VendorMacro)
 run_cmake_presets(InvalidGenerator)
@@ -252,6 +263,23 @@ unset(CMakePresets_WARN_UNUSED_CLI)
 set(CMakePresets_FILE "${RunCMake_SOURCE_DIR}/Debug.json.in")
 run_cmake_presets(NoDebug)
 run_cmake_presets(Debug)
+
+# Test ${hostSystemName} macro
+set(CMakePresets_FILE "${RunCMake_SOURCE_DIR}/HostSystemName.json.in")
+run_cmake_presets(HostSystemName)
+set(CMakePresets_FILE "${RunCMake_SOURCE_DIR}/HostSystemNameFuture.json.in")
+run_cmake_presets(HostSystemNameFuture)
+
+# Test conditions
+set(CMakePresets_FILE "${RunCMake_SOURCE_DIR}/Conditions.json.in")
+run_cmake_presets(ListConditions --list-presets)
+run_cmake_presets(SimpleTrue)
+run_cmake_presets(SimpleFalse)
+unset(CMakePresets_FILE)
+
+# Test optional generator and buildDir fields
+run_cmake_presets(OptionalBinaryDirField -B "${RunCMake_BINARY_DIR}/OptionalBinaryDirField/build")
+run_cmake_presets(OptionalGeneratorField -G "${RunCMake_GENERATOR}")
 
 # Test the example from the documentation
 file(READ "${RunCMake_SOURCE_DIR}/../../../Help/manual/presets/example.json" _example)

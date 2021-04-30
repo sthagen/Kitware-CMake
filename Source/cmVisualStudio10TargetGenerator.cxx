@@ -545,7 +545,7 @@ void cmVisualStudio10TargetGenerator::Generate()
           e1.Element(
             "CudaToolkitCustomDir",
             this->GlobalGenerator->GetPlatformToolsetCudaCustomDirString() +
-              "nvcc");
+              this->GlobalGenerator->GetPlatformToolsetCudaNvccSubdirString());
         }
       }
 
@@ -623,14 +623,14 @@ void cmVisualStudio10TargetGenerator::Generate()
     }
 
     switch (this->ProjectType) {
-      case vcxproj:
-        if (this->GlobalGenerator->GetPlatformToolsetVersion()) {
-          Elem(e0, "Import")
-            .Attribute("Project",
-                       this->GlobalGenerator->GetAuxiliaryToolset());
+      case vcxproj: {
+        std::string const& props =
+          this->GlobalGenerator->GetPlatformToolsetVersionProps();
+        if (!props.empty()) {
+          Elem(e0, "Import").Attribute("Project", props);
         }
         Elem(e0, "Import").Attribute("Project", VS10_CXX_DEFAULT_PROPS);
-        break;
+      } break;
       case csproj:
         Elem(e0, "Import")
           .Attribute("Project", VS10_CSharp_DEFAULT_PROPS)
@@ -654,8 +654,9 @@ void cmVisualStudio10TargetGenerator::Generate()
         std::string cudaPath = customDir.empty()
           ? "$(VCTargetsPath)\\BuildCustomizations\\"
           : customDir +
-            "CUDAVisualStudioIntegration\\extras\\"
-            "visual_studio_integration\\MSBuildExtensions\\";
+            this->GlobalGenerator
+              ->GetPlatformToolsetCudaVSIntegrationSubdirString() +
+            "extras\\visual_studio_integration\\MSBuildExtensions\\";
         Elem(e1, "Import")
           .Attribute("Project",
                      std::move(cudaPath) + "CUDA " +
@@ -747,8 +748,9 @@ void cmVisualStudio10TargetGenerator::Generate()
         std::string cudaPath = customDir.empty()
           ? "$(VCTargetsPath)\\BuildCustomizations\\"
           : customDir +
-            "CUDAVisualStudioIntegration\\extras\\"
-            "visual_studio_integration\\MSBuildExtensions\\";
+            this->GlobalGenerator
+              ->GetPlatformToolsetCudaVSIntegrationSubdirString() +
+            "extras\\visual_studio_integration\\MSBuildExtensions\\";
         Elem(e1, "Import")
           .Attribute("Project",
                      std::move(cudaPath) + "CUDA " +

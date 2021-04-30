@@ -160,7 +160,7 @@ void QCMake::setPreset(const QString& name, bool setBinary)
       auto const& expandedPreset =
         this->CMakePresetsFile.ConfigurePresets[presetName].Expanded;
       if (expandedPreset) {
-        if (setBinary) {
+        if (setBinary && !expandedPreset->BinaryDir.empty()) {
           QString binaryDir =
             QString::fromLocal8Bit(expandedPreset->BinaryDir.data());
           this->setBinaryDirectory(binaryDir);
@@ -557,7 +557,7 @@ void QCMake::loadPresets()
     preset.toolset = std::move(QString::fromLocal8Bit(p.Toolset.data()));
     preset.setToolset = !p.ToolsetStrategy ||
       p.ToolsetStrategy == cmCMakePresetsFile::ArchToolsetStrategy::Set;
-    preset.enabled = it.Expanded &&
+    preset.enabled = it.Expanded && it.Expanded->ConditionResult &&
       std::find_if(this->AvailableGenerators.begin(),
                    this->AvailableGenerators.end(),
                    [&p](const cmake::GeneratorInfo& g) {

@@ -2,8 +2,11 @@
    file Copyright.txt or https://cmake.org/licensing for details.  */
 #pragma once
 
+#include "cmConfigure.h" // IWYU pragma: keep
+
 #include <functional>
 #include <map>
+#include <memory>
 #include <string>
 #include <utility>
 #include <vector>
@@ -32,6 +35,10 @@ public:
     USER_PRESET_INHERITANCE,
     INVALID_MACRO_EXPANSION,
     BUILD_TEST_PRESETS_UNSUPPORTED,
+    INVALID_CONFIGURE_PRESET,
+    INSTALL_PREFIX_UNSUPPORTED,
+    INVALID_CONDITION,
+    CONDITION_UNSUPPORTED,
   };
 
   enum class ArchToolsetStrategy
@@ -46,6 +53,8 @@ public:
     std::string Type;
     std::string Value;
   };
+
+  class Condition;
 
   class Preset
   {
@@ -69,6 +78,9 @@ public:
     std::string DisplayName;
     std::string Description;
 
+    std::shared_ptr<Condition> ConditionEvaluator;
+    bool ConditionResult = true;
+
     std::map<std::string, cm::optional<std::string>> Environment;
 
     virtual ReadFileResult VisitPresetInherit(const Preset& parent) = 0;
@@ -77,7 +89,7 @@ public:
       return ReadFileResult::READ_OK;
     }
 
-    virtual ReadFileResult VisitPresetAfterInherit()
+    virtual ReadFileResult VisitPresetAfterInherit(int /* version */)
     {
       return ReadFileResult::READ_OK;
     }
@@ -102,6 +114,7 @@ public:
     std::string Toolset;
     cm::optional<ArchToolsetStrategy> ToolsetStrategy;
     std::string BinaryDir;
+    std::string InstallDir;
 
     std::map<std::string, cm::optional<CacheVariable>> CacheVariables;
 
@@ -119,7 +132,7 @@ public:
 
     ReadFileResult VisitPresetInherit(const Preset& parent) override;
     ReadFileResult VisitPresetBeforeInherit() override;
-    ReadFileResult VisitPresetAfterInherit() override;
+    ReadFileResult VisitPresetAfterInherit(int version) override;
   };
 
   class BuildPreset : public Preset
@@ -145,7 +158,7 @@ public:
     std::vector<std::string> NativeToolOptions;
 
     ReadFileResult VisitPresetInherit(const Preset& parent) override;
-    ReadFileResult VisitPresetAfterInherit() override;
+    ReadFileResult VisitPresetAfterInherit(int /* version */) override;
   };
 
   class TestPreset : public Preset
@@ -272,7 +285,7 @@ public:
     cm::optional<ExecutionOptions> Execution;
 
     ReadFileResult VisitPresetInherit(const Preset& parent) override;
-    ReadFileResult VisitPresetAfterInherit() override;
+    ReadFileResult VisitPresetAfterInherit(int /* version */) override;
   };
 
   template <class T>
@@ -292,6 +305,13 @@ public:
   std::vector<std::string> TestPresetOrder;
 
   std::string SourceDir;
+  int Version;
+  int UserVersion;
+
+  int GetVersion(const Preset& preset) const
+  {
+    return preset.User ? this->UserVersion : this->Version;
+  }
 
   static std::string GetFilename(const std::string& sourceDir);
   static std::string GetUserFilename(const std::string& sourceDir);

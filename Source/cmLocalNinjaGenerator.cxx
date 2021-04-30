@@ -97,9 +97,12 @@ void cmLocalNinjaGenerator::Generate()
       // contains any non-ASCII characters and dependency checking will fail.
       // As a workaround, leave the msvc_deps_prefix UTF-8 encoded even though
       // the rest of the file is ANSI encoded.
-      if (GetConsoleOutputCP() == CP_UTF8 && GetACP() != CP_UTF8) {
+      if (GetConsoleOutputCP() == CP_UTF8 && GetACP() != CP_UTF8 &&
+          this->GetGlobalGenerator()->GetMakefileEncoding() != codecvt::None) {
         this->GetRulesFileStream().WriteRaw(showIncludesPrefix);
       } else {
+        // Ninja 1.11 and above uses the UTF-8 code page if it's supported, so
+        // in that case we can write it normally without using raw bytes.
         this->GetRulesFileStream() << showIncludesPrefix;
       }
 #else
@@ -582,6 +585,11 @@ void cmLocalNinjaGenerator::WriteCustomCommandBuildStatement(
 
   auto ccgs = this->MakeCustomCommandGenerators(*cc, fileConfig);
   for (cmCustomCommandGenerator const& ccg : ccgs) {
+    if (ccg.GetOutputs().empty() && ccg.GetByproducts().empty()) {
+      // Generator expressions evaluate to no output for this config.
+      continue;
+    }
+
     cmNinjaDeps orderOnlyDeps;
 
     // A custom command may appear on multiple targets.  However, some build
@@ -651,12 +659,18 @@ void cmLocalNinjaGenerator::WriteCustomCommandBuildStatement(
       gg->WriteBuild(this->GetImplFileStream(fileConfig), build);
     } else {
       std::string customStep = cmSystemTools::GetFilenameName(ninjaOutputs[0]);
+      if (this->GlobalGenerator->IsMultiConfig()) {
+        customStep += '-';
+        customStep += fileConfig;
+        customStep += '-';
+        customStep += ccg.GetOutputConfig();
+      }
       // Hash full path to make unique.
       customStep += '-';
       cmCryptoHash hash(cmCryptoHash::AlgoSHA256);
       customStep += hash.HashString(ninjaOutputs[0]).substr(0, 7);
 
-      std::string depfile = cc->GetDepfile();
+      std::string depfile = ccg.GetDepfile();
       if (!depfile.empty()) {
         switch (cc->GetCMP0116Status()) {
           case cmPolicies::WARN:

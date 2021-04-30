@@ -28,6 +28,7 @@
 
 #include "cm_sys_stat.h"
 
+#include "cmCMakePath.h"
 #include "cmCMakePresetsFile.h"
 #include "cmCommandLineArgument.h"
 #include "cmCommands.h"
@@ -208,9 +209,9 @@ cmake::cmake(Role role, cmState::Mode mode)
     };
 
     // The "c" extension MUST precede the "C" extension.
-    setupExts(
-      this->CLikeSourceFileExtensions,
-      { "c", "C", "c++", "cc", "cpp", "cxx", "cu", "mpp", "m", "M", "mm" });
+    setupExts(this->CLikeSourceFileExtensions,
+              { "c", "C", "c++", "cc", "cpp", "cxx", "cu", "mpp", "m", "M",
+                "mm", "ixx", "cppm" });
     setupExts(this->HeaderFileExtensions,
               { "h", "hh", "h++", "hm", "hpp", "hxx", "in", "txx" });
     setupExts(this->CudaFileExtensions, { "cu" });
@@ -493,6 +494,31 @@ bool cmake::SetCacheArgs(const std::vector<std::string>& args)
     return true;
   };
 
+  auto PrefixLambda = [&](std::string const& path, cmake* state) -> bool {
+    const std::string var = "CMAKE_INSTALL_PREFIX";
+    cmStateEnums::CacheEntryType type = cmStateEnums::PATH;
+    cmCMakePath absolutePath(path);
+    if (absolutePath.IsAbsolute()) {
+#ifndef CMAKE_BOOTSTRAP
+      state->UnprocessedPresetVariables.erase(var);
+#endif
+      state->ProcessCacheArg(var, path, type);
+      return true;
+    }
+    cmSystemTools::Error("Absolute paths are required for --install-prefix");
+    return false;
+  };
+
+  auto ToolchainLambda = [&](std::string const& path, cmake* state) -> bool {
+    const std::string var = "CMAKE_TOOLCHAIN_FILE";
+    cmStateEnums::CacheEntryType type = cmStateEnums::FILEPATH;
+#ifndef CMAKE_BOOTSTRAP
+    state->UnprocessedPresetVariables.erase(var);
+#endif
+    state->ProcessCacheArg(var, path, type);
+    return true;
+  };
+
   std::vector<CommandArgument> arguments = {
     CommandArgument{ "-D", "-D must be followed with VAR=VALUE.",
                      CommandArgument::Values::One, DefineLambda },
@@ -511,8 +537,14 @@ bool cmake::SetCacheArgs(const std::vector<std::string>& args)
                        state->ReadListFile(args, path);
                        return true;
                      } },
+
     CommandArgument{ "-P", "-P must be followed by a file name.",
                      CommandArgument::Values::One, ScriptLambda },
+    CommandArgument{ "--toolchain", "No file specified for --toolchain",
+                     CommandArgument::Values::One, ToolchainLambda },
+    CommandArgument{ "--install-prefix",
+                     "No install directory specified for --install-prefix",
+                     CommandArgument::Values::One, PrefixLambda },
     CommandArgument{ "--find-package", CommandArgument::Values::Zero,
                      [&](std::string const&, cmake*) -> bool {
                        findPackageMode = true;
@@ -815,6 +847,11 @@ void cmake::SetArgs(const std::vector<std::string>& args)
                      CommandArgument::Values::One, PlatformLambda },
     CommandArgument{ "-T", "No toolset specified for -T",
                      CommandArgument::Values::One, ToolsetLamda },
+    CommandArgument{ "--toolchain", "No file specified for --toolchain",
+                     CommandArgument::Values::One, IgnoreAndTrueLambda },
+    CommandArgument{ "--install-prefix",
+                     "No install directory specified for --install-prefix",
+                     CommandArgument::Values::One, IgnoreAndTrueLambda },
 
     CommandArgument{ "--check-build-system", CommandArgument::Values::Two,
                      [](std::string const& value, cmake* state) -> bool {
@@ -1194,11 +1231,17 @@ void cmake::SetArgs(const std::vector<std::string>& args)
                                     "\": Invalid macro expansion"));
       return;
     }
+    if (!expandedPreset->ConditionResult) {
+      cmSystemTools::Error(cmStrCat("Could not use disabled preset \"",
+                                    preset->second.Unexpanded.Name, "\""));
+      return;
+    }
 
-    if (!this->State->IsCacheLoaded() && !haveBArg) {
+    if (!this->State->IsCacheLoaded() && !haveBArg &&
+        !expandedPreset->BinaryDir.empty()) {
       this->SetHomeOutputDirectory(expandedPreset->BinaryDir);
     }
-    if (!this->GlobalGenerator) {
+    if (!this->GlobalGenerator && !expandedPreset->Generator.empty()) {
       if (!this->CreateAndSetGlobalGenerator(expandedPreset->Generator,
                                              false)) {
         return;
@@ -1206,6 +1249,14 @@ void cmake::SetArgs(const std::vector<std::string>& args)
     }
     this->UnprocessedPresetVariables = expandedPreset->CacheVariables;
     this->UnprocessedPresetEnvironment = expandedPreset->Environment;
+
+    if (!expandedPreset->InstallDir.empty() &&
+        this->State->GetInitializedCacheValue("CMAKE_INSTALL_PREFIX") ==
+          nullptr) {
+      this->UnprocessedPresetVariables["CMAKE_INSTALL_PREFIX"] = {
+        "PATH", expandedPreset->InstallDir
+      };
+    }
 
     if (!expandedPreset->ArchitectureStrategy ||
         expandedPreset->ArchitectureStrategy ==
@@ -3023,12 +3074,16 @@ static bool cmakeCheckStampFile(const std::string& stampName)
     cmsys::ofstream stamp(stampTemp.c_str());
     stamp << "# CMake generation timestamp file for this directory.\n";
   }
-  if (cmSystemTools::RenameFile(stampTemp, stampName)) {
+  std::string err;
+  if (cmSystemTools::RenameFile(stampTemp, stampName,
+                                cmSystemTools::Replace::Yes, &err) ==
+      cmSystemTools::RenameResult::Success) {
     // CMake does not need to re-run because the stamp file is up-to-date.
     return true;
   }
   cmSystemTools::RemoveFile(stampTemp);
-  cmSystemTools::Error("Cannot restore timestamp " + stampName);
+  cmSystemTools::Error(
+    cmStrCat("Cannot restore timestamp \"", stampName, "\": ", err));
   return false;
 }
 
@@ -3133,6 +3188,14 @@ int cmake::Build(int jobs, std::string dir, std::vector<std::string> targets,
       return 1;
     }
 
+    if (!expandedPreset->ConditionResult) {
+      cmSystemTools::Error(cmStrCat("Cannot use disabled build preset in ",
+                                    this->GetHomeDirectory(), ": \"",
+                                    presetName, '"'));
+      settingsFile.PrintBuildPresetList();
+      return 1;
+    }
+
     auto configurePresetPair =
       settingsFile.ConfigurePresets.find(expandedPreset->ConfigurePreset);
     if (configurePresetPair == settingsFile.ConfigurePresets.end()) {
@@ -3159,7 +3222,9 @@ int cmake::Build(int jobs, std::string dir, std::vector<std::string> targets,
       return 1;
     }
 
-    dir = expandedConfigurePreset->BinaryDir;
+    if (!expandedConfigurePreset->BinaryDir.empty()) {
+      dir = expandedConfigurePreset->BinaryDir;
+    }
 
     this->UnprocessedPresetEnvironment = expandedPreset->Environment;
     this->ProcessPresetEnvironment();
@@ -3210,8 +3275,8 @@ int cmake::Build(int jobs, std::string dir, std::vector<std::string> targets,
   }
   auto gen = this->CreateGlobalGenerator(*cachedGenerator);
   if (!gen) {
-    std::cerr << "Error: could create CMAKE_GENERATOR \"" << *cachedGenerator
-              << "\"\n";
+    std::cerr << "Error: could not create CMAKE_GENERATOR \""
+              << *cachedGenerator << "\"\n";
     return 1;
   }
   this->SetGlobalGenerator(std::move(gen));
@@ -3350,7 +3415,7 @@ bool cmake::Open(const std::string& dir, bool dryRun)
   std::unique_ptr<cmGlobalGenerator> gen =
     this->CreateGlobalGenerator(fullName);
   if (!gen) {
-    std::cerr << "Error: could create CMAKE_GENERATOR \"" << fullName
+    std::cerr << "Error: could not create CMAKE_GENERATOR \"" << fullName
               << "\"\n";
     return false;
   }

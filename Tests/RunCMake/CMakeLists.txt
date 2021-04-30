@@ -29,6 +29,10 @@ macro(add_RunCMake_test test)
     ${TEST_ARGS}
     -P "${CMAKE_CURRENT_SOURCE_DIR}/${Test_Dir}/RunCMakeTest.cmake"
     )
+  set_tests_properties("RunCMake.${test}" PROPERTIES LABELS "CMake;run")
+  if(${test} MATCHES ^CMP)
+    set_property(TEST "RunCMake.${test}" APPEND PROPERTY LABELS "policy")
+  endif()
 endmacro()
 
 function(add_RunCMake_test_group test types)
@@ -142,6 +146,9 @@ endif()
 if(CMAKE_GENERATOR MATCHES "Make")
   add_RunCMake_test(Make -DMAKE_IS_GNU=${MAKE_IS_GNU})
 endif()
+if(CMake_TEST_Qt5)
+  find_package(Qt5Widgets QUIET NO_MODULE)
+endif()
 if(CMAKE_GENERATOR MATCHES "Ninja")
   set(Ninja_ARGS
     -DCMAKE_C_OUTPUT_EXTENSION=${CMAKE_C_OUTPUT_EXTENSION}
@@ -152,10 +159,13 @@ if(CMAKE_GENERATOR MATCHES "Ninja")
   endif()
   if(CMake_TEST_Qt5 AND Qt5Core_FOUND)
     list(APPEND Ninja_ARGS -DCMake_TEST_Qt5=1 -DQt5Core_DIR=${Qt5Core_DIR} -DCMAKE_TEST_Qt5Core_Version=${Qt5Core_VERSION})
+    if(Qt5Widgets_FOUND)
+      list(APPEND Ninja_ARGS -DQt5Widgets_DIR=${Qt5Widgets_DIR})
+    endif()
   endif()
   add_RunCMake_test(Ninja)
   set(NinjaMultiConfig_ARGS
-    -DCYGWIN=${CYGWIN}
+    -DCYGWIN=${CYGWIN} -DMSYS=${MSYS}
     )
   if(CMake_TEST_Qt5 AND Qt5Core_FOUND)
     list(APPEND NinjaMultiConfig_ARGS -DCMake_TEST_Qt5=1 -DQt5Core_DIR=${Qt5Core_DIR} -DCMAKE_TEST_Qt5Core_Version=${Qt5Core_VERSION})
@@ -191,9 +201,6 @@ if(CMake_TEST_APPLE_SILICON)
   add_RunCMake_test(AppleSilicon)
 endif()
 set(autogen_with_qt5 FALSE)
-if(CMake_TEST_Qt5)
-  find_package(Qt5Widgets QUIET NO_MODULE)
-endif()
 if(CMake_TEST_Qt5 AND Qt5Widgets_FOUND)
   set(autogen_with_qt5 TRUE)
 endif ()
@@ -222,6 +229,7 @@ if(UNIX AND "${CMAKE_GENERATOR}" MATCHES "Unix Makefiles|Ninja")
   add_RunCMake_test(Byproducts)
 endif()
 add_RunCMake_test(CMakeRoleGlobalProperty)
+add_RunCMake_test(CMakeRelease -DCMake_TEST_JQ=${CMake_TEST_JQ})
 if(UNIX AND "${CMAKE_GENERATOR}" MATCHES "Unix Makefiles|Ninja")
   add_RunCMake_test(CompilerChange)
 endif()
@@ -240,6 +248,7 @@ add_RunCMake_test(FileAPI -DPYTHON_EXECUTABLE=${PYTHON_EXECUTABLE}
 add_RunCMake_test(FindBoost)
 add_RunCMake_test(FindLua)
 add_RunCMake_test(FindOpenGL)
+add_RunCMake_test(InitialFlags)
 if(CMake_TEST_FindOpenSSL)
   add_RunCMake_test(FindOpenSSL)
 endif()
@@ -273,7 +282,7 @@ add_RunCMake_test(Graphviz)
 add_RunCMake_test(TargetPropertyGeneratorExpressions)
 add_RunCMake_test(Languages)
 add_RunCMake_test(LinkStatic)
-if(CMAKE_CXX_COMPILER_ID MATCHES "^(Cray|PGI|NVHPC|XL|XLClang)$")
+if(CMAKE_CXX_COMPILER_ID MATCHES "^(Cray|PGI|NVHPC|XL|XLClang|Fujitsu|FujitsuClang)$")
   add_RunCMake_test(MetaCompileFeatures)
 endif()
 if(MSVC)
@@ -337,7 +346,7 @@ add_RunCMake_test(export)
 add_RunCMake_test(cmake_language)
 add_RunCMake_test(cmake_minimum_required)
 add_RunCMake_test(cmake_parse_arguments)
-add_RunCMake_test(cmake_path)
+add_RunCMake_test(cmake_path -DMSYS=${MSYS})
 add_RunCMake_test(continue)
 add_executable(color_warning color_warning.c)
 add_executable(fake_build_command fake_build_command.c)
@@ -352,20 +361,22 @@ if(COVERAGE_COMMAND)
 endif()
 add_RunCMake_test(ctest_start)
 add_RunCMake_test(ctest_submit)
-add_RunCMake_test(ctest_test)
+add_RunCMake_test(ctest_test
+  -DIMAGE_DIR=${CMAKE_SOURCE_DIR}/Utilities/Sphinx/static
+)
 add_RunCMake_test(ctest_disabled_test)
 add_RunCMake_test(ctest_skipped_test)
 add_RunCMake_test(ctest_update)
 add_RunCMake_test(ctest_upload)
 add_RunCMake_test(ctest_fixtures)
-add_RunCMake_test(file)
-add_RunCMake_test(file-CHMOD)
+add_RunCMake_test(file -DMSYS=${MSYS})
+add_RunCMake_test(file-CHMOD -DMSYS=${MSYS})
 if(HAVE_ELF_H OR CMAKE_SYSTEM_NAME STREQUAL "AIX")
   add_RunCMake_test(file-RPATH -DCMAKE_SYSTEM_NAME=${CMAKE_SYSTEM_NAME} -DHAVE_ELF_H=${HAVE_ELF_H})
 endif()
 add_RunCMake_test(find_file)
-add_RunCMake_test(find_library -DCYGWIN=${CYGWIN})
-add_RunCMake_test(find_package)
+add_RunCMake_test(find_library -DCYGWIN=${CYGWIN} -DMSYS=${MSYS})
+add_RunCMake_test(find_package -DMSYS=${MSYS})
 add_RunCMake_test(find_path)
 add_RunCMake_test(find_program -DCMAKE_SYSTEM_NAME=${CMAKE_SYSTEM_NAME})
 add_RunCMake_test(foreach)
@@ -503,7 +514,9 @@ else()
   message(STATUS "Could not find ctresalloc")
 endif()
 
-if(NOT WIN32)
+if(NOT WIN32
+    AND NOT MSYS # FIXME: This works on CYGWIN but not on MSYS
+    )
   add_RunCMake_test(SymlinkTrees)
 endif ()
 
@@ -545,7 +558,7 @@ endif()
 
 if(XCODE_VERSION)
   add_RunCMake_test(XcodeProject -DXCODE_VERSION=${XCODE_VERSION})
-  add_RunCMake_test(XcodeProject-Embed)
+  add_RunCMake_test(XcodeProject-Embed -DXCODE_VERSION=${XCODE_VERSION})
 
   # This test can take a very long time due to lots of combinations.
   # Use a long default timeout and provide an option to customize it.
@@ -607,7 +620,8 @@ endif()
 
 
 add_executable(pseudo_llvm-rc pseudo_llvm-rc.c)
-add_RunCMake_test(CommandLine -DLLVM_RC=$<TARGET_FILE:pseudo_llvm-rc> -DCMAKE_SYSTEM_NAME=${CMAKE_SYSTEM_NAME} -DCYGWIN=${CYGWIN} -DPYTHON_EXECUTABLE=${PYTHON_EXECUTABLE})
+add_RunCMake_test(CommandLine -DLLVM_RC=$<TARGET_FILE:pseudo_llvm-rc> -DCMAKE_SYSTEM_NAME=${CMAKE_SYSTEM_NAME}
+                  -DCYGWIN=${CYGWIN} -DMSYS=${MSYS} -DPYTHON_EXECUTABLE=${PYTHON_EXECUTABLE})
 add_RunCMake_test(CommandLineTar)
 
 if(CMAKE_PLATFORM_NO_VERSIONED_SONAME OR (NOT CMAKE_SHARED_LIBRARY_SONAME_FLAG AND NOT CMAKE_SHARED_LIBRARY_SONAME_C_FLAG))
@@ -616,7 +630,7 @@ else()
   set(NO_NAMELINK 0)
 endif()
 
-add_RunCMake_test(install -DNO_NAMELINK=${NO_NAMELINK} -DCYGWIN=${CYGWIN}
+add_RunCMake_test(install -DNO_NAMELINK=${NO_NAMELINK} -DCYGWIN=${CYGWIN} -DMSYS=${MSYS}
   -DCMAKE_SHARED_LIBRARY_RPATH_ORIGIN_TOKEN=${CMAKE_SHARED_LIBRARY_RPATH_ORIGIN_TOKEN}
   -DCMAKE_SYSTEM_NAME=${CMAKE_SYSTEM_NAME}
   -DCMAKE_SHARED_LIBRARY_RUNTIME_C_FLAG=${CMAKE_SHARED_LIBRARY_RUNTIME_C_FLAG}
