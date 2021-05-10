@@ -485,7 +485,7 @@ bool cmake::SetCacheArgs(const std::vector<std::string>& args)
   auto ScriptLambda = [&](std::string const& path, cmake* state) -> bool {
     // Register fake project commands that hint misuse in script mode.
     GetProjectCommandsInScriptMode(state->GetState());
-    // Documented behaviour of CMAKE{,_CURRENT}_{SOURCE,BINARY}_DIR is to be
+    // Documented behavior of CMAKE{,_CURRENT}_{SOURCE,BINARY}_DIR is to be
     // set to $PWD for -P mode.
     state->SetHomeDirectory(cmSystemTools::GetCurrentWorkingDirectory());
     state->SetHomeOutputDirectory(cmSystemTools::GetCurrentWorkingDirectory());
@@ -1255,6 +1255,13 @@ void cmake::SetArgs(const std::vector<std::string>& args)
           nullptr) {
       this->UnprocessedPresetVariables["CMAKE_INSTALL_PREFIX"] = {
         "PATH", expandedPreset->InstallDir
+      };
+    }
+    if (!expandedPreset->ToolchainFile.empty() &&
+        this->State->GetInitializedCacheValue("CMAKE_TOOLCHAIN_FILE") ==
+          nullptr) {
+      this->UnprocessedPresetVariables["CMAKE_TOOLCHAIN_FILE"] = {
+        "FILEPATH", expandedPreset->ToolchainFile
       };
     }
 

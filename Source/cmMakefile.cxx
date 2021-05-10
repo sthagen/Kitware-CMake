@@ -800,7 +800,7 @@ void cmMakefile::RunListFile(cmListFile const& listFile,
     for (size_t i = 0; i < defer->Commands.size(); ++i) {
       DeferCommand& d = defer->Commands[i];
       if (d.Id.empty()) {
-        // Cancelled.
+        // Canceled.
         continue;
       }
       // Mark as executed.
@@ -2496,6 +2496,20 @@ bool cmMakefile::IsDefinitionSet(const std::string& name) const
   if (!def) {
     def = this->GetState()->GetInitializedCacheValue(name);
   }
+#ifndef CMAKE_BOOTSTRAP
+  if (cmVariableWatch* vv = this->GetVariableWatch()) {
+    if (!def) {
+      vv->VariableAccessed(
+        name, cmVariableWatch::UNKNOWN_VARIABLE_DEFINED_ACCESS, nullptr, this);
+    }
+  }
+#endif
+  return def != nullptr;
+}
+
+bool cmMakefile::IsNormalDefinitionSet(const std::string& name) const
+{
+  cmProp def = this->StateSnapshot.GetDefinition(name);
 #ifndef CMAKE_BOOTSTRAP
   if (cmVariableWatch* vv = this->GetVariableWatch()) {
     if (!def) {

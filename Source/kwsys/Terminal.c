@@ -173,6 +173,14 @@ static int kwsysTerminalStreamIsVT100(FILE* stream, int default_vt100,
     }
   }
 
+  /* Disable color according to http://bixense.com/clicolors/ convention. */
+  {
+    const char* clicolor = getenv("CLICOLOR");
+    if (clicolor && strcmp(clicolor, "0") == 0) {
+      return 0;
+    }
+  }
+
   /* GNU make 4.1+ may tell us that its output is destined for a TTY. */
   {
     const char* termout = getenv("MAKE_TERMOUT");

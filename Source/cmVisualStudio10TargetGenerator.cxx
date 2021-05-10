@@ -2277,6 +2277,20 @@ void cmVisualStudio10TargetGenerator::WriteAllSources(Elem& e0)
                           std::back_inserter(exclude_configs));
 
       Elem e2(e1, tool);
+      bool isCSharp = (si.Source->GetLanguage() == "CSharp");
+      if (isCSharp && exclude_configs.size() > 0) {
+        std::stringstream conditions;
+        bool firstConditionSet{ false };
+        for (const auto& ci : include_configs) {
+          if (firstConditionSet) {
+            conditions << " Or ";
+          }
+          conditions << "('$(Configuration)|$(Platform)'=='" +
+              this->Configurations[ci] + "|" + this->Platform + "')";
+          firstConditionSet = true;
+        }
+        e2.Attribute("Condition", conditions.str());
+      }
       this->WriteSource(e2, si.Source);
 
       bool useNativeUnityBuild = false;
@@ -2321,7 +2335,7 @@ void cmVisualStudio10TargetGenerator::WriteAllSources(Elem& e0)
       if (si.Source->GetPropertyAsBool("SKIP_PRECOMPILE_HEADERS")) {
         e2.Element("PrecompiledHeader", "NotUsing");
       }
-      if (!exclude_configs.empty()) {
+      if (!isCSharp && !exclude_configs.empty()) {
         this->WriteExcludeFromBuild(e2, exclude_configs);
       }
     }
@@ -5037,7 +5051,9 @@ std::string cmVisualStudio10TargetGenerator::GetCSharpSourceLink(
 {
   // For out of source files, we first check if a matching source group
   // for this file exists, otherwise we check if the path relative to current
-  // source- or binary-dir is used within the link and return that
+  // source- or binary-dir is used within the link and return that.
+  // In case of .cs files we can't do that automatically for files in the
+  // binary directory, because this leads to compilation errors.
   std::string link;
   std::string sourceGroupedFile;
   std::string const& fullFileName = source->GetFullPath();
@@ -5059,7 +5075,8 @@ std::string cmVisualStudio10TargetGenerator::GetCSharpSourceLink(
     link = sourceGroupedFile;
   } else if (cmHasPrefix(fullFileName, srcDir)) {
     link = fullFileName.substr(srcDir.length() + 1);
-  } else if (cmHasPrefix(fullFileName, binDir)) {
+  } else if (!cmHasSuffix(fullFileName, ".cs") &&
+             cmHasPrefix(fullFileName, binDir)) {
     link = fullFileName.substr(binDir.length() + 1);
   } else if (cmProp l = source->GetProperty("VS_CSHARP_Link")) {
     link = *l;
