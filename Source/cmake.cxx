@@ -157,7 +157,8 @@ static void cmWarnUnusedCliWarning(const std::string& variable, int /*unused*/,
 #endif
 
 cmake::cmake(Role role, cmState::Mode mode)
-  : FileTimeCache(cm::make_unique<cmFileTimeCache>())
+  : CMakeWorkingDirectory(cmSystemTools::GetCurrentWorkingDirectory())
+  , FileTimeCache(cm::make_unique<cmFileTimeCache>())
 #ifndef CMAKE_BOOTSTRAP
   , VariableWatch(cm::make_unique<cmVariableWatch>())
 #endif
@@ -259,6 +260,13 @@ Json::Value cmake::ReportCapabilitiesJson() const
       gen["name"] = gi.name;
       gen["toolsetSupport"] = gi.supportsToolset;
       gen["platformSupport"] = gi.supportsPlatform;
+      if (!gi.supportedPlatforms.empty()) {
+        Json::Value supportedPlatforms = Json::arrayValue;
+        for (std::string const& platform : gi.supportedPlatforms) {
+          supportedPlatforms.append(platform);
+        }
+        gen["supportedPlatforms"] = std::move(supportedPlatforms);
+      }
       gen["extraGenerators"] = Json::arrayValue;
       generatorMap[gi.name] = gen;
     } else {
@@ -521,25 +529,29 @@ bool cmake::SetCacheArgs(const std::vector<std::string>& args)
 
   std::vector<CommandArgument> arguments = {
     CommandArgument{ "-D", "-D must be followed with VAR=VALUE.",
-                     CommandArgument::Values::One, DefineLambda },
-    CommandArgument{ "-W", "-W must be followed with [no-]<name>.",
-                     CommandArgument::Values::One, WarningLambda },
-    CommandArgument{ "-U", "-U must be followed with VAR.",
-                     CommandArgument::Values::One, UnSetLambda },
-    CommandArgument{ "-C", "-C must be followed by a file name.",
                      CommandArgument::Values::One,
-                     [&](std::string const& value, cmake* state) -> bool {
-                       cmSystemTools::Stdout("loading initial cache file " +
-                                             value + "\n");
-                       // Resolve script path specified on command line
-                       // relative to $PWD.
-                       auto path = cmSystemTools::CollapseFullPath(value);
-                       state->ReadListFile(args, path);
-                       return true;
-                     } },
+                     CommandArgument::RequiresSeparator::No, DefineLambda },
+    CommandArgument{ "-W", "-W must be followed with [no-]<name>.",
+                     CommandArgument::Values::One,
+                     CommandArgument::RequiresSeparator::No, WarningLambda },
+    CommandArgument{ "-U", "-U must be followed with VAR.",
+                     CommandArgument::Values::One,
+                     CommandArgument::RequiresSeparator::No, UnSetLambda },
+    CommandArgument{
+      "-C", "-C must be followed by a file name.",
+      CommandArgument::Values::One, CommandArgument::RequiresSeparator::No,
+      [&](std::string const& value, cmake* state) -> bool {
+        cmSystemTools::Stdout("loading initial cache file " + value + "\n");
+        // Resolve script path specified on command line
+        // relative to $PWD.
+        auto path = cmSystemTools::CollapseFullPath(value);
+        state->ReadListFile(args, path);
+        return true;
+      } },
 
     CommandArgument{ "-P", "-P must be followed by a file name.",
-                     CommandArgument::Values::One, ScriptLambda },
+                     CommandArgument::Values::One,
+                     CommandArgument::RequiresSeparator::No, ScriptLambda },
     CommandArgument{ "--toolchain", "No file specified for --toolchain",
                      CommandArgument::Values::One, ToolchainLambda },
     CommandArgument{ "--install-prefix",
@@ -822,31 +834,44 @@ void cmake::SetArgs(const std::vector<std::string>& args)
 
   std::vector<CommandArgument> arguments = {
     CommandArgument{ "-S", "No source directory specified for -S",
-                     CommandArgument::Values::One, SourceArgLambda },
+                     CommandArgument::Values::One,
+                     CommandArgument::RequiresSeparator::No, SourceArgLambda },
     CommandArgument{ "-H", "No source directory specified for -H",
-                     CommandArgument::Values::One, SourceArgLambda },
+                     CommandArgument::Values::One,
+                     CommandArgument::RequiresSeparator::No, SourceArgLambda },
     CommandArgument{ "-O", CommandArgument::Values::Zero,
                      IgnoreAndTrueLambda },
     CommandArgument{ "-B", "No build directory specified for -B",
-                     CommandArgument::Values::One, BuildArgLambda },
+                     CommandArgument::Values::One,
+                     CommandArgument::RequiresSeparator::No, BuildArgLambda },
     CommandArgument{ "-P", "-P must be followed by a file name.",
                      CommandArgument::Values::One,
+                     CommandArgument::RequiresSeparator::No,
                      [&](std::string const&, cmake*) -> bool {
                        scriptMode = true;
                        return true;
                      } },
     CommandArgument{ "-D", "-D must be followed with VAR=VALUE.",
-                     CommandArgument::Values::One, IgnoreAndTrueLambda },
+                     CommandArgument::Values::One,
+                     CommandArgument::RequiresSeparator::No,
+                     IgnoreAndTrueLambda },
     CommandArgument{ "-C", "-C must be followed by a file name.",
-                     CommandArgument::Values::One, IgnoreAndTrueLambda },
-    CommandArgument{ "-U", "-U must be followed with VAR.",
-                     CommandArgument::Values::One, IgnoreAndTrueLambda },
+                     CommandArgument::Values::One,
+                     CommandArgument::RequiresSeparator::No,
+                     IgnoreAndTrueLambda },
+    CommandArgument{
+      "-U", "-U must be followed with VAR.", CommandArgument::Values::One,
+      CommandArgument::RequiresSeparator::No, IgnoreAndTrueLambda },
     CommandArgument{ "-W", "-W must be followed with [no-]<name>.",
-                     CommandArgument::Values::One, IgnoreAndTrueLambda },
+                     CommandArgument::Values::One,
+                     CommandArgument::RequiresSeparator::No,
+                     IgnoreAndTrueLambda },
     CommandArgument{ "-A", "No platform specified for -A",
-                     CommandArgument::Values::One, PlatformLambda },
+                     CommandArgument::Values::One,
+                     CommandArgument::RequiresSeparator::No, PlatformLambda },
     CommandArgument{ "-T", "No toolset specified for -T",
-                     CommandArgument::Values::One, ToolsetLamda },
+                     CommandArgument::Values::One,
+                     CommandArgument::RequiresSeparator::No, ToolsetLamda },
     CommandArgument{ "--toolchain", "No file specified for --toolchain",
                      CommandArgument::Values::One, IgnoreAndTrueLambda },
     CommandArgument{ "--install-prefix",
@@ -1071,6 +1096,7 @@ void cmake::SetArgs(const std::vector<std::string>& args)
   bool badGeneratorName = false;
   CommandArgument generatorCommand(
     "-G", "No generator specified for -G", CommandArgument::Values::One,
+    CommandArgument::RequiresSeparator::No,
     [&](std::string const& value, cmake* state) -> bool {
       bool valid = state->CreateAndSetGlobalGenerator(value, true);
       badGeneratorName = !valid;
@@ -1251,15 +1277,13 @@ void cmake::SetArgs(const std::vector<std::string>& args)
     this->UnprocessedPresetEnvironment = expandedPreset->Environment;
 
     if (!expandedPreset->InstallDir.empty() &&
-        this->State->GetInitializedCacheValue("CMAKE_INSTALL_PREFIX") ==
-          nullptr) {
+        !this->State->GetInitializedCacheValue("CMAKE_INSTALL_PREFIX")) {
       this->UnprocessedPresetVariables["CMAKE_INSTALL_PREFIX"] = {
         "PATH", expandedPreset->InstallDir
       };
     }
     if (!expandedPreset->ToolchainFile.empty() &&
-        this->State->GetInitializedCacheValue("CMAKE_TOOLCHAIN_FILE") ==
-          nullptr) {
+        !this->State->GetInitializedCacheValue("CMAKE_TOOLCHAIN_FILE")) {
       this->UnprocessedPresetVariables["CMAKE_TOOLCHAIN_FILE"] = {
         "FILEPATH", expandedPreset->ToolchainFile
       };

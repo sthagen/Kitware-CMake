@@ -1270,10 +1270,14 @@ int cmcmd::ExecuteCMakeCommand(std::vector<std::string> const& args,
         cmStateSnapshot snapshot = cm.GetCurrentSnapshot();
         snapshot.GetDirectory().SetCurrentBinary(startOutDir);
         snapshot.GetDirectory().SetCurrentSource(startDir);
-        snapshot.GetDirectory().SetRelativePathTopSource(homeDir.c_str());
-        snapshot.GetDirectory().SetRelativePathTopBinary(homeOutDir.c_str());
         cmMakefile mf(cm.GetGlobalGenerator(), snapshot);
         auto lgd = cm.GetGlobalGenerator()->CreateLocalGenerator(&mf);
+
+        // FIXME: With advanced add_subdirectory usage, these are
+        // not necessarily the same as the generator originally used.
+        // We should pass all these directories through an info file.
+        lgd->SetRelativePathTopSource(homeDir);
+        lgd->SetRelativePathTopBinary(homeOutDir);
 
         // Actually scan dependencies.
         return lgd->UpdateDependencies(depInfo, verbose, color) ? 0 : 2;
@@ -1551,10 +1555,14 @@ int cmcmd::ExecuteCMakeCommand(std::vector<std::string> const& args,
         cmStateSnapshot snapshot = cm.GetCurrentSnapshot();
         snapshot.GetDirectory().SetCurrentBinary(startOutDir);
         snapshot.GetDirectory().SetCurrentSource(startDir);
-        snapshot.GetDirectory().SetRelativePathTopSource(homeDir.c_str());
-        snapshot.GetDirectory().SetRelativePathTopBinary(homeOutDir.c_str());
         cmMakefile mf(cm.GetGlobalGenerator(), snapshot);
         auto lgd = cm.GetGlobalGenerator()->CreateLocalGenerator(&mf);
+
+        // FIXME: With advanced add_subdirectory usage, these are
+        // not necessarily the same as the generator originally used.
+        // We should pass all these directories through an info file.
+        lgd->SetRelativePathTopSource(homeDir);
+        lgd->SetRelativePathTopBinary(homeOutDir);
 
         return cmTransformDepfile(format, *lgd, args[8], args[9]) ? 0 : 2;
       }
@@ -1643,10 +1651,21 @@ cmsys::Status cmcmd::SymlinkInternal(std::string const& file,
   if (cmSystemTools::FileExists(link) || cmSystemTools::FileIsSymlink(link)) {
     cmSystemTools::RemoveFile(link);
   }
-#if defined(_WIN32) && !defined(__CYGWIN__)
-  return cmSystemTools::CopyFileAlways(file, link);
-#else
   std::string linktext = cmSystemTools::GetFilenameName(file);
+#if defined(_WIN32) && !defined(__CYGWIN__)
+  std::string errorMessage;
+  cmsys::Status status =
+    cmSystemTools::CreateSymlink(linktext, link, &errorMessage);
+  // Creating a symlink will fail with ERROR_PRIVILEGE_NOT_HELD if the user
+  // does not have SeCreateSymbolicLinkPrivilege, or if developer mode is not
+  // active. In that case, we try to copy the file.
+  if (status.GetWindows() == ERROR_PRIVILEGE_NOT_HELD) {
+    status = cmSystemTools::CopyFileAlways(file, link);
+  } else if (!status) {
+    cmSystemTools::Error(errorMessage);
+  }
+  return status;
+#else
   return cmSystemTools::CreateSymlink(linktext, link);
 #endif
 }

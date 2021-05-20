@@ -57,15 +57,7 @@ using TargetIndexMapType =
 
 std::string RelativeIfUnder(std::string const& top, std::string const& in)
 {
-  std::string out;
-  if (in == top) {
-    out = ".";
-  } else if (cmSystemTools::IsSubDirectory(in, top)) {
-    out = in.substr(top.size() + 1);
-  } else {
-    out = in;
-  }
-  return out;
+  return cmSystemTools::RelativeIfUnder(top, in);
 }
 
 class JBTIndex
@@ -1024,6 +1016,11 @@ Json::Value DirectoryObject::DumpInstaller(cmInstallGenerator* gen)
   if (gen->GetExcludeFromAll()) {
     installer["isExcludeFromAll"] = true;
   }
+
+  if (gen->GetAllComponentsFlag()) {
+    installer["isForAllComponents"] = true;
+  }
+
   this->AddBacktrace(installer, gen->GetBacktrace());
 
   return installer;

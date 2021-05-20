@@ -2260,7 +2260,7 @@ bool cmGlobalGenerator::IsExcluded(cmLocalGenerator* root,
 
     // Check whether the genex expansion of the property agrees in all
     // configurations.
-    if (trueCount && falseCount) {
+    if (trueCount > 0 && falseCount > 0) {
       std::ostringstream e;
       e << "The EXCLUDE_FROM_ALL property of target \"" << target->GetName()
         << "\" varies by configuration. This is not supported by the \""
@@ -3027,10 +3027,8 @@ void cmGlobalGenerator::AddRuleHash(const std::vector<std::string>& outputs,
   }
 
   // Shorten the output name (in expected use case).
-  cmStateDirectory cmDir =
-    this->GetMakefiles()[0]->GetStateSnapshot().GetDirectory();
-  std::string fname = cmDir.ConvertToRelPathIfNotContained(
-    this->GetMakefiles()[0]->GetState()->GetBinaryDirectory(), outputs[0]);
+  std::string fname =
+    this->LocalGenerators[0]->MaybeRelativeToTopBinDir(outputs[0]);
 
   // Associate the hash with this output.
   this->RuleHashes[fname] = hash;

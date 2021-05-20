@@ -528,7 +528,7 @@ std::string GetScanCommand(const std::string& cmakeCmd, const std::string& tdi,
                            const std::string& ddiFile)
 {
   return cmStrCat(cmakeCmd, " -E cmake_ninja_depends --tdi=", tdi,
-                  " --lang=", lang, " --src=$in", " --pp=", ppFile,
+                  " --lang=", lang, " --pp=", ppFile,
                   " --dep=$DEP_FILE --obj=$OBJ_FILE --ddi=", ddiFile);
 }
 
@@ -1444,7 +1444,7 @@ void cmNinjaTargetGenerator::WriteObjectBuildStatement(
 
     cmProp ispcSuffixProp =
       this->GeneratorTarget->GetProperty("ISPC_HEADER_SUFFIX");
-    assert(ispcSuffixProp != nullptr);
+    assert(ispcSuffixProp);
 
     std::string ispcHeaderDirectory =
       this->GeneratorTarget->GetObjectDirectory(config);

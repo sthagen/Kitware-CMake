@@ -498,7 +498,7 @@ void cmVisualStudio10TargetGenerator::Generate()
         cmProp targetFramework =
           this->GeneratorTarget->GetProperty("DOTNET_TARGET_FRAMEWORK");
         if (targetFramework) {
-          if (std::strchr(targetFramework->c_str(), ';') != nullptr) {
+          if (targetFramework->find(';') != std::string::npos) {
             e1.Element("TargetFrameworks", *targetFramework);
           } else {
             e1.Element("TargetFramework", *targetFramework);
@@ -3356,8 +3356,6 @@ bool cmVisualStudio10TargetGenerator::ComputeCudaLinkOptions(
     // cmLinkLineDeviceComputer
     cmComputeLinkInformation& cli = *pcli;
     std::vector<std::string> libVec;
-    const std::string currentBinDir =
-      this->LocalGenerator->GetCurrentBinaryDirectory();
     const auto& libs = cli.GetItems();
     for (cmComputeLinkInformation::Item const& l : libs) {
 
@@ -3394,8 +3392,8 @@ bool cmVisualStudio10TargetGenerator::ComputeCudaLinkOptions(
       }
 
       if (l.IsPath) {
-        std::string path = this->LocalGenerator->MaybeConvertToRelativePath(
-          currentBinDir, l.Value.Value);
+        std::string path =
+          this->LocalGenerator->MaybeRelativeToCurBinDir(l.Value.Value);
         ConvertToWindowsSlash(path);
         if (!cmVS10IsTargetsFile(l.Value.Value)) {
           libVec.push_back(path);
@@ -3946,12 +3944,10 @@ bool cmVisualStudio10TargetGenerator::ComputeLibOptions(
   cmComputeLinkInformation& cli = *pcli;
   using ItemVector = cmComputeLinkInformation::ItemVector;
   const ItemVector& libs = cli.GetItems();
-  std::string currentBinDir =
-    this->LocalGenerator->GetCurrentBinaryDirectory();
   for (cmComputeLinkInformation::Item const& l : libs) {
     if (l.IsPath && cmVS10IsTargetsFile(l.Value.Value)) {
-      std::string path = this->LocalGenerator->MaybeConvertToRelativePath(
-        currentBinDir, l.Value.Value);
+      std::string path =
+        this->LocalGenerator->MaybeRelativeToCurBinDir(l.Value.Value);
       ConvertToWindowsSlash(path);
       this->AddTargetsFileAndConfigPair(path, config);
     }
@@ -3991,8 +3987,6 @@ void cmVisualStudio10TargetGenerator::AddLibraries(
 {
   using ItemVector = cmComputeLinkInformation::ItemVector;
   ItemVector const& libs = cli.GetItems();
-  std::string currentBinDir =
-    this->LocalGenerator->GetCurrentBinaryDirectory();
   for (cmComputeLinkInformation::Item const& l : libs) {
     if (l.Target) {
       auto managedType = l.Target->GetManagedType(config);
@@ -4035,8 +4029,8 @@ void cmVisualStudio10TargetGenerator::AddLibraries(
     }
 
     if (l.IsPath) {
-      std::string path = this->LocalGenerator->MaybeConvertToRelativePath(
-        currentBinDir, l.Value.Value);
+      std::string path =
+        this->LocalGenerator->MaybeRelativeToCurBinDir(l.Value.Value);
       ConvertToWindowsSlash(path);
       if (cmVS10IsTargetsFile(l.Value.Value)) {
         vsTargetVec.push_back(path);
@@ -4253,11 +4247,10 @@ void cmVisualStudio10TargetGenerator::WriteProjectReferences(Elem& e0)
     if (dt->IsCSharpOnly() || cmHasLiteralSuffix(path, "csproj")) {
       e2.Element("SkipGetTargetFrameworkProperties", "true");
     }
-
     // Don't reference targets that don't produce any output.
-    if (this->Configurations.empty() ||
-        dt->GetManagedType(this->Configurations[0]) ==
-          cmGeneratorTarget::ManagedType::Undefined) {
+    else if (this->Configurations.empty() ||
+             dt->GetManagedType(this->Configurations[0]) ==
+               cmGeneratorTarget::ManagedType::Undefined) {
       e2.Element("ReferenceOutputAssembly", "false");
       e2.Element("CopyToOutputDirectory", "Never");
     }
