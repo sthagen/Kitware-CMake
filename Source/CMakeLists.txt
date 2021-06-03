@@ -350,6 +350,8 @@ set(SRCS
   cmInstalledFile.cxx
   cmInstallFilesGenerator.h
   cmInstallFilesGenerator.cxx
+  cmInstallImportedRuntimeArtifactsGenerator.h
+  cmInstallImportedRuntimeArtifactsGenerator.cxx
   cmInstallScriptGenerator.h
   cmInstallScriptGenerator.cxx
   cmInstallSubdirectoryGenerator.h
@@ -638,6 +640,7 @@ set(SRCS
   cmMathCommand.h
   cmMessageCommand.cxx
   cmMessageCommand.h
+  cmMessageMetadata.h
   cmOptionCommand.cxx
   cmOptionCommand.h
   cmOutputRequiredFilesCommand.cxx

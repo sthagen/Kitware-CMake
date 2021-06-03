@@ -1844,7 +1844,7 @@ void cmMakefile::AddSubDirectory(const std::string& srcPath,
   }
 
   this->AddInstallGenerator(cm::make_unique<cmInstallSubdirectoryGenerator>(
-    subMf, binPath, excludeFromAll, this->GetBacktrace()));
+    subMf, binPath, this->GetBacktrace()));
 }
 
 const std::string& cmMakefile::GetCurrentSourceDirectory() const
@@ -1962,10 +1962,10 @@ void cmMakefile::AddCacheDefinition(const std::string& name, const char* value,
     }
   }
   this->GetCMakeInstance()->AddCacheEntry(name, value, doc, type);
-  // if there was a definition then remove it
-  // The method cmFindBase::NormalizeFindResult also apply same workflow.
-  // See #22038 for problems raised by this behavior.
-  this->StateSnapshot.RemoveDefinition(name);
+  if (this->GetPolicyStatus(cmPolicies::CMP0126) != cmPolicies::NEW) {
+    // if there was a definition then remove it
+    this->StateSnapshot.RemoveDefinition(name);
+  }
 }
 
 void cmMakefile::MarkVariableAsUsed(const std::string& var)
@@ -3454,7 +3454,8 @@ void cmMakefile::CreateGeneratedOutputs(
 void cmMakefile::AddTargetObject(std::string const& tgtName,
                                  std::string const& objFile)
 {
-  cmSourceFile* sf = this->GetOrCreateSource(objFile, true);
+  cmSourceFile* sf =
+    this->GetOrCreateSource(objFile, true, cmSourceFileLocationKind::Known);
   sf->SetObjectLibrary(tgtName);
   sf->SetProperty("EXTERNAL_OBJECT", "1");
 #if !defined(CMAKE_BOOTSTRAP)

@@ -140,6 +140,7 @@ if (CMAKE_SYSTEM_NAME MATCHES "(Linux|Darwin)")
   add_RunCMake_test(CMP0125 -DCMAKE_SHARED_LIBRARY_PREFIX=${CMAKE_SHARED_LIBRARY_PREFIX}
                             -DCMAKE_SHARED_LIBRARY_SUFFIX=${CMAKE_SHARED_LIBRARY_SUFFIX})
 endif()
+add_RunCMake_test(CMP0126)
 
 # The test for Policy 65 requires the use of the
 # CMAKE_SHARED_LIBRARY_LINK_CXX_FLAGS variable, which both the VS and Xcode
@@ -731,12 +732,14 @@ if("${CMAKE_GENERATOR}" MATCHES "Make|Ninja")
   endif()
   if (APPLE AND CMAKE_C_COMPILER_ID MATCHES "Clang|GNU")
     list(APPEND CompilerLauncher_ARGS -DCMake_TEST_OBJC=1)
+    list(APPEND LinkerLauncher_ARGS -DCMake_TEST_OBJC=1)
   endif()
   add_RunCMake_test(CompilerLauncher)
   set_property(TEST RunCMake.CompilerLauncher APPEND
     PROPERTY LABELS "CUDA;ISPC")
   add_RunCMake_test(ctest_labels_for_subprojects)
   add_RunCMake_test(CompilerArgs)
+  add_RunCMake_test(LinkerLauncher)
 endif()
 
 set(cpack_tests
