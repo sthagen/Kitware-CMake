@@ -129,6 +129,15 @@ lint:fedora34-sphinx:
         CMAKE_CI_JOB_CONTINUOUS: "true"
         CMAKE_CI_JOB_HELP: "true"
 
+lint:fedora34-clang-analyzer:
+    extends:
+        - .fedora34_clang_analyzer
+        - .cmake_build_linux
+        - .linux_builder_tags_qt
+        - .run_automatically
+    variables:
+        CMAKE_CI_JOB_NIGHTLY: "true"
+
 # Linux builds
 
 build:centos6-x86_64:
@@ -166,6 +175,16 @@ test:debian10-aarch64-ninja:
         - .needs_centos7_aarch64
     variables:
         CMAKE_CI_NO_MR: "true"
+
+test:debian10-makefiles-clang:
+    extends:
+        - .debian10_makefiles_clang
+        - .cmake_test_linux_release
+        - .linux_builder_tags_qt
+        - .run_manually
+        - .needs_centos6_x86_64
+    variables:
+        CMAKE_CI_JOB_NIGHTLY: "true"
 
 test:fedora34-makefiles:
     extends:
@@ -478,6 +497,31 @@ upload:linux-aarch64-package:
         - build:linux-aarch64-package
     variables:
         RSYNC_DESTINATION: dev
+
+## Sanitizer builds
+
+build:fedora34-asan:
+    extends:
+        - .fedora34_asan
+        - .cmake_build_linux
+        - .cmake_build_artifacts
+        - .linux_builder_tags_qt
+        - .run_manually
+    variables:
+        CMAKE_CI_JOB_NIGHTLY: "true"
+
+test:fedora34-asan:
+    extends:
+        - .fedora34_asan
+        - .cmake_memcheck_linux
+        - .linux_builder_tags_qt
+        - .run_automatically
+    dependencies:
+        - build:fedora34-asan
+    needs:
+        - build:fedora34-asan
+    variables:
+        CMAKE_CI_JOB_NIGHTLY: "true"
 
 # macOS builds
 

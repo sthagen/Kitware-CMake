@@ -161,7 +161,23 @@ add_test(
   NAME img_measurement
   COMMAND ${CMAKE_COMMAND} -E
   echo <DartMeasurementFile name="TestImage" type="image/png">]] ${IMAGE_DIR}/cmake-logo-16.png [[</DartMeasurementFile>)
+add_test(
+  NAME file_measurement
+  COMMAND ${CMAKE_COMMAND} -E
+  echo <DartMeasurementFile name="my_test_input_data" type="file">]] ${IMAGE_DIR}/cmake-logo-16.png [[</DartMeasurementFile>)
   ]])
   run_ctest(TestMeasurements)
 endfunction()
 run_measurements()
+
+# Verify that test output can override the Completion Status.
+function(run_completion_status)
+  set(CASE_CMAKELISTS_SUFFIX_CODE [[
+add_test(
+  NAME custom_details
+  COMMAND ${CMAKE_COMMAND} -E
+  echo test output\n<CTestDetails>CustomDetails</CTestDetails>\nmore output)
+  ]])
+  run_ctest(TestCompletionStatus)
+endfunction()
+run_completion_status()

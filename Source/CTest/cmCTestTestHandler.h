@@ -175,6 +175,7 @@ public:
     std::string ExceptionStatus;
     bool CompressOutput;
     std::string CompletionStatus;
+    std::string CustomCompletionStatus;
     std::string Output;
     std::string DartString;
     int TestCount;
@@ -237,6 +238,8 @@ protected:
                              cmCTestTestResult const& result);
   // Write attached test files into the xml
   void AttachFiles(cmXMLWriter& xml, cmCTestTestResult& result);
+  void AttachFile(cmXMLWriter& xml, std::string const& file,
+                  std::string const& name);
 
   //! Clean test output to specified length
   void CleanTestOutput(std::string& output, size_t length);
@@ -356,6 +359,7 @@ private:
   ListOfTests TestList;
   size_t TotalNumberOfTests;
   cmsys::RegularExpression DartStuff;
+  cmsys::RegularExpression CustomCompletionStatusRegex;
 
   std::ostream* LogFile;
 

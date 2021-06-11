@@ -218,6 +218,7 @@ cmake::cmake(Role role, cmState::Mode mode)
     setupExts(this->CudaFileExtensions, { "cu" });
     setupExts(this->FortranFileExtensions,
               { "f", "F", "for", "f77", "f90", "f95", "f03" });
+    setupExts(this->HipFileExtensions, { "hip" });
     setupExts(this->ISPCFileExtensions, { "ispc" });
   }
 }
@@ -2040,6 +2041,16 @@ int cmake::ActualConfigure()
                         this->GlobalGenerator->GetExtraGeneratorName().c_str(),
                         "Name of external makefile project generator.",
                         cmStateEnums::INTERNAL);
+
+    if (!this->State->GetInitializedCacheValue("CMAKE_TOOLCHAIN_FILE")) {
+      std::string envToolchain;
+      if (cmSystemTools::GetEnv("CMAKE_TOOLCHAIN_FILE", envToolchain) &&
+          !envToolchain.empty()) {
+        this->AddCacheEntry("CMAKE_TOOLCHAIN_FILE", envToolchain.c_str(),
+                            "The CMake toolchain file",
+                            cmStateEnums::FILEPATH);
+      }
+    }
   }
 
   if (cmProp instance =
@@ -2452,6 +2463,8 @@ std::vector<std::string> cmake::GetAllExtensions() const
   // cuda extensions are also in SourceFileExtensions so we ignore it here
   allExt.insert(allExt.end(), this->FortranFileExtensions.ordered.begin(),
                 this->FortranFileExtensions.ordered.end());
+  allExt.insert(allExt.end(), this->HipFileExtensions.ordered.begin(),
+                this->HipFileExtensions.ordered.end());
   allExt.insert(allExt.end(), this->ISPCFileExtensions.ordered.begin(),
                 this->ISPCFileExtensions.ordered.end());
   return allExt;
@@ -3263,7 +3276,9 @@ int cmake::Build(int jobs, std::string dir, std::vector<std::string> targets,
     this->UnprocessedPresetEnvironment = expandedPreset->Environment;
     this->ProcessPresetEnvironment();
 
-    if (jobs == cmake::DEFAULT_BUILD_PARALLEL_LEVEL && expandedPreset->Jobs) {
+    if ((jobs == cmake::DEFAULT_BUILD_PARALLEL_LEVEL ||
+         jobs == cmake::NO_BUILD_PARALLEL_LEVEL) &&
+        expandedPreset->Jobs) {
       jobs = *expandedPreset->Jobs;
     }
 

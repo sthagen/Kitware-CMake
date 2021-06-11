@@ -181,6 +181,13 @@ Variable Queries
   of the entries in ``compiler_ids``, otherwise ``0``.
   See also the :variable:`CMAKE_<LANG>_COMPILER_ID` variable.
 
+.. genex:: $<HIP_COMPILER_ID:compiler_ids>
+
+  where ``compiler_ids`` is a comma-separated list.
+  ``1`` if the CMake's compiler id of the HIP compiler matches any one
+  of the entries in ``compiler_ids``, otherwise ``0``.
+  See also the :variable:`CMAKE_<LANG>_COMPILER_ID` variable.
+
 .. genex:: $<ISPC_COMPILER_ID:compiler_ids>
 
   where ``compiler_ids`` is a comma-separated list.
@@ -216,6 +223,11 @@ Variable Queries
 .. genex:: $<Fortran_COMPILER_VERSION:version>
 
   ``1`` if the version of the Fortran compiler matches ``version``, otherwise ``0``.
+  See also the :variable:`CMAKE_<LANG>_COMPILER_VERSION` variable.
+
+.. genex:: $<HIP_COMPILER_VERSION:version>
+
+  ``1`` if the version of the HIP compiler matches ``version``, otherwise ``0``.
   See also the :variable:`CMAKE_<LANG>_COMPILER_VERSION` variable.
 
 .. genex:: $<ISPC_COMPILER_VERSION:version>
@@ -648,6 +660,11 @@ Variable Queries
   The CMake's compiler id of the Fortran compiler used.
   See also the :variable:`CMAKE_<LANG>_COMPILER_ID` variable.
 
+.. genex:: $<HIP_COMPILER_ID>
+
+  The CMake's compiler id of the HIP compiler used.
+  See also the :variable:`CMAKE_<LANG>_COMPILER_ID` variable.
+
 .. genex:: $<ISPC_COMPILER_ID>
 
   The CMake's compiler id of the ISPC compiler used.
@@ -681,6 +698,11 @@ Variable Queries
 .. genex:: $<Fortran_COMPILER_VERSION>
 
   The version of the Fortran compiler used.
+  See also the :variable:`CMAKE_<LANG>_COMPILER_VERSION` variable.
+
+.. genex:: $<HIP_COMPILER_VERSION>
+
+  The version of the HIP compiler used.
   See also the :variable:`CMAKE_<LANG>_COMPILER_VERSION` variable.
 
 .. genex:: $<ISPC_COMPILER_VERSION>
@@ -966,8 +988,9 @@ which is just the string ``tgt``.
 .. genex:: $<INSTALL_PREFIX>
 
   Content of the install prefix when the target is exported via
-  :command:`install(EXPORT)`, or when evaluated in
-  :prop_tgt:`INSTALL_NAME_DIR`, and empty otherwise.
+  :command:`install(EXPORT)`, or when evaluated in the
+  :prop_tgt:`INSTALL_NAME_DIR` property or the ``INSTALL_NAME_DIR`` argument of
+  :command:`install(RUNTIME_DEPENDENCY_SET)`, and empty otherwise.
 
 Output-Related Expressions
 --------------------------

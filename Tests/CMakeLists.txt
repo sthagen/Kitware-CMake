@@ -478,6 +478,7 @@ if(BUILD_TESTING)
   ADD_TEST_MACRO(Preprocess Preprocess)
   set(ExportImport_BUILD_OPTIONS -DCMake_TEST_NESTED_MAKE_PROGRAM:FILEPATH=${CMake_TEST_EXPLICIT_MAKE_PROGRAM}
                                  -DCMake_TEST_CUDA:BOOL=${CMake_TEST_CUDA}
+                                 -DCMake_INSTALL_NAME_TOOL_BUG:BOOL=${CMake_INSTALL_NAME_TOOL_BUG}
                                  )
   ADD_TEST_MACRO(ExportImport ExportImport)
   set_property(TEST ExportImport APPEND
@@ -488,6 +489,11 @@ if(BUILD_TESTING)
   ADD_TEST_MACRO(CompileDefinitions CompileDefinitions)
   if(CMAKE_Fortran_COMPILER)
     set(CompileOptions_BUILD_OPTIONS -DTEST_FORTRAN=1)
+  endif()
+  if(_isMultiConfig)
+    set(CompileOptions_CTEST_OPTIONS --build-config $<CONFIGURATION>)
+  else()
+    set(CompileOptions_BUILD_OPTIONS -DCMAKE_BUILD_TYPE=$<CONFIGURATION>)
   endif()
   ADD_TEST_MACRO(CompileOptions CompileOptions)
   ADD_TEST_MACRO(CompatibleInterface CompatibleInterface)
@@ -1477,6 +1483,10 @@ if(BUILD_TESTING)
   if(CMake_TEST_CUDA)
     add_subdirectory(Cuda)
     add_subdirectory(CudaOnly)
+  endif()
+
+  if(CMake_TEST_HIP)
+    add_subdirectory(HIP)
   endif()
 
   if(CMake_TEST_ISPC)

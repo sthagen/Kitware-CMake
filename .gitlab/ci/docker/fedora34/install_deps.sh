@@ -12,6 +12,7 @@ dnf install --setopt=install_weak_deps=False -y \
 # Install development tools.
 dnf install --setopt=install_weak_deps=False -y \
     clang-tools-extra \
+    compiler-rt \
     gcc-c++ \
     git-core \
     make
@@ -25,6 +26,7 @@ dnf install --setopt=install_weak_deps=False -y \
 
 # Install lint tools.
 dnf install --setopt=install_weak_deps=False -y \
+    clang-analyzer \
     codespell
 
 # Tools needed for the test suite.

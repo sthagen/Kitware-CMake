@@ -248,5 +248,25 @@ separate from the interactive comparison UI.
 Attached Files
 """"""""""""""
 
-To associate other types of files with a test, use the
-:prop_test:`ATTACHED_FILES` or :prop_test:`ATTACHED_FILES_ON_FAIL` test properties.
+The following example demonstrates how to upload non-image files to CDash.
+
+.. code-block:: c++
+
+   std::cout <<
+     "<DartMeasurementFile type=\"file\" name=\"MyTestInputData\">" <<
+     "/dir/to/data.csv</DartMeasurementFile>" << std::endl;
+
+If the name of the file to upload is known at configure time, you can use the
+:prop_test:`ATTACHED_FILES` or :prop_test:`ATTACHED_FILES_ON_FAIL` test
+properties instead.
+
+Custom Details
+""""""""""""""
+
+The following example demonstrates how to specify a custom value for the
+``Test Details`` field displayed on CDash.
+
+.. code-block:: c++
+
+   std::cout <<
+     "<CTestDetails>My Custom Details Value</CTestDetails>" << std::endl;

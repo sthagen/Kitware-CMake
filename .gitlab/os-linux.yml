@@ -69,7 +69,7 @@
 ### Fedora
 
 .fedora34:
-    image: "kitware/cmake:ci-fedora34-x86_64-2021-05-21"
+    image: "kitware/cmake:ci-fedora34-x86_64-2021-06-07"
 
     variables:
         GIT_CLONE_PATH: "$CI_BUILDS_DIR/cmake ci/long file name for testing purposes"
@@ -82,6 +82,15 @@
 
     variables:
         CMAKE_CONFIGURATION: fedora34_tidy
+        CTEST_NO_WARNINGS_ALLOWED: 1
+        CMake_SKIP_INSTALL: 1
+
+.fedora34_clang_analyzer:
+    extends: .fedora34
+
+    variables:
+        CMAKE_CONFIGURATION: fedora34_clang_analyzer
+        CMAKE_BUILD_TYPE: Debug
         CTEST_NO_WARNINGS_ALLOWED: 1
         CMake_SKIP_INSTALL: 1
 
@@ -139,6 +148,36 @@
         CMAKE_CONFIGURATION: fedora34_makefiles
         CTEST_NO_WARNINGS_ALLOWED: 1
         CMAKE_GENERATOR: "Unix Makefiles"
+
+### Clang Compiler
+
+.debian10_makefiles_clang:
+    extends: .debian10
+
+    variables:
+        CMAKE_CONFIGURATION: debian10_makefiles_clang
+        CMAKE_GENERATOR: "Unix Makefiles"
+
+### Sanitizers
+
+.fedora_memcheck:
+    variables:
+        CMAKE_BUILD_TYPE: RelWithDebInfo
+
+.fedora_asan_addon:
+    extends: .fedora_memcheck
+
+    variables:
+        CTEST_MEMORYCHECK_TYPE: AddressSanitizer
+        CTEST_MEMORYCHECK_SANITIZER_OPTIONS: ""
+
+.fedora34_asan:
+    extends:
+        - .fedora34
+        - .fedora_asan_addon
+
+    variables:
+        CMAKE_CONFIGURATION: fedora34_asan
 
 ### Intel Compiler
 
@@ -285,6 +324,15 @@
     script:
         - *before_script_linux
         - "$LAUNCHER ctest --output-on-failure -V -S .gitlab/ci/ctest_test.cmake"
+
+    interruptible: true
+
+.cmake_memcheck_linux:
+    stage: test
+
+    script:
+        - *before_script_linux
+        - "$LAUNCHER ctest --output-on-failure -V -S .gitlab/ci/ctest_memcheck.cmake"
 
     interruptible: true
 
