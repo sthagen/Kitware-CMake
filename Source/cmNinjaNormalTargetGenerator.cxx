@@ -581,17 +581,23 @@ std::vector<std::string> cmNinjaNormalTargetGenerator::ComputeLinkCmd(
         }
       }
       cmExpandList(linkCmdStr, linkCmds);
-      if (this->GetGeneratorTarget()->GetPropertyAsBool("LINK_WHAT_YOU_USE")) {
-        std::string cmakeCommand = cmStrCat(
-          this->GetLocalGenerator()->ConvertToOutputFormat(
-            cmSystemTools::GetCMakeCommand(), cmLocalGenerator::SHELL),
-          " -E __run_co_compile --lwyu=");
-        cmGeneratorTarget& gt = *this->GetGeneratorTarget();
-        std::string targetOutputReal = this->ConvertToNinjaPath(
-          gt.GetFullPath(config, cmStateEnums::RuntimeBinaryArtifact,
-                         /*realname=*/true));
-        cmakeCommand += targetOutputReal;
-        linkCmds.push_back(std::move(cmakeCommand));
+      if (this->UseLWYU) {
+        cmProp lwyuCheck = mf->GetDefinition("CMAKE_LINK_WHAT_YOU_USE_CHECK");
+        if (lwyuCheck) {
+          std::string cmakeCommand = cmStrCat(
+            this->GetLocalGenerator()->ConvertToOutputFormat(
+              cmSystemTools::GetCMakeCommand(), cmLocalGenerator::SHELL),
+            " -E __run_co_compile --lwyu=");
+          cmakeCommand +=
+            this->GetLocalGenerator()->EscapeForShell(*lwyuCheck);
+
+          std::string targetOutputReal =
+            this->ConvertToNinjaPath(this->GetGeneratorTarget()->GetFullPath(
+              config, cmStateEnums::RuntimeBinaryArtifact,
+              /*realname=*/true));
+          cmakeCommand += cmStrCat(" --source=", targetOutputReal);
+          linkCmds.push_back(std::move(cmakeCommand));
+        }
       }
       return linkCmds;
     }
@@ -1156,16 +1162,17 @@ void cmNinjaNormalTargetGenerator::WriteLinkStatement(
 
   this->AddModuleDefinitionFlag(linkLineComputer.get(), vars["LINK_FLAGS"],
                                 config);
+
+  this->UseLWYU = this->GetLocalGenerator()->AppendLWYUFlags(
+    vars["LINK_FLAGS"], this->GetGeneratorTarget(),
+    this->TargetLinkLanguage(config));
+
   vars["LINK_FLAGS"] = globalGen->EncodeLiteral(vars["LINK_FLAGS"]);
 
   vars["MANIFESTS"] = this->GetManifests(config);
   vars["AIX_EXPORTS"] = this->GetAIXExports(config);
 
   vars["LINK_PATH"] = frameworkPath + linkPath;
-  std::string lwyuFlags;
-  if (gt->GetPropertyAsBool("LINK_WHAT_YOU_USE")) {
-    lwyuFlags = " -Wl,--no-as-needed";
-  }
 
   // Compute architecture specific link flags.  Yes, these go into a different
   // variable for executables, probably due to a mistake made when duplicating
@@ -1174,7 +1181,6 @@ void cmNinjaNormalTargetGenerator::WriteLinkStatement(
     std::string t = vars["FLAGS"];
     localGen.AddArchitectureFlags(t, gt, this->TargetLinkLanguage(config),
                                   config);
-    t += lwyuFlags;
     vars["FLAGS"] = t;
   } else {
     std::string t = vars["ARCH_FLAGS"];
@@ -1182,7 +1188,6 @@ void cmNinjaNormalTargetGenerator::WriteLinkStatement(
                                   config);
     vars["ARCH_FLAGS"] = t;
     t.clear();
-    t += lwyuFlags;
     localGen.AddLanguageFlagsForLinking(
       t, gt, this->TargetLinkLanguage(config), config);
     vars["LANGUAGE_COMPILE_FLAGS"] = t;

@@ -3543,8 +3543,6 @@ void cmVisualStudio10TargetGenerator::WriteNasmOptions(
   }
   Elem e2(e1, "NASM");
 
-  std::vector<std::string> includes =
-    this->GetIncludes(configName, "ASM_NASM");
   OptionsHelper nasmOptions(*(this->NasmOptions[configName]), e2);
   nasmOptions.OutputAdditionalIncludeDirectories("ASM_NASM");
   nasmOptions.OutputFlagMap();
@@ -5115,7 +5113,9 @@ std::string cmVisualStudio10TargetGenerator::GetCMakeFilePath(
 
 void cmVisualStudio10TargetGenerator::WriteStdOutEncodingUtf8(Elem& e1)
 {
-  if (this->GlobalGenerator->IsStdOutEncodingSupported()) {
+  if (this->GlobalGenerator->IsUtf8EncodingSupported()) {
+    e1.Element("UseUtf8Encoding", "Always");
+  } else if (this->GlobalGenerator->IsStdOutEncodingSupported()) {
     e1.Element("StdOutEncoding", "UTF-8");
   }
 }

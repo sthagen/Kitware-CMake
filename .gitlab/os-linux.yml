@@ -45,7 +45,7 @@
 ### Debian
 
 .debian10:
-    image: "kitware/cmake:ci-debian10-x86_64-2021-05-11"
+    image: "kitware/cmake:ci-debian10-x86_64-2021-06-28"
 
     variables:
         GIT_CLONE_PATH: "$CI_BUILDS_DIR/cmake ci"
@@ -60,7 +60,7 @@
         CMake_SKIP_INSTALL: 1
 
 .debian10_aarch64:
-    image: "kitware/cmake:ci-debian10-aarch64-2021-05-11"
+    image: "kitware/cmake:ci-debian10-aarch64-2021-06-28"
 
     variables:
         GIT_CLONE_PATH: "$CI_BUILDS_DIR/cmake ci"
@@ -69,7 +69,7 @@
 ### Fedora
 
 .fedora34:
-    image: "kitware/cmake:ci-fedora34-x86_64-2021-06-07"
+    image: "kitware/cmake:ci-fedora34-x86_64-2021-06-28"
 
     variables:
         GIT_CLONE_PATH: "$CI_BUILDS_DIR/cmake ci/long file name for testing purposes"
@@ -90,7 +90,7 @@
 
     variables:
         CMAKE_CONFIGURATION: fedora34_clang_analyzer
-        CMAKE_BUILD_TYPE: Debug
+        CMAKE_CI_BUILD_TYPE: Debug
         CTEST_NO_WARNINGS_ALLOWED: 1
         CMake_SKIP_INSTALL: 1
 
@@ -158,11 +158,17 @@
         CMAKE_CONFIGURATION: debian10_makefiles_clang
         CMAKE_GENERATOR: "Unix Makefiles"
 
+.debian10_ninja_clang:
+    extends: .debian10
+
+    variables:
+        CMAKE_CONFIGURATION: debian10_ninja_clang
+
 ### Sanitizers
 
 .fedora_memcheck:
     variables:
-        CMAKE_BUILD_TYPE: RelWithDebInfo
+        CMAKE_CI_BUILD_TYPE: RelWithDebInfo
 
 .fedora_asan_addon:
     extends: .fedora_memcheck
@@ -202,8 +208,23 @@
 
 ### CUDA builds
 
+.cuda9.2:
+    image: "kitware/cmake:ci-cuda9.2-x86_64-2021-07-01"
+
+    variables:
+        GIT_CLONE_PATH: "$CI_BUILDS_DIR/cmake ci"
+        CMAKE_ARCH: x86_64
+        CTEST_LABELS: "CUDA"
+
+.cuda9.2_nvidia:
+    extends: .cuda9.2
+
+    variables:
+        CMAKE_CONFIGURATION: cuda9.2_nvidia
+        CMAKE_GENERATOR: "Ninja Multi-Config"
+
 .cuda10.2:
-    image: "kitware/cmake:ci-cuda10.2-x86_64-2020-06-11"
+    image: "kitware/cmake:ci-cuda10.2-x86_64-2021-06-16"
 
     variables:
         GIT_CLONE_PATH: "$CI_BUILDS_DIR/cmake ci"
@@ -216,6 +237,30 @@
     variables:
         CMAKE_CONFIGURATION: cuda10.2_nvidia
         CTEST_NO_WARNINGS_ALLOWED: 1
+
+.cuda10.2_clang:
+    extends: .cuda10.2
+
+    variables:
+        CMAKE_CONFIGURATION: cuda10.2_clang
+        CTEST_NO_WARNINGS_ALLOWED: 1
+
+### HIP builds
+
+.hip4.2:
+    image: "kitware/cmake:ci-hip4.2-x86_64-2021-07-09"
+
+    variables:
+        GIT_CLONE_PATH: "$CI_BUILDS_DIR/cmake ci"
+        CMAKE_ARCH: x86_64
+        CTEST_LABELS: "HIP"
+
+.hip4.2_radeon:
+    extends: .hip4.2
+
+    variables:
+        CMAKE_CONFIGURATION: hip4.2_radeon
+        CMAKE_GENERATOR: "Ninja Multi-Config"
 
 ## Tags
 
@@ -246,6 +291,13 @@
     tags:
         - cmake
         - cuda-rt
+        - docker
+        - linux
+
+.linux_builder_tags_radeon:
+    tags:
+        - cmake
+        - radeon
         - docker
         - linux
 

@@ -75,11 +75,16 @@ The CUDA Toolkit search behavior uses the following order:
        (2) ensure that the correct ``nvcc`` executable shows up in ``$PATH`` for
        :command:`find_program` to find.
 
+Arguments
+^^^^^^^^^
+
+``[<version>]``
+    The ``[<version>]`` argument requests a version with which the package found
+    should be compatible. See :ref:`find_package version format <FIND_PACKAGE_VERSION_FORMAT>`
+    for more details.
+
 Options
 ^^^^^^^
-
-``VERSION``
-    If specified, describes the version of the CUDA Toolkit to search for.
 
 ``REQUIRED``
     If specified, configuration will error if a suitable CUDA Toolkit is not
@@ -410,7 +415,7 @@ Result variables
 ``CUDAToolkit_VERSION_MAJOR``
     The major version of the CUDA Toolkit.
 
-``CUDAToolkit_VERSION_MAJOR``
+``CUDAToolkit_VERSION_MINOR``
     The minor version of the CUDA Toolkit.
 
 ``CUDAToolkit_VERSION_PATCH``
@@ -844,9 +849,9 @@ if(CUDAToolkit_FOUND)
     mark_as_advanced(CUDA_${lib_name}_LIBRARY)
 
     if (NOT TARGET CUDA::${lib_name} AND CUDA_${lib_name}_LIBRARY)
-      add_library(CUDA::${lib_name} IMPORTED INTERFACE)
+      add_library(CUDA::${lib_name} UNKNOWN IMPORTED)
       target_include_directories(CUDA::${lib_name} SYSTEM INTERFACE "${CUDAToolkit_INCLUDE_DIRS}")
-      target_link_libraries(CUDA::${lib_name} INTERFACE "${CUDA_${lib_name}_LIBRARY}")
+      set_property(TARGET CUDA::${lib_name} PROPERTY IMPORTED_LOCATION "${CUDA_${lib_name}_LIBRARY}")
       foreach(dep ${arg_DEPS})
         if(TARGET CUDA::${dep})
           target_link_libraries(CUDA::${lib_name} INTERFACE CUDA::${dep})

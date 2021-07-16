@@ -394,8 +394,10 @@ List of CPack RPM generator specific variables:
  * Mandatory : NO
  * Default   : -
 
- May be used to set weak RPM dependencies (suggests). Note that you must
- enclose the complete requires string between quotes.
+ May be used to set weak RPM dependencies (suggests). If ``rpmbuild`` doesn't
+ support the ``Suggests`` tag, CPack will emit a warning and ignore this
+ variable. Note that you must enclose the complete requires string between
+ quotes.
 
 .. variable:: CPACK_RPM_PACKAGE_PROVIDES
               CPACK_RPM_<component>_PACKAGE_PROVIDES
@@ -1033,3 +1035,14 @@ Source RPM packaging has its own set of variables:
  example::
 
   set(CPACK_RPM_BUILDREQUIRES "python >= 2.5.0, cmake >= 2.8")
+
+.. VARIABLE:: CPACK_RPM_REQUIRES_EXCLUDE_FROM
+
+ * Mandatory : NO
+ * Default   : -
+
+ May be used to keep the dependency generator from scanning specific files
+ or directories for dependencies.  Note that you can use a regular
+ expression that matches all of the directories or files, for example::
+
+  set(CPACK_RPM_REQUIRES_EXCLUDE_FROM "bin/libqsqloci.*\\.so.*")

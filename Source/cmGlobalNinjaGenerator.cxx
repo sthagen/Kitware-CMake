@@ -6,6 +6,7 @@
 #include <cctype>
 #include <cstdio>
 #include <sstream>
+#include <utility>
 
 #include <cm/iterator>
 #include <cm/memory>
@@ -381,7 +382,7 @@ void cmGlobalNinjaGenerator::WriteCustomCommandBuild(
     if (restat) {
       vars["restat"] = "1";
     }
-    if (uses_terminal && this->SupportsConsolePool()) {
+    if (uses_terminal && this->SupportsDirectConsole()) {
       vars["pool"] = "console";
     } else if (!job_pool.empty()) {
       vars["pool"] = job_pool;
@@ -919,14 +920,7 @@ void cmGlobalNinjaGenerator::EnableLanguage(
   std::vector<std::string> const& langs, cmMakefile* mf, bool optional)
 {
   if (this->IsMultiConfig()) {
-    if (!mf->GetDefinition("CMAKE_CONFIGURATION_TYPES")) {
-      mf->AddCacheDefinition(
-        "CMAKE_CONFIGURATION_TYPES", "Debug;Release;RelWithDebInfo",
-        "Semicolon separated list of supported configuration types, only "
-        "supports Debug, Release, MinSizeRel, and RelWithDebInfo, anything "
-        "else will be ignored",
-        cmStateEnums::STRING);
-    }
+    mf->InitCMAKE_CONFIGURATION_TYPES("Debug;Release;RelWithDebInfo");
   }
 
   this->cmGlobalGenerator::EnableLanguage(langs, mf, optional);
@@ -1017,13 +1011,6 @@ bool cmGlobalNinjaGenerator::HasRule(const std::string& name)
 }
 
 // Private virtual overrides
-
-std::string cmGlobalNinjaGenerator::GetEditCacheCommand() const
-{
-  // Ninja by design does not run interactive tools in the terminal,
-  // so our only choice is cmake-gui.
-  return cmSystemTools::GetCMakeGUICommand();
-}
 
 void cmGlobalNinjaGenerator::ComputeTargetObjectDirectory(
   cmGeneratorTarget* gt) const
@@ -1846,7 +1833,7 @@ void cmGlobalNinjaGenerator::WriteTargetRebuildManifest(std::ostream& os)
 
   // Use 'console' pool to get non buffered output of the CMake re-run call
   // Available since Ninja 1.5
-  if (this->SupportsConsolePool()) {
+  if (this->SupportsDirectConsole()) {
     reBuild.Variables["pool"] = "console";
   }
 
@@ -1940,7 +1927,7 @@ std::string cmGlobalNinjaGenerator::NinjaCmd() const
   return "ninja";
 }
 
-bool cmGlobalNinjaGenerator::SupportsConsolePool() const
+bool cmGlobalNinjaGenerator::SupportsDirectConsole() const
 {
   return this->NinjaSupportsConsolePool;
 }
@@ -2400,6 +2387,8 @@ cm::optional<cmSourceInfo> cmcmd_cmake_ninja_depends_fortran(
   cm::optional<cmSourceInfo> info;
   cmFortranCompiler fc;
   std::vector<std::string> includes;
+  std::string dir_top_bld;
+  std::string module_dir;
   {
     Json::Value tdio;
     Json::Value const& tdi = tdio;
@@ -2414,11 +2403,22 @@ cm::optional<cmSourceInfo> cmcmd_cmake_ninja_depends_fortran(
       }
     }
 
+    dir_top_bld = tdi["dir-top-bld"].asString();
+    if (!dir_top_bld.empty() && !cmHasLiteralSuffix(dir_top_bld, "/")) {
+      dir_top_bld += '/';
+    }
+
     Json::Value const& tdi_include_dirs = tdi["include-dirs"];
     if (tdi_include_dirs.isArray()) {
       for (auto const& tdi_include_dir : tdi_include_dirs) {
         includes.push_back(tdi_include_dir.asString());
       }
+    }
+
+    Json::Value const& tdi_module_dir = tdi["module-dir"];
+    module_dir = tdi_module_dir.asString();
+    if (!module_dir.empty() && !cmHasLiteralSuffix(module_dir, "/")) {
+      module_dir += '/';
     }
 
     Json::Value const& tdi_compiler_id = tdi["compiler-id"];
@@ -2448,7 +2448,13 @@ cm::optional<cmSourceInfo> cmcmd_cmake_ninja_depends_fortran(
   for (std::string const& provide : finfo.Provides) {
     cmSourceReqInfo src_info;
     src_info.LogicalName = provide;
-    src_info.CompiledModulePath = provide;
+    if (!module_dir.empty()) {
+      std::string mod = cmStrCat(module_dir, provide);
+      if (!dir_top_bld.empty() && cmHasPrefix(mod, dir_top_bld)) {
+        mod = mod.substr(dir_top_bld.size());
+      }
+      src_info.CompiledModulePath = std::move(mod);
+    }
     info->ScanDep.Provides.emplace_back(src_info);
   }
   for (std::string const& require : finfo.Requires) {
@@ -2458,7 +2464,6 @@ cm::optional<cmSourceInfo> cmcmd_cmake_ninja_depends_fortran(
     }
     cmSourceReqInfo src_info;
     src_info.LogicalName = require;
-    src_info.CompiledModulePath = require;
     info->ScanDep.Requires.emplace_back(src_info);
   }
   for (std::string const& include : finfo.Includes) {
@@ -2529,8 +2534,18 @@ bool cmGlobalNinjaGenerator::WriteDyndepFile(
   Json::Value tm = Json::objectValue;
   for (cmScanDepInfo const& object : objects) {
     for (auto const& p : object.Provides) {
-      std::string const mod = cmStrCat(
-        module_dir, cmSystemTools::GetFilenameName(p.CompiledModulePath));
+      std::string mod;
+      if (!p.CompiledModulePath.empty()) {
+        // The scanner provided the path to the module file.
+        mod = p.CompiledModulePath;
+        if (!cmSystemTools::FileIsFullPath(mod)) {
+          // Treat relative to work directory (top of build tree).
+          mod = cmSystemTools::CollapseFullPath(mod, dir_top_bld);
+        }
+      } else {
+        // Assume the module file path matches the logical module name.
+        mod = cmStrCat(module_dir, p.LogicalName);
+      }
       mod_files[p.LogicalName] = mod;
       tm[p.LogicalName] = mod;
     }

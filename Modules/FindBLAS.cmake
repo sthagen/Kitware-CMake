@@ -8,11 +8,11 @@ FindBLAS
 Find Basic Linear Algebra Subprograms (BLAS) library
 
 This module finds an installed Fortran library that implements the
-BLAS linear-algebra interface (see http://www.netlib.org/blas/).
+`BLAS linear-algebra interface`_.
 
-The approach follows that taken for the ``autoconf`` macro file,
-``acx_blas.m4`` (distributed at
-http://ac-archive.sourceforge.net/ac-archive/acx_blas.html).
+At least one of the ``C``, ``CXX``, or ``Fortran`` languages must be enabled.
+
+.. _`BLAS linear-algebra interface`: http://www.netlib.org/blas/
 
 Input Variables
 ^^^^^^^^^^^^^^^
@@ -23,68 +23,8 @@ The following variables may be set to influence this module's behavior:
   if ``ON`` use static linkage
 
 ``BLA_VENDOR``
-  If set, checks only the specified vendor, if not set checks all the
-  possibilities.  List of vendors valid in this module:
-
-  * ``Goto``
-  * ``FlexiBLAS``
-  * ``OpenBLAS``
-  * ``FLAME``
-  * ``ATLAS PhiPACK``
-  * ``CXML``
-  * ``DXML``
-  * ``SunPerf``
-  * ``SCSL``
-  * ``SGIMATH``
-  * ``IBMESSL``
-  * ``Intel10_32`` (intel mkl v10 32 bit, threaded code)
-  * ``Intel10_64lp`` (intel mkl v10+ 64 bit, threaded code, lp64 model)
-  * ``Intel10_64lp_seq`` (intel mkl v10+ 64 bit, sequential code, lp64 model)
-  * ``Intel10_64ilp`` (intel mkl v10+ 64 bit, threaded code, ilp64 model)
-  * ``Intel10_64ilp_seq`` (intel mkl v10+ 64 bit, sequential code, ilp64 model)
-  * ``Intel10_64_dyn`` (intel mkl v10+ 64 bit, single dynamic library)
-  * ``Intel`` (obsolete versions of mkl 32 and 64 bit)
-  * ``ACML``
-  * ``ACML_MP``
-  * ``ACML_GPU``
-  * ``Apple``
-  * ``NAS``
-  * ``Arm``
-  * ``Arm_mp``
-  * ``Arm_ilp64``
-  * ``Arm_ilp64_mp``
-  * ``EML``
-  * ``EML_mt``
-  * ``Fujitsu_SSL2`` (Fujitsu serial blas / lapack)
-  * ``Fujitsu_SSL2BLAMP`` (Fujitsu parallel blas / lapack)
-  * ``NVHPC``
-  * ``Generic``
-
-  .. versionadded:: 3.6
-    ``OpenBLAS`` support.
-
-  .. versionadded:: 3.11
-    ``FLAME`` support.
-
-  .. versionadded:: 3.13
-    Added ILP64 MKL variants (``Intel10_64ilp``, ``Intel10_64ilp_seq``).
-
-  .. versionadded:: 3.17
-    Added single dynamic library MKL variant (``Intel10_64_dyn``).
-
-  .. versionadded:: 3.18
-    Arm Performance Libraries support (``Arm``, ``Arm_mp``, ``Arm_ilp64``,
-    ``Arm_ilp64_mp``).
-
-  .. versionadded:: 3.19
-    ``FlexiBLAS`` support.
-
-  .. versionadded:: 3.20
-    Elbrus Math Library support (``EML``, ``EML_mt``).
-    Fujitsu SSL2 Library support (``Fujitsu_SSL2``, ``Fujitsu_SSL2BLAMP``)
-
-  .. versionadded:: 3.21
-    NVHPC support
+  Set to one of the :ref:`BLAS/LAPACK Vendors` to search for BLAS only
+  from the specified vendor.  If not set, all vendors are considered.
 
 ``BLA_F95``
   if ``ON`` tries to find the BLAS95 interfaces
@@ -98,13 +38,12 @@ The following variables may be set to influence this module's behavior:
 Imported targets
 ^^^^^^^^^^^^^^^^
 
-.. versionadded:: 3.18
-
-This module defines the following :prop_tgt:`IMPORTED` target:
+This module defines the following :prop_tgt:`IMPORTED` targets:
 
 ``BLAS::BLAS``
-  The libraries to use for BLAS, if found.
+  .. versionadded:: 3.18
 
+  The libraries to use for BLAS, if found.
 
 Result Variables
 ^^^^^^^^^^^^^^^^
@@ -124,30 +63,167 @@ This module defines the following variables:
 ``BLAS95_FOUND``
   library implementing the BLAS95 interface is found
 
+.. _`BLAS/LAPACK Vendors`:
+
+BLAS/LAPACK Vendors
+^^^^^^^^^^^^^^^^^^^
+
+``Generic``
+  Generic reference implementation
+
+``ACML``, ``ACML_MP``, ``ACML_GPU``
+  AMD Core Math Library
+
+``Apple``, ``NAS``
+  Apple BLAS (Accelerate), and Apple NAS (vecLib)
+
+``Arm``, ``Arm_mp``, ``Arm_ilp64``, ``Arm_ilp64_mp``
+  .. versionadded:: 3.18
+
+  Arm Performance Libraries
+
+``ATLAS``
+  Automatically Tuned Linear Algebra Software
+
+``CXML``, ``DXML``
+  Compaq/Digital Extended Math Library
+
+``EML``, ``EML_mt``
+  .. versionadded:: 3.20
+
+  Elbrus Math Library
+
+``FLAME``
+  .. versionadded:: 3.11
+
+  BLIS Framework
+
+``FlexiBLAS``
+  .. versionadded:: 3.19
+
+``Fujitsu_SSL2``, ``Fujitsu_SSL2BLAMP``
+  .. versionadded:: 3.20
+
+  Fujitsu SSL2 serial and parallel blas/lapack
+
+``Goto``
+  GotoBLAS
+
+``IBMESSL``
+  IBM Engineering and Scientific Subroutine Library
+
+``Intel``
+  Intel MKL 32 bit and 64 bit obsolete versions
+
+``Intel10_32``
+  Intel MKL v10 32 bit, threaded code
+
+``Intel10_64lp``
+  Intel MKL v10+ 64 bit, threaded code, lp64 model
+
+``Intel10_64lp_seq``
+  Intel MKL v10+ 64 bit, sequential code, lp64 model
+
+``Intel10_64ilp``
+  .. versionadded:: 3.13
+
+  Intel MKL v10+ 64 bit, threaded code, ilp64 model
+
+``Intel10_64ilp_seq``
+  .. versionadded:: 3.13
+
+  Intel MKL v10+ 64 bit, sequential code, ilp64 model
+
+``Intel10_64_dyn``
+  .. versionadded:: 3.17
+
+  Intel MKL v10+ 64 bit, single dynamic library
+
+``NVHPC``
+  .. versionadded:: 3.21
+
+  NVIDIA HPC SDK
+
+``OpenBLAS``
+  .. versionadded:: 3.6
+
+``PhiPACK``
+  Portable High Performance ANSI C (PHiPAC)
+
+``SCSL``
+  Scientific Computing Software Library
+
+``SGIMATH``
+  SGI Scientific Mathematical Library
+
+``SunPerf``
+  Sun Performance Library
+
+.. _`Intel MKL`:
+
+Intel MKL
+^^^^^^^^^
+
+To use the Intel MKL implementation of BLAS, a project must enable at least
+one of the ``C`` or ``CXX`` languages.  Set ``BLA_VENDOR`` to an Intel MKL
+variant either on the command-line as ``-DBLA_VENDOR=Intel10_64lp`` or in
+project code:
+
+.. code-block:: cmake
+
+  set(BLA_VENDOR Intel10_64lp)
+  find_package(BLAS)
+
+In order to build a project using Intel MKL, and end user must first
+establish an Intel MKL environment:
+
+Intel oneAPI
+  Source the full Intel environment script:
+
+  .. code-block:: shell
+
+    . /opt/intel/oneapi/setvars.sh
+
+  Or, source the MKL component environment script:
+
+  .. code-block:: shell
+
+    . /opt/intel/oneapi/mkl/latest/env/vars.sh
+
+Intel Classic
+  Source the full Intel environment script:
+
+  .. code-block:: shell
+
+    . /opt/intel/bin/compilervars.sh intel64
+
+  Or, source the MKL component environment script:
+
+  .. code-block:: shell
+
+    . /opt/intel/mkl/bin/mklvars.sh intel64
+
+The above environment scripts set the ``MKLROOT`` environment variable
+to the top of the MKL installation.  They also add the location of the
+runtime libraries to the dynamic library loader environment variable for
+your platform (e.g. ``LD_LIBRARY_PATH``).  This is necessary for programs
+linked against MKL to run.
+
 .. note::
 
-  C, CXX or Fortran must be enabled to detect a BLAS library.
-  C or CXX must be enabled to use Intel Math Kernel Library (MKL).
+  As of Intel oneAPI 2021.2, loading only the MKL component does not
+  make all of its dependencies available.  In particular, the ``iomp5``
+  library must be available separately, or provided by also loading
+  the compiler component environment:
 
-  For example, to use Intel MKL libraries and/or Intel compiler:
+  .. code-block:: shell
 
-  .. code-block:: cmake
-
-    set(BLA_VENDOR Intel10_64lp)
-    find_package(BLAS)
-
-Hints
-^^^^^
-
-``MKLROOT``
-  .. versionadded:: 3.15
-
-  Set this environment variable to a directory that contains an MKL
-  installation, or add the directory to the dynamic library loader environment
-  variable for your platform (``LIB``, ``DYLD_LIBRARY_PATH`` or
-  ``LD_LIBRARY_PATH``).
+    . /opt/intel/oneapi/compiler/latest/env/vars.sh
 
 #]=======================================================================]
+
+# The approach follows that of the ``autoconf`` macro file, ``acx_blas.m4``
+# (distributed at http://ac-archive.sourceforge.net/ac-archive/acx_blas.html).
 
 # Check the language being used
 if(NOT (CMAKE_C_COMPILER_LOADED OR CMAKE_CXX_COMPILER_LOADED OR CMAKE_Fortran_COMPILER_LOADED))
@@ -310,6 +386,8 @@ if(BLA_VENDOR STREQUAL "All")
       )
   endif()
   if(BLAS_WORKS)
+    # Give a more helpful "found" message
+    set(BLAS_WORKS "implicitly linked")
     set(_blas_fphsa_req_var BLAS_WORKS)
   endif()
 endif()
@@ -337,21 +415,12 @@ if(BLA_VENDOR MATCHES "Intel" OR BLA_VENDOR STREQUAL "All")
         if(CMAKE_Fortran_COMPILER_LOADED AND CMAKE_Fortran_COMPILER_ID STREQUAL "GNU" AND NOT APPLE)
             set(BLAS_mkl_INTFACE "gf")
             set(BLAS_mkl_THREADING "gnu")
+            set(BLAS_mkl_OMP "gomp")
         else()
             set(BLAS_mkl_INTFACE "intel")
             set(BLAS_mkl_THREADING "intel")
+            set(BLAS_mkl_OMP "iomp5")
         endif()
-
-        foreach(lang IN ITEMS C CXX Fortran)
-          if(CMAKE_${lang}_COMPILER_LOADED)
-            find_package(OpenMP COMPONENTS ${lang})
-            if(${OpenMP_${lang}_FOUND})
-              set(BLAS_mkl_OMP ${OpenMP_${lang}_LIBRARIES})
-              break()
-            endif()
-          endif()
-        endforeach()
-
         set(BLAS_mkl_LM "-lm")
         set(BLAS_mkl_LDL "-ldl")
       endif()
@@ -372,7 +441,7 @@ if(BLA_VENDOR MATCHES "Intel" OR BLA_VENDOR STREQUAL "All")
 
       if(BLA_F95)
         set(BLAS_mkl_SEARCH_SYMBOL "sgemm_f95")
-        set(_LIBRARIES BLAS95_LIBRARIES)
+        set(_BLAS_LIBRARIES BLAS95_LIBRARIES)
         if(WIN32)
           # Find the main file (32-bit or 64-bit)
           set(BLAS_SEARCH_LIBS_WIN_MAIN "")
@@ -416,7 +485,7 @@ if(BLA_VENDOR MATCHES "Intel" OR BLA_VENDOR STREQUAL "All")
 
             # mkl >= 10.3
             list(APPEND BLAS_SEARCH_LIBS
-              "${BLAS_mkl_START_GROUP} mkl_blas95 mkl_${BLAS_mkl_INTFACE} mkl_${BLAS_mkl_THREADING}_thread mkl_core ${BLAS_mkl_END_GROUP}")
+              "${BLAS_mkl_START_GROUP} mkl_blas95 mkl_${BLAS_mkl_INTFACE} mkl_${BLAS_mkl_THREADING}_thread mkl_core ${BLAS_mkl_END_GROUP} ${BLAS_mkl_OMP}")
           endif()
           if(BLA_VENDOR MATCHES "^Intel10_64i?lp$" OR BLA_VENDOR STREQUAL "All")
             # old version
@@ -425,7 +494,7 @@ if(BLA_VENDOR MATCHES "Intel" OR BLA_VENDOR STREQUAL "All")
 
             # mkl >= 10.3
             list(APPEND BLAS_SEARCH_LIBS
-              "${BLAS_mkl_START_GROUP} mkl_blas95_${BLAS_mkl_ILP_MODE} mkl_${BLAS_mkl_INTFACE}_${BLAS_mkl_ILP_MODE} mkl_${BLAS_mkl_THREADING}_thread mkl_core ${BLAS_mkl_END_GROUP}")
+              "${BLAS_mkl_START_GROUP} mkl_blas95_${BLAS_mkl_ILP_MODE} mkl_${BLAS_mkl_INTFACE}_${BLAS_mkl_ILP_MODE} mkl_${BLAS_mkl_THREADING}_thread mkl_core ${BLAS_mkl_END_GROUP} ${BLAS_mkl_OMP}")
           endif()
           if(BLA_VENDOR MATCHES "^Intel10_64i?lp_seq$" OR BLA_VENDOR STREQUAL "All")
             list(APPEND BLAS_SEARCH_LIBS
@@ -434,7 +503,7 @@ if(BLA_VENDOR MATCHES "Intel" OR BLA_VENDOR STREQUAL "All")
         endif()
       else()
         set(BLAS_mkl_SEARCH_SYMBOL sgemm)
-        set(_LIBRARIES BLAS_LIBRARIES)
+        set(_BLAS_LIBRARIES BLAS_LIBRARIES)
         if(WIN32)
           # Find the main file (32-bit or 64-bit)
           set(BLAS_SEARCH_LIBS_WIN_MAIN "")
@@ -481,7 +550,7 @@ if(BLA_VENDOR MATCHES "Intel" OR BLA_VENDOR STREQUAL "All")
 
             # mkl >= 10.3
             list(APPEND BLAS_SEARCH_LIBS
-              "${BLAS_mkl_START_GROUP} mkl_${BLAS_mkl_INTFACE} mkl_${BLAS_mkl_THREADING}_thread mkl_core ${BLAS_mkl_END_GROUP}")
+              "${BLAS_mkl_START_GROUP} mkl_${BLAS_mkl_INTFACE} mkl_${BLAS_mkl_THREADING}_thread mkl_core ${BLAS_mkl_END_GROUP} ${BLAS_mkl_OMP}")
           endif()
           if(BLA_VENDOR MATCHES "^Intel10_64i?lp$" OR BLA_VENDOR STREQUAL "All")
             # old version
@@ -490,7 +559,7 @@ if(BLA_VENDOR MATCHES "Intel" OR BLA_VENDOR STREQUAL "All")
 
             # mkl >= 10.3
             list(APPEND BLAS_SEARCH_LIBS
-              "${BLAS_mkl_START_GROUP} mkl_${BLAS_mkl_INTFACE}_${BLAS_mkl_ILP_MODE} mkl_${BLAS_mkl_THREADING}_thread mkl_core ${BLAS_mkl_END_GROUP}")
+              "${BLAS_mkl_START_GROUP} mkl_${BLAS_mkl_INTFACE}_${BLAS_mkl_ILP_MODE} mkl_${BLAS_mkl_THREADING}_thread mkl_core ${BLAS_mkl_END_GROUP} ${BLAS_mkl_OMP}")
           endif()
           if(BLA_VENDOR MATCHES "^Intel10_64i?lp_seq$" OR BLA_VENDOR STREQUAL "All")
             list(APPEND BLAS_SEARCH_LIBS
@@ -542,24 +611,27 @@ if(BLA_VENDOR MATCHES "Intel" OR BLA_VENDOR STREQUAL "All")
           "compiler/lib/${BLAS_mkl_ARCH_NAME}"
           "mkl/lib" "mkl/lib/${BLAS_mkl_ARCH_NAME}_${BLAS_mkl_OS_NAME}"
           "mkl/lib/${BLAS_mkl_ARCH_NAME}"
-          "lib/${BLAS_mkl_ARCH_NAME}_${BLAS_mkl_OS_NAME}")
+          "lib" "lib/${BLAS_mkl_ARCH_NAME}_${BLAS_mkl_OS_NAME}"
+          "lib/${BLAS_mkl_ARCH_NAME}"
+          )
 
-      foreach(IT ${BLAS_SEARCH_LIBS})
-        string(REPLACE " " ";" SEARCH_LIBS ${IT})
-        if(NOT ${_LIBRARIES})
+      foreach(_search ${BLAS_SEARCH_LIBS})
+        string(REPLACE " " ";" _search ${_search})
+        if(NOT ${_BLAS_LIBRARIES})
           check_blas_libraries(
-            ${_LIBRARIES}
+            ${_BLAS_LIBRARIES}
             BLAS
             ${BLAS_mkl_SEARCH_SYMBOL}
             ""
-            "${SEARCH_LIBS}"
-            "${BLAS_mkl_OMP};${CMAKE_THREAD_LIBS_INIT};${BLAS_mkl_LM};${BLAS_mkl_LDL}"
+            "${_search}"
+            "${CMAKE_THREAD_LIBS_INIT};${BLAS_mkl_LM};${BLAS_mkl_LDL}"
             "${BLAS_mkl_MKLROOT}"
             "${BLAS_mkl_LIB_PATH_SUFFIXES}"
             )
         endif()
       endforeach()
 
+      unset(_search)
       unset(BLAS_mkl_ILP_MODE)
       unset(BLAS_mkl_INTFACE)
       unset(BLAS_mkl_THREADING)
@@ -665,14 +737,14 @@ if(BLA_VENDOR MATCHES "Arm" OR BLA_VENDOR STREQUAL "All")
 
    # Check for 64bit Integer support
    if(BLA_VENDOR MATCHES "_ilp64")
-     set(BLAS_armpl_LIB "armpl_ilp64")
+     set(_blas_armpl_lib "armpl_ilp64")
    else()
-     set(BLAS_armpl_LIB "armpl_lp64")
+     set(_blas_armpl_lib "armpl_lp64")
    endif()
 
    # Check for OpenMP support, VIA BLA_VENDOR of Arm_mp or Arm_ipl64_mp
    if(BLA_VENDOR MATCHES "_mp")
-     set(BLAS_armpl_LIB "${BLAS_armpl_LIB}_mp")
+     set(_blas_armpl_lib "${_blas_armpl_lib}_mp")
    endif()
 
    if(NOT BLAS_LIBRARIES)
@@ -681,13 +753,13 @@ if(BLA_VENDOR MATCHES "Arm" OR BLA_VENDOR STREQUAL "All")
       BLAS
       sgemm
       ""
-      "${BLAS_armpl_LIB}"
+      "${_blas_armpl_lib}"
       ""
       ""
       ""
       )
   endif()
-
+  set(_blas_armpl_lib)
 endif()
 
 # FLAME's blis library? (https://github.com/flame/blis)
@@ -1018,11 +1090,11 @@ endif()
 # Elbrus Math Library?
 if(BLA_VENDOR MATCHES "EML" OR BLA_VENDOR STREQUAL "All")
 
-   set(BLAS_EML_LIB "eml")
+   set(_blas_eml_lib "eml")
 
    # Check for OpenMP support, VIA BLA_VENDOR of eml_mt
    if(BLA_VENDOR MATCHES "_mt")
-     set(BLAS_EML_LIB "${BLAS_EML_LIB}_mt")
+     set(_blas_eml_lib "${BLAS_EML_LIB}_mt")
    endif()
 
    if(NOT BLAS_LIBRARIES)
@@ -1031,18 +1103,18 @@ if(BLA_VENDOR MATCHES "EML" OR BLA_VENDOR STREQUAL "All")
       BLAS
       sgemm
       ""
-      "${BLAS_EML_LIB}"
+      "${_blas_eml_lib}"
       ""
       ""
       ""
       )
   endif()
-
+  set(_blas_eml_lib)
 endif()
 
 # Fujitsu SSL2 Library?
-if(NOT BLAS_LIBRARIES AND
-    BLA_VENDOR MATCHES "Fujitsu_SSL2" OR BLA_VENDOR STREQUAL "All")
+if(NOT BLAS_LIBRARIES
+    AND (BLA_VENDOR MATCHES "Fujitsu_SSL2" OR BLA_VENDOR STREQUAL "All"))
   if(BLA_VENDOR STREQUAL "Fujitsu_SSL2BLAMP")
     set(_ssl2_suffix BLAMP)
   else()
@@ -1094,3 +1166,5 @@ if(NOT BLA_F95)
 endif()
 
 _add_blas_target()
+unset(_blas_fphsa_req_var)
+unset(_BLAS_LIBRARIES)

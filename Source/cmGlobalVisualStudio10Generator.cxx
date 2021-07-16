@@ -1277,6 +1277,8 @@ const char* cmGlobalVisualStudio10Generator::GetToolsVersion() const
       return "15.0";
     case cmGlobalVisualStudioGenerator::VS16:
       return "16.0";
+    case cmGlobalVisualStudioGenerator::VS17:
+      return "17.0";
   }
   return "";
 }
@@ -1359,8 +1361,10 @@ static unsigned int cmLoadFlagTableSpecial(Json::Value entry,
   return value;
 }
 
-static cmIDEFlagTable const* cmLoadFlagTableJson(
-  std::string const& flagJsonPath)
+namespace {
+
+cmIDEFlagTable const* cmLoadFlagTableJson(std::string const& flagJsonPath,
+                                          cm::optional<std::string> vsVer)
 {
   cmIDEFlagTable* ret = nullptr;
   auto savedFlagIterator = loadedFlagJsonFiles.find(flagJsonPath);
@@ -1376,6 +1380,16 @@ static cmIDEFlagTable const* cmLoadFlagTableJson(
       if (reader.parse(stream, flags, false) && flags.isArray()) {
         std::vector<cmIDEFlagTable> flagTable;
         for (auto const& flag : flags) {
+          Json::Value const& vsminJson = flag["vsmin"];
+          if (vsminJson.isString()) {
+            std::string const& vsmin = vsminJson.asString();
+            if (!vsmin.empty()) {
+              if (!vsVer ||
+                  cmSystemTools::VersionCompareGreater(vsmin, *vsVer)) {
+                continue;
+              }
+            }
+          }
           cmIDEFlagTable flagEntry;
           flagEntry.IDEName = cmLoadFlagTableString(flag, "name");
           flagEntry.commandFlag = cmLoadFlagTableString(flag, "switch");
@@ -1393,6 +1407,7 @@ static cmIDEFlagTable const* cmLoadFlagTableJson(
     }
   }
   return ret;
+}
 }
 
 cm::optional<std::string> cmGlobalVisualStudio10Generator::FindFlagTable(
@@ -1456,7 +1471,8 @@ cmIDEFlagTable const* cmGlobalVisualStudio10Generator::LoadFlagTable(
     }
   }
 
-  if (cmIDEFlagTable const* ret = cmLoadFlagTableJson(filename)) {
+  cm::optional<std::string> vsVer = this->GetVSInstanceVersion();
+  if (cmIDEFlagTable const* ret = cmLoadFlagTableJson(filename, vsVer)) {
     return ret;
   }
 

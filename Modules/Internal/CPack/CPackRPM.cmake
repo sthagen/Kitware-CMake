@@ -1074,6 +1074,21 @@ function(cpack_rpm_generate_package)
     OUTPUT_STRIP_TRAILING_WHITESPACE)
   string(REPLACE "\n" ";" RPMBUILD_TAG_LIST "${RPMBUILD_TAG_LIST}")
 
+  # In some versions of RPM, weak dependency tags are present in the --querytags
+  # list, but unsupported by rpmbuild. A different method must be used to check
+  # if they are supported.
+
+  execute_process(
+    COMMAND ${RPM_EXECUTABLE} --suggests
+    ERROR_QUIET
+    RESULT_VARIABLE RPMBUILD_SUGGESTS_RESULT)
+
+  if(NOT RPMBUILD_SUGGESTS_RESULT EQUAL 0)
+    foreach(_WEAK_DEP SUGGESTS RECOMMENDS SUPPLEMENTS ENHANCES)
+      list(REMOVE_ITEM RPMBUILD_TAG_LIST ${_WEAK_DEP})
+    endforeach()
+  endif()
+
   if(CPACK_RPM_PACKAGE_EPOCH)
     set(TMP_RPM_EPOCH "Epoch: ${CPACK_RPM_PACKAGE_EPOCH}")
   endif()
@@ -1145,6 +1160,16 @@ function(cpack_rpm_generate_package)
       message("CPackRPM:Debug: User defined CPACK_RPM_SPEC_INSTALL_POST = ${CPACK_RPM_SPEC_INSTALL_POST}")
     endif()
     set(TMP_RPM_SPEC_INSTALL_POST "%define __spec_install_post ${CPACK_RPM_SPEC_INSTALL_POST}")
+  endif()
+
+  # CPACK_RPM_REQUIRES_EXCLUDE_FROM
+  # May be defined to keep the dependency generator from
+  # scanning specific files or directories for deps.
+  if(CPACK_RPM_REQUIRES_EXCLUDE_FROM)
+    if(CPACK_RPM_PACKAGE_DEBUG)
+      message("CPackRPM:Debug: User defined CPACK_RPM_REQUIRES_EXCLUDE_FROM = ${CPACK_RPM_REQUIRES_EXCLUDE_FROM}")
+    endif()
+    set(TMP_RPM_REQUIRES_EXCLUDE_FROM "%global __requires_exclude_from ${CPACK_RPM_REQUIRES_EXCLUDE_FROM}")
   endif()
 
   # CPACK_RPM_POST_INSTALL_SCRIPT_FILE (or CPACK_RPM_<COMPONENT>_POST_INSTALL_SCRIPT_FILE)
@@ -1635,6 +1660,7 @@ Vendor:         \@CPACK_RPM_PACKAGE_VENDOR\@
 \@FILE_NAME_DEFINE\@
 %define _unpackaged_files_terminate_build 0
 \@TMP_RPM_SPEC_INSTALL_POST\@
+\@TMP_RPM_REQUIRES_EXCLUDE_FROM\@
 \@CPACK_RPM_SPEC_MORE_DEFINE\@
 \@CPACK_RPM_COMPRESSION_TYPE_TMP\@
 
@@ -1769,6 +1795,7 @@ Vendor:         \@CPACK_RPM_PACKAGE_VENDOR\@
 \@FILE_NAME_DEFINE\@
 %define _unpackaged_files_terminate_build 0
 \@TMP_RPM_SPEC_INSTALL_POST\@
+\@TMP_RPM_REQUIRES_EXCLUDE_FROM\@
 \@CPACK_RPM_SPEC_MORE_DEFINE\@
 \@CPACK_RPM_COMPRESSION_TYPE_TMP\@
 

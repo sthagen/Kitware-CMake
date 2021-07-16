@@ -128,6 +128,8 @@ public:
   std::string Encoding() override;
   const char* GetToolsVersion() const;
 
+  virtual cm::optional<std::string> GetVSInstanceVersion() const { return {}; }
+
   bool GetSupportsUnityBuilds() const { return this->SupportsUnityBuilds; }
 
   bool FindMakeProgram(cmMakefile* mf) override;
@@ -135,6 +137,8 @@ public:
   bool IsIPOSupported() const override { return true; }
 
   virtual bool IsStdOutEncodingSupported() const { return false; }
+
+  virtual bool IsUtf8EncodingSupported() const { return false; }
 
   static std::string GetInstalledNsightTegraVersion();
 

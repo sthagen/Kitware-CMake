@@ -313,7 +313,7 @@ function(run_EnvironmentGenerator)
       unset(ENV{CMAKE_GENERATOR_PLATFORM})
     endif()
     # Instance is available since VS 2017.
-    if(RunCMake_GENERATOR MATCHES "Visual Studio (15|16).*")
+    if(RunCMake_GENERATOR MATCHES "Visual Studio 1[567].*")
       set(ENV{CMAKE_GENERATOR_INSTANCE} "invalid")
       # Envvar shouldn't affect existing build tree
       run_cmake_command(Envgen-instance-existing ${CMAKE_COMMAND} -E chdir ..
@@ -342,6 +342,26 @@ endfunction(run_EnvironmentExportCompileCommands)
 
 if(RunCMake_GENERATOR MATCHES "Unix Makefiles" OR RunCMake_GENERATOR MATCHES "Ninja")
   run_EnvironmentExportCompileCommands()
+endif()
+
+function(run_EnvironmentBuildType)
+  set(ENV{CMAKE_BUILD_TYPE} "BuildTypeEnv")
+  run_cmake(EnvBuildType)
+  run_cmake_with_options(EnvBuildTypeIgnore -DCMAKE_BUILD_TYPE=BuildTypeOpt)
+  unset(ENV{CMAKE_BUILD_TYPE})
+endfunction()
+
+function(run_EnvironmentConfigTypes)
+  set(ENV{CMAKE_CONFIGURATION_TYPES} "ConfigTypesEnv")
+  run_cmake(EnvConfigTypes)
+  run_cmake_with_options(EnvConfigTypesIgnore -DCMAKE_CONFIGURATION_TYPES=ConfigTypesOpt)
+  unset(ENV{CMAKE_CONFIGURATION_TYPES})
+endfunction()
+
+if(RunCMake_GENERATOR MATCHES "Make|^Ninja$")
+  run_EnvironmentBuildType()
+elseif(RunCMake_GENERATOR MATCHES "Ninja Multi-Config|Visual Studio|Xcode")
+  run_EnvironmentConfigTypes()
 endif()
 
 function(run_EnvironmentToolchain)

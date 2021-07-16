@@ -36,6 +36,25 @@ if(CMAKE_CUDA_COMPILER_ID)
 endif()
 
 
+# This should be included before the _INIT variables are
+# used to initialize the cache.  Since the rule variables
+# have if blocks on them, users can still define them here.
+# But, it should still be after the platform file so changes can
+# be made to those values.
+
+if(CMAKE_USER_MAKE_RULES_OVERRIDE)
+  # Save the full path of the file so try_compile can use it.
+  include(${CMAKE_USER_MAKE_RULES_OVERRIDE} RESULT_VARIABLE _override)
+  set(CMAKE_USER_MAKE_RULES_OVERRIDE "${_override}")
+endif()
+
+if(CMAKE_USER_MAKE_RULES_OVERRIDE_CUDA)
+  # Save the full path of the file so try_compile can use it.
+  include(${CMAKE_USER_MAKE_RULES_OVERRIDE_CUDA} RESULT_VARIABLE _override)
+  set(CMAKE_USER_MAKE_RULES_OVERRIDE_CUDA "${_override}")
+endif()
+
+
 if(NOT CMAKE_SHARED_LIBRARY_RUNTIME_CUDA_FLAG)
   set(CMAKE_SHARED_LIBRARY_RUNTIME_CUDA_FLAG ${CMAKE_SHARED_LIBRARY_RUNTIME_C_FLAG})
 endif()
@@ -79,6 +98,15 @@ endif()
 if(NOT CMAKE_MODULE_EXISTS)
   set(CMAKE_SHARED_MODULE_CUDA_FLAGS ${CMAKE_SHARED_LIBRARY_CUDA_FLAGS})
   set(CMAKE_SHARED_MODULE_CREATE_CUDA_FLAGS ${CMAKE_SHARED_LIBRARY_CREATE_CUDA_FLAGS})
+endif()
+
+if(CMAKE_EXECUTABLE_FORMAT STREQUAL "ELF")
+  if(NOT DEFINED CMAKE_CUDA_LINK_WHAT_YOU_USE_FLAG)
+    set(CMAKE_CUDA_LINK_WHAT_YOU_USE_FLAG "LINKER:--no-as-needed")
+  endif()
+  if(NOT DEFINED CMAKE_LINK_WHAT_YOU_USE_CHECK)
+    set(CMAKE_LINK_WHAT_YOU_USE_CHECK ldd -u -r)
+  endif()
 endif()
 
 # add the flags to the cache based

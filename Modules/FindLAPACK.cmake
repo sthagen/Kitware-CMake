@@ -8,11 +8,11 @@ FindLAPACK
 Find Linear Algebra PACKage (LAPACK) library
 
 This module finds an installed Fortran library that implements the
-LAPACK linear-algebra interface (see http://www.netlib.org/lapack/).
+`LAPACK linear-algebra interface`_.
 
-The approach follows that taken for the ``autoconf`` macro file,
-``acx_lapack.m4`` (distributed at
-http://ac-archive.sourceforge.net/ac-archive/acx_lapack.html).
+At least one of the ``C``, ``CXX``, or ``Fortran`` languages must be enabled.
+
+.. _`LAPACK linear-algebra interface`: http://www.netlib.org/lapack/
 
 Input Variables
 ^^^^^^^^^^^^^^^
@@ -23,58 +23,8 @@ The following variables may be set to influence this module's behavior:
   if ``ON`` use static linkage
 
 ``BLA_VENDOR``
-  If set, checks only the specified vendor, if not set checks all the
-  possibilities.  List of vendors valid in this module:
-
-  * ``FlexiBLAS``
-  * ``OpenBLAS``
-  * ``FLAME``
-  * ``Intel10_32`` (intel mkl v10 32 bit, threaded code)
-  * ``Intel10_64lp`` (intel mkl v10+ 64 bit, threaded code, lp64 model)
-  * ``Intel10_64lp_seq`` (intel mkl v10+ 64 bit, sequential code, lp64 model)
-  * ``Intel10_64ilp`` (intel mkl v10+ 64 bit, threaded code, ilp64 model)
-  * ``Intel10_64ilp_seq`` (intel mkl v10+ 64 bit, sequential code, ilp64 model)
-  * ``Intel10_64_dyn`` (intel mkl v10+ 64 bit, single dynamic library)
-  * ``Intel`` (obsolete versions of mkl 32 and 64 bit)
-  * ``ACML``
-  * ``Apple``
-  * ``NAS``
-  * ``Arm``
-  * ``Arm_mp``
-  * ``Arm_ilp64``
-  * ``Arm_ilp64_mp``
-  * ``EML``
-  * ``EML_mt``
-  * ``Fujitsu_SSL2`` (Fujitsu serial blas / lapack)
-  * ``Fujitsu_SSL2BLAMP`` (Fujitsu parallel blas / lapack)
-  * ``NVHPC``
-  * ``Generic``
-
-  .. versionadded:: 3.6
-    ``OpenBLAS`` support.
-
-  .. versionadded:: 3.11
-    ``FLAME`` support.
-
-    .. versionadded:: 3.13
-      Added ILP64 MKL variants (``Intel10_64ilp``, ``Intel10_64ilp_seq``).
-
-  .. versionadded:: 3.17
-    Added single dynamic library MKL variant (``Intel10_64_dyn``).
-
-  .. versionadded:: 3.18
-    Arm Performance Libraries support (``Arm``, ``Arm_mp``, ``Arm_ilp64``,
-    ``Arm_ilp64_mp``).
-
-  .. versionadded:: 3.19
-    ``FlexiBLAS`` support.
-
-  .. versionadded:: 3.20
-    Elbrus Math Library support (``EML``, ``EML_mt``).
-    Fujitsu SSL2 Library support (``Fujitsu_SSL2``, ``Fujitsu_SSL2BLAMP``)
-
-  .. versionadded:: 3.21
-    NVHPC support
+  Set to one of the :ref:`BLAS/LAPACK Vendors` to search for BLAS only
+  from the specified vendor.  If not set, all vendors are considered.
 
 ``BLA_F95``
   if ``ON`` tries to find the BLAS95/LAPACK95 interfaces
@@ -88,11 +38,11 @@ The following variables may be set to influence this module's behavior:
 Imported targets
 ^^^^^^^^^^^^^^^^
 
-.. versionadded:: 3.18
-
-This module defines the following :prop_tgt:`IMPORTED` target:
+This module defines the following :prop_tgt:`IMPORTED` targets:
 
 ``LAPACK::LAPACK``
+  .. versionadded:: 3.18
+
   The libraries to use for LAPACK, if found.
 
 Result Variables
@@ -113,18 +63,27 @@ This module defines the following variables:
 ``LAPACK95_FOUND``
   library implementing the LAPACK95 interface is found
 
-.. note::
+Intel MKL
+^^^^^^^^^
 
-  C, CXX or Fortran must be enabled to detect a BLAS/LAPACK library.
-  C or CXX must be enabled to use Intel Math Kernel Library (MKL).
+To use the Intel MKL implementation of LAPACK, a project must enable at least
+one of the ``C`` or ``CXX`` languages.  Set ``BLA_VENDOR`` to an Intel MKL
+variant either on the command-line as ``-DBLA_VENDOR=Intel10_64lp`` or in
+project code:
 
-  For example, to use Intel MKL libraries and/or Intel compiler:
+.. code-block:: cmake
 
-  .. code-block:: cmake
+  set(BLA_VENDOR Intel10_64lp)
+  find_package(LAPACK)
 
-    set(BLA_VENDOR Intel10_64lp)
-    find_package(LAPACK)
+In order to build a project using Intel MKL, and end user must first
+establish an Intel MKL environment.  See the :module:`FindBLAS` module
+section on :ref:`Intel MKL` for details.
+
 #]=======================================================================]
+
+# The approach follows that of the ``autoconf`` macro file, ``acx_lapack.m4``
+# (distributed at http://ac-archive.sourceforge.net/ac-archive/acx_lapack.html).
 
 if(CMAKE_Fortran_COMPILER_LOADED)
   include(${CMAKE_CURRENT_LIST_DIR}/CheckFortranFunctionExists.cmake)
@@ -339,7 +298,7 @@ if(NOT LAPACK_NOT_FOUND_MESSAGE)
 
     if(BLA_F95)
       set(LAPACK_mkl_SEARCH_SYMBOL "cheev_f95")
-      set(_LIBRARIES LAPACK95_LIBRARIES)
+      set(_LAPACK_LIBRARIES LAPACK95_LIBRARIES)
       set(_BLAS_LIBRARIES ${BLAS95_LIBRARIES})
 
       # old
@@ -352,7 +311,7 @@ if(NOT LAPACK_NOT_FOUND_MESSAGE)
         "mkl_lapack95_${LAPACK_mkl_ILP_MODE}")
     else()
       set(LAPACK_mkl_SEARCH_SYMBOL "cheev")
-      set(_LIBRARIES LAPACK_LIBRARIES)
+      set(_LAPACK_LIBRARIES LAPACK_LIBRARIES)
       set(_BLAS_LIBRARIES ${BLAS_LIBRARIES})
 
       # old and new >= 10.3
@@ -387,12 +346,14 @@ if(NOT LAPACK_NOT_FOUND_MESSAGE)
         "compiler/lib/${LAPACK_mkl_ARCH_NAME}"
         "mkl/lib" "mkl/lib/${LAPACK_mkl_ARCH_NAME}_${LAPACK_mkl_OS_NAME}"
         "mkl/lib/${LAPACK_mkl_ARCH_NAME}"
-        "lib/${LAPACK_mkl_ARCH_NAME}_${LAPACK_mkl_OS_NAME}")
+        "lib" "lib/${LAPACK_mkl_ARCH_NAME}_${LAPACK_mkl_OS_NAME}"
+        "lib/${LAPACK_mkl_ARCH_NAME}"
+        )
 
-    # First try empty lapack libs
-    if(NOT ${_LIBRARIES})
+    # First try empty lapack libs (implicitly linked or automatic from BLAS)
+    if(NOT ${_LAPACK_LIBRARIES})
       check_lapack_libraries(
-        ${_LIBRARIES}
+        ${_LAPACK_LIBRARIES}
         LAPACK
         ${LAPACK_mkl_SEARCH_SYMBOL}
         ""
@@ -402,18 +363,23 @@ if(NOT LAPACK_NOT_FOUND_MESSAGE)
         "${LAPACK_mkl_LIB_PATH_SUFFIXES}"
         "${_BLAS_LIBRARIES}"
       )
+      if(LAPACK_WORKS AND NOT _BLAS_LIBRARIES)
+        # Give a more helpful "found" message
+        set(LAPACK_WORKS "implicitly linked")
+        set(_lapack_fphsa_req_var LAPACK_WORKS)
+      endif()
     endif()
 
     # Then try the search libs
-    foreach(IT ${LAPACK_SEARCH_LIBS})
-      string(REPLACE " " ";" SEARCH_LIBS ${IT})
-      if(NOT ${_LIBRARIES})
+    foreach(_search ${LAPACK_SEARCH_LIBS})
+      string(REPLACE " " ";" _search ${_search})
+      if(NOT ${_LAPACK_LIBRARIES})
         check_lapack_libraries(
-          ${_LIBRARIES}
+          ${_LAPACK_LIBRARIES}
           LAPACK
           ${LAPACK_mkl_SEARCH_SYMBOL}
           ""
-          "${SEARCH_LIBS}"
+          "${_search}"
           "${CMAKE_THREAD_LIBS_INIT};${LAPACK_mkl_LM};${LAPACK_mkl_LDL}"
           "${LAPACK_mkl_MKLROOT}"
           "${LAPACK_mkl_LIB_PATH_SUFFIXES}"
@@ -422,6 +388,7 @@ if(NOT LAPACK_NOT_FOUND_MESSAGE)
       endif()
     endforeach()
 
+    unset(_search)
     unset(LAPACK_mkl_ILP_MODE)
     unset(LAPACK_mkl_SEARCH_SYMBOL)
     unset(LAPACK_mkl_LM)
@@ -589,7 +556,7 @@ if(NOT LAPACK_NOT_FOUND_MESSAGE)
 
   # Fujitsu SSL2 Library?
   if(NOT LAPACK_LIBRARIES
-      AND BLA_VENDOR MATCHES "Fujitsu_SSL2" OR BLA_VENDOR STREQUAL "All")
+      AND (BLA_VENDOR MATCHES "Fujitsu_SSL2" OR BLA_VENDOR STREQUAL "All"))
     if(BLA_VENDOR STREQUAL "Fujitsu_SSL2BLAMP")
       set(_ssl2_suffix BLAMP)
     else()
@@ -621,7 +588,7 @@ if(NOT LAPACK_NOT_FOUND_MESSAGE)
 
   # NVHPC Library?
   if(NOT LAPACK_LIBRARIES
-      AND BLA_VENDOR MATCHES "NVHPC" OR BLA_VENDOR STREQUAL "All")
+      AND (BLA_VENDOR MATCHES "NVHPC" OR BLA_VENDOR STREQUAL "All"))
     check_lapack_libraries(
       LAPACK_LIBRARIES
       LAPACK
@@ -685,3 +652,5 @@ if(LAPACK_LIBRARIES STREQUAL "LAPACK_LIBRARIES-PLACEHOLDER-FOR-EMPTY-LIBRARIES")
 endif()
 
 _add_lapack_target()
+unset(_lapack_fphsa_req_var)
+unset(_LAPACK_LIBRARIES)

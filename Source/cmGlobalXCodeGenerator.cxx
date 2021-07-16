@@ -431,14 +431,7 @@ void cmGlobalXCodeGenerator::EnableLanguage(
 {
   mf->AddDefinition("XCODE", "1");
   mf->AddDefinition("XCODE_VERSION", this->VersionString);
-  if (!mf->GetDefinition("CMAKE_CONFIGURATION_TYPES")) {
-    mf->AddCacheDefinition(
-      "CMAKE_CONFIGURATION_TYPES", "Debug;Release;MinSizeRel;RelWithDebInfo",
-      "Semicolon separated list of supported configuration types, "
-      "only supports Debug, Release, MinSizeRel, and RelWithDebInfo, "
-      "anything else will be ignored.",
-      cmStateEnums::STRING);
-  }
+  mf->InitCMAKE_CONFIGURATION_TYPES("Debug;Release;MinSizeRel;RelWithDebInfo");
   mf->AddDefinition("CMAKE_GENERATOR_NO_COMPILER_ENV", "1");
   this->cmGlobalGenerator::EnableLanguage(lang, mf, optional);
   this->ComputeArchitectures(mf);
@@ -4617,7 +4610,11 @@ void cmGlobalXCodeGenerator::OutputXCodeWorkspaceSettings(
     switch (this->XcodeBuildSystem) {
       case BuildSystem::One:
         xout.Element("string", "Original");
-        xout.Element("key", "DisableBuildSystemDeprecationWarning");
+        if (this->XcodeVersion >= 130) {
+          xout.Element("key", "DisableBuildSystemDeprecationDiagnostic");
+        } else {
+          xout.Element("key", "DisableBuildSystemDeprecationWarning");
+        }
         xout.Element("true");
         break;
       case BuildSystem::Twelve:

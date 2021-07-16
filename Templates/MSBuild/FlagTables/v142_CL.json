@@ -477,6 +477,13 @@
   },
   {
     "name": "LanguageStandard",
+    "switch": "std:c++20",
+    "comment": "ISO C++20 Standard",
+    "value": "stdcpp20",
+    "flags": []
+  },
+  {
+    "name": "LanguageStandard",
     "switch": "std:c++17",
     "comment": "ISO C++17 Standard",
     "value": "stdcpp17",
@@ -572,6 +579,7 @@
     "switch": "external:W0",
     "comment": "Turn Off All Warnings",
     "value": "TurnOffAllWarnings",
+    "vsmin": "16.10.31321.278",
     "flags": []
   },
   {
@@ -579,6 +587,7 @@
     "switch": "external:W1",
     "comment": "Level1",
     "value": "Level1",
+    "vsmin": "16.10.31321.278",
     "flags": []
   },
   {
@@ -586,6 +595,7 @@
     "switch": "external:W2",
     "comment": "Level2",
     "value": "Level2",
+    "vsmin": "16.10.31321.278",
     "flags": []
   },
   {
@@ -593,6 +603,7 @@
     "switch": "external:W3",
     "comment": "Level3",
     "value": "Level3",
+    "vsmin": "16.10.31321.278",
     "flags": []
   },
   {
@@ -600,6 +611,7 @@
     "switch": "external:W4",
     "comment": "Level4",
     "value": "Level4",
+    "vsmin": "16.10.31321.278",
     "flags": []
   },
   {
@@ -1141,6 +1153,7 @@
     "switch": "external:anglebrackets",
     "comment": "Treat Files Included with Angle Brackets as External",
     "value": "true",
+    "vsmin": "16.10.31321.278",
     "flags": []
   },
   {
@@ -1148,6 +1161,7 @@
     "switch": "external:templates-",
     "comment": "Template Diagnostics in External Headers",
     "value": "true",
+    "vsmin": "16.10.31321.278",
     "flags": []
   },
   {
@@ -1277,6 +1291,7 @@
     "switch": "external:env:",
     "comment": "External Directories Environment Variables",
     "value": "",
+    "vsmin": "16.10.31321.278",
     "flags": [
       "UserValue",
       "SemicolonAppendable"
