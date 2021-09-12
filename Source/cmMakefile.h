@@ -33,7 +33,6 @@
 #include "cmSourceFileLocationKind.h"
 #include "cmStateSnapshot.h"
 #include "cmStateTypes.h"
-#include "cmStringAlgorithms.h"
 
 // IWYU does not see that 'std::unordered_map<std::string, cmTarget>'
 // will not compile without the complete type.
@@ -399,13 +398,13 @@ public:
    * Set a regular expression that include files must match
    * in order to be considered as part of the depend information.
    */
-  void SetIncludeRegularExpression(const char* regex)
+  void SetIncludeRegularExpression(const std::string& regex)
   {
-    this->SetProperty("INCLUDE_REGULAR_EXPRESSION", regex);
+    this->SetProperty("INCLUDE_REGULAR_EXPRESSION", regex.c_str());
   }
-  const char* GetIncludeRegularExpression() const
+  const std::string& GetIncludeRegularExpression() const
   {
-    return cmToCStr(this->GetProperty("INCLUDE_REGULAR_EXPRESSION"));
+    return this->GetProperty("INCLUDE_REGULAR_EXPRESSION");
   }
 
   /**
@@ -769,6 +768,11 @@ public:
 
   //! Set/Get a property of this directory
   void SetProperty(const std::string& prop, const char* value);
+  void SetProperty(const std::string& prop, cmProp value);
+  void SetProperty(const std::string& prop, const std::string& value)
+  {
+    this->SetProperty(prop, cmProp(value));
+  }
   void AppendProperty(const std::string& prop, const std::string& value,
                       bool asString = false);
   cmProp GetProperty(const std::string& prop) const;
@@ -874,16 +878,11 @@ public:
   bool CheckCMP0037(std::string const& targetName,
                     cmStateEnums::TargetType targetType) const;
 
-  cmStringRange GetIncludeDirectoriesEntries() const;
-  cmBacktraceRange GetIncludeDirectoriesBacktraces() const;
-  cmStringRange GetCompileOptionsEntries() const;
-  cmBacktraceRange GetCompileOptionsBacktraces() const;
-  cmStringRange GetCompileDefinitionsEntries() const;
-  cmBacktraceRange GetCompileDefinitionsBacktraces() const;
-  cmStringRange GetLinkOptionsEntries() const;
-  cmBacktraceRange GetLinkOptionsBacktraces() const;
-  cmStringRange GetLinkDirectoriesEntries() const;
-  cmBacktraceRange GetLinkDirectoriesBacktraces() const;
+  cmBTStringRange GetIncludeDirectoriesEntries() const;
+  cmBTStringRange GetCompileOptionsEntries() const;
+  cmBTStringRange GetCompileDefinitionsEntries() const;
+  cmBTStringRange GetLinkOptionsEntries() const;
+  cmBTStringRange GetLinkDirectoriesEntries() const;
 
   std::set<std::string> const& GetSystemIncludeDirectories() const
   {

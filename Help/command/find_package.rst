@@ -28,11 +28,26 @@ that the package cannot be found if it is not ``REQUIRED``.  The ``REQUIRED``
 option stops processing with an error message if the package cannot be found.
 
 A package-specific list of required components may be listed after the
-``COMPONENTS`` option (or after the ``REQUIRED`` option if present).
+``COMPONENTS`` keyword.  If any of these components are not able to be
+satisfied, the package overall is considered to be not found.  If the
+``REQUIRED`` option is also present, this is treated as a fatal error,
+otherwise execution still continues.  As a form of shorthand, if the
+``REQUIRED`` option is present, the ``COMPONENTS`` keyword can be omitted
+and the required components can be listed directly after ``REQUIRED``.
+
 Additional optional components may be listed after
-``OPTIONAL_COMPONENTS``.  Available components and their influence on
-whether a package is considered to be found are defined by the target
-package.
+``OPTIONAL_COMPONENTS``.  If these cannot be satisfied, the package overall
+can still be considered found, as long as all required components are
+satisfied.
+
+The set of available components and their meaning are defined by the
+target package.  Formally, it is up to the target package how to
+interpret the component information given to it, but it should follow
+the expectations stated above.  For calls where no components are specified,
+there is no single expected behavior and target packages should clearly
+define what occurs in such cases.  Common arrangements include assuming it
+should find all components, no components or some well-defined subset of the
+available components.
 
 .. _FIND_PACKAGE_VERSION_FORMAT:
 
@@ -40,12 +55,13 @@ The ``[version]`` argument requests a version with which the package found
 should be compatible. There are two possible forms in which it may be
 specified:
 
-  * A single version with the format ``major[.minor[.patch[.tweak]]]``.
+  * A single version with the format ``major[.minor[.patch[.tweak]]]``, where
+    each component is a numeric value.
   * A version range with the format ``versionMin...[<]versionMax`` where
-    ``versionMin`` and ``versionMax`` have the same format as the single
-    version.  By default, both end points are included.  By specifying ``<``,
-    the upper end point will be excluded.  Version ranges are only supported
-    with CMake 3.19 or later.
+    ``versionMin`` and ``versionMax`` have the same format and constraints
+    on components being integers as the single version.  By default, both end
+    points are included.  By specifying ``<``, the upper end point will be
+    excluded. Version ranges are only supported with CMake 3.19 or later.
 
 The ``EXACT`` option requests that the version be matched exactly. This option
 is incompatible with the specification of a version range.
@@ -432,7 +448,7 @@ enabled.
    hard-coded guesses.
 
 .. versionadded:: 3.16
-   Added the ``CMAKE_FIND_USE_<CATEGORY>_PATH`` variables to globally disable
+   Added the ``CMAKE_FIND_USE_<CATEGORY>`` variables to globally disable
    various search locations.
 
 .. |FIND_XXX| replace:: find_package
@@ -486,7 +502,7 @@ restores their original state before returning):
 ``<PackageName>_FIND_VERSION_EXACT``
   True if ``EXACT`` option was given
 ``<PackageName>_FIND_COMPONENTS``
-  List of requested components
+  List of specified components (required and optional)
 ``<PackageName>_FIND_REQUIRED_<c>``
   True if component ``<c>`` is required,
   false if component ``<c>`` is optional

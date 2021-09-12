@@ -566,7 +566,7 @@ public:
     } else {
       this->Stream << this->LG->EscapeForXML("\n");
     }
-    std::string script = this->LG->ConstructScript(ccg);
+    std::string script = this->LG->ConstructScript(ccg, unmanaged);
     this->Stream << this->LG->EscapeForXML(script);
   }
 
@@ -1779,7 +1779,7 @@ void cmLocalVisualStudio7Generator::WriteCustomRule(
     }
 
     std::string comment = this->ConstructComment(ccg);
-    std::string script = this->ConstructScript(ccg);
+    std::string script = this->ConstructScript(ccg, unmanaged);
     if (this->FortranProject) {
       cmSystemTools::ReplaceString(script, "$(Configuration)", config);
     }
@@ -2142,7 +2142,7 @@ void cmLocalVisualStudio7Generator::ReadAndStoreExternalGUID(
   std::string guidStoreName = cmStrCat(name, "_GUID_CMAKE");
   // save the GUID in the cache
   this->GlobalGenerator->GetCMakeInstance()->AddCacheEntry(
-    guidStoreName, parser.GUID.c_str(), "Stored GUID", cmStateEnums::INTERNAL);
+    guidStoreName, parser.GUID, "Stored GUID", cmStateEnums::INTERNAL);
 }
 
 std::string cmLocalVisualStudio7Generator::GetTargetDirectory(

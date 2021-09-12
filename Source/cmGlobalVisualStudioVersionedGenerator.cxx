@@ -104,8 +104,7 @@ static const char* VSVersionToToolset(
     case cmGlobalVisualStudioGenerator::VS16:
       return "v142";
     case cmGlobalVisualStudioGenerator::VS17:
-      // FIXME: VS 2022 Preview 1 uses v142.  Will it be v143 later?
-      return "v142";
+      return "v143";
   }
   return "";
 }
@@ -468,9 +467,9 @@ bool cmGlobalVisualStudioVersionedGenerator::SetGeneratorInstance(
   // Save the selected instance persistently.
   std::string genInstance = mf->GetSafeDefinition("CMAKE_GENERATOR_INSTANCE");
   if (vsInstance != genInstance) {
-    this->CMakeInstance->AddCacheEntry(
-      "CMAKE_GENERATOR_INSTANCE", vsInstance.c_str(),
-      "Generator instance identifier.", cmStateEnums::INTERNAL);
+    this->CMakeInstance->AddCacheEntry("CMAKE_GENERATOR_INSTANCE", vsInstance,
+                                       "Generator instance identifier.",
+                                       cmStateEnums::INTERNAL);
   }
 
   return true;
@@ -617,6 +616,9 @@ cmGlobalVisualStudioVersionedGenerator::FindAuxToolset(
       return AuxToolset::Default;
     }
     if (version == "14.29.16.10" && vcToolsetVersion == "14.29.30037") {
+      return AuxToolset::Default;
+    }
+    if (version == "14.29.16.11" && vcToolsetVersion == "14.29.30133") {
       return AuxToolset::Default;
     }
 

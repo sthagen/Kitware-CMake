@@ -109,7 +109,8 @@ BLAS/LAPACK Vendors
 ``Goto``
   GotoBLAS
 
-``IBMESSL``
+``IBMESSL``, ``IBMESSL_SMP``
+
   IBM Engineering and Scientific Subroutine Library
 
 ``Intel``
@@ -150,7 +151,7 @@ BLAS/LAPACK Vendors
 ``PhiPACK``
   Portable High Performance ANSI C (PHiPAC)
 
-``SCSL``
+``SCSL``, ``SCSL_mp``
   Scientific Computing Software Library
 
 ``SGIMATH``
@@ -759,7 +760,7 @@ if(BLA_VENDOR MATCHES "Arm" OR BLA_VENDOR STREQUAL "All")
       ""
       )
   endif()
-  set(_blas_armpl_lib)
+  unset(_blas_armpl_lib)
 endif()
 
 # FLAME's blis library? (https://github.com/flame/blis)
@@ -862,19 +863,27 @@ if(BLA_VENDOR STREQUAL "SunPerf" OR BLA_VENDOR STREQUAL "All")
 endif()
 
 # BLAS in SCSL library?  (SGI/Cray Scientific Library)
-if(BLA_VENDOR STREQUAL "SCSL" OR BLA_VENDOR STREQUAL "All")
+if(BLA_VENDOR MATCHES "SCSL" OR BLA_VENDOR STREQUAL "All")
+  set(_blas_scsl_lib "scs")
+
+  if(BLA_VENDOR MATCHES "_mp")
+    set(_blas_scsl_lib "${_blas_scsl_lib}_mp")
+  endif()
+
   if(NOT BLAS_LIBRARIES)
     check_blas_libraries(
       BLAS_LIBRARIES
       BLAS
       sgemm
       ""
-      "scsl"
+      "${_blas_scsl_lib}"
       ""
       ""
       ""
       )
   endif()
+
+  unset(_blas_scsl_lib)
 endif()
 
 # BLAS in SGIMATH library?
@@ -893,20 +902,27 @@ if(BLA_VENDOR STREQUAL "SGIMATH" OR BLA_VENDOR STREQUAL "All")
   endif()
 endif()
 
-# BLAS in IBM ESSL library? (requires generic BLAS lib, too)
-if(BLA_VENDOR STREQUAL "IBMESSL" OR BLA_VENDOR STREQUAL "All")
+# BLAS in IBM ESSL library?
+if(BLA_VENDOR MATCHES "IBMESSL" OR BLA_VENDOR STREQUAL "All")
+  set(_blas_essl_lib "essl")
+
+  if(BLA_VENDOR MATCHES "_SMP")
+    set(_blas_essl_lib "${_blas_essl_lib}smp")
+  endif()
   if(NOT BLAS_LIBRARIES)
     check_blas_libraries(
       BLAS_LIBRARIES
       BLAS
       sgemm
       ""
-      "essl;blas"
+      "${_blas_essl_lib}"
       ""
       ""
       ""
       )
   endif()
+
+  unset(_blas_essl_lib)
 endif()
 
 # BLAS in acml library?
@@ -1094,7 +1110,7 @@ if(BLA_VENDOR MATCHES "EML" OR BLA_VENDOR STREQUAL "All")
 
    # Check for OpenMP support, VIA BLA_VENDOR of eml_mt
    if(BLA_VENDOR MATCHES "_mt")
-     set(_blas_eml_lib "${BLAS_EML_LIB}_mt")
+     set(_blas_eml_lib "${_blas_eml_lib}_mt")
    endif()
 
    if(NOT BLAS_LIBRARIES)
@@ -1109,7 +1125,7 @@ if(BLA_VENDOR MATCHES "EML" OR BLA_VENDOR STREQUAL "All")
       ""
       )
   endif()
-  set(_blas_eml_lib)
+  unset(_blas_eml_lib)
 endif()
 
 # Fujitsu SSL2 Library?

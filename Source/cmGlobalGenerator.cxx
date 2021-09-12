@@ -242,7 +242,7 @@ void cmGlobalGenerator::ResolveLanguageCompiler(const std::string& lang,
   std::vector<std::string> cnameArgVec;
   if (cname && !cname->empty()) {
     cmExpandList(*cname, cnameArgVec);
-    cname = &cnameArgVec.front();
+    cname = cmProp(cnameArgVec.front());
   }
 
   std::string changeVars;
@@ -1179,10 +1179,10 @@ void cmGlobalGenerator::FillExtensionToLanguageMap(const std::string& l,
   }
 }
 
-const char* cmGlobalGenerator::GetGlobalSetting(std::string const& name) const
+cmProp cmGlobalGenerator::GetGlobalSetting(std::string const& name) const
 {
   assert(!this->Makefiles.empty());
-  return cmToCStr(this->Makefiles[0]->GetDefinition(name));
+  return this->Makefiles[0]->GetDefinition(name);
 }
 
 bool cmGlobalGenerator::GlobalSettingIsOn(std::string const& name) const
@@ -1195,7 +1195,7 @@ std::string cmGlobalGenerator::GetSafeGlobalSetting(
   std::string const& name) const
 {
   assert(!this->Makefiles.empty());
-  return this->Makefiles[0]->GetSafeDefinition(name);
+  return this->Makefiles[0]->GetDefinition(name);
 }
 
 bool cmGlobalGenerator::IgnoreFile(const char* ext) const
@@ -1718,10 +1718,8 @@ void cmGlobalGenerator::FinalizeTargetCompileInfo()
 
   // Construct per-target generator information.
   for (const auto& mf : this->Makefiles) {
-    const cmStringRange noconfig_compile_definitions =
+    const cmBTStringRange noconfig_compile_definitions =
       mf->GetCompileDefinitionsEntries();
-    const cmBacktraceRange noconfig_compile_definitions_bts =
-      mf->GetCompileDefinitionsBacktraces();
 
     for (auto& target : mf->GetTargets()) {
       cmTarget* t = &target.second;
@@ -1735,12 +1733,8 @@ void cmGlobalGenerator::FinalizeTargetCompileInfo()
         continue;
       }
 
-      {
-        auto btIt = noconfig_compile_definitions_bts.begin();
-        auto it = noconfig_compile_definitions.begin();
-        for (; it != noconfig_compile_definitions.end(); ++it, ++btIt) {
-          t->InsertCompileDefinition(*it, *btIt);
-        }
+      for (auto const& def : noconfig_compile_definitions) {
+        t->InsertCompileDefinition(def);
       }
 
       cmPolicies::PolicyStatus polSt =
@@ -2191,9 +2185,8 @@ void cmGlobalGenerator::EnableLanguagesFromGenerator(cmGlobalGenerator* gen,
   this->TryCompileOuterMakefile = mf;
   cmProp make =
     gen->GetCMakeInstance()->GetCacheDefinition("CMAKE_MAKE_PROGRAM");
-  this->GetCMakeInstance()->AddCacheEntry("CMAKE_MAKE_PROGRAM", cmToCStr(make),
-                                          "make program",
-                                          cmStateEnums::FILEPATH);
+  this->GetCMakeInstance()->AddCacheEntry(
+    "CMAKE_MAKE_PROGRAM", make, "make program", cmStateEnums::FILEPATH);
   // copy the enabled languages
   this->GetCMakeInstance()->GetState()->SetEnabledLanguages(
     gen->GetCMakeInstance()->GetState()->GetEnabledLanguages());
@@ -2749,7 +2742,7 @@ void cmGlobalGenerator::AddGlobalTarget_Install(
         singleLine.push_back(cfgArg);
         cfgArg = "-DEFFECTIVE_PLATFORM_NAME=$(EFFECTIVE_PLATFORM_NAME)";
       } else {
-        cfgArg += cmToCStr(mf->GetDefinition("CMAKE_CFG_INTDIR"));
+        cfgArg += *mf->GetDefinition("CMAKE_CFG_INTDIR");
       }
       singleLine.push_back(cfgArg);
     }

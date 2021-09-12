@@ -269,7 +269,8 @@ bool cmSourceFile::Matches(cmSourceFileLocation const& loc)
   return this->Location.Matches(loc);
 }
 
-void cmSourceFile::SetProperty(const std::string& prop, const char* value)
+template <typename ValueType>
+void cmSourceFile::StoreProperty(const std::string& prop, ValueType value)
 {
   if (prop == propINCLUDE_DIRECTORIES) {
     this->IncludeDirectories.clear();
@@ -292,6 +293,15 @@ void cmSourceFile::SetProperty(const std::string& prop, const char* value)
   } else {
     this->Properties.SetProperty(prop, value);
   }
+}
+
+void cmSourceFile::SetProperty(const std::string& prop, const char* value)
+{
+  this->StoreProperty(prop, value);
+}
+void cmSourceFile::SetProperty(const std::string& prop, cmProp value)
+{
+  this->StoreProperty(prop, value);
 }
 
 void cmSourceFile::AppendProperty(const std::string& prop,
@@ -342,7 +352,7 @@ cmProp cmSourceFile::GetPropertyForUser(const std::string& prop)
   // if it is requested by the user.
   if (prop == propLANGUAGE) {
     // The pointer is valid until `this->Language` is modified.
-    return &this->GetOrDetermineLanguage();
+    return cmProp(this->GetOrDetermineLanguage());
   }
 
   // Special handling for GENERATED property.
@@ -355,9 +365,9 @@ cmProp cmSourceFile::GetPropertyForUser(const std::string& prop)
           (policyStatus == cmPolicies::WARN || policyStatus == cmPolicies::OLD)
             ? CheckScope::GlobalAndLocal
             : CheckScope::Global)) {
-      return &propTRUE;
+      return cmProp(propTRUE);
     }
-    return &propFALSE;
+    return cmProp(propFALSE);
   }
 
   // Perform the normal property lookup.
@@ -371,7 +381,7 @@ cmProp cmSourceFile::GetProperty(const std::string& prop) const
     if (this->FullPath.empty()) {
       return nullptr;
     }
-    return &this->FullPath;
+    return cmProp(this->FullPath);
   }
 
   // Check for the properties with backtraces.
@@ -382,7 +392,7 @@ cmProp cmSourceFile::GetProperty(const std::string& prop) const
 
     static std::string output;
     output = cmJoin(this->IncludeDirectories, ";");
-    return &output;
+    return cmProp(output);
   }
 
   if (prop == propCOMPILE_OPTIONS) {
@@ -392,7 +402,7 @@ cmProp cmSourceFile::GetProperty(const std::string& prop) const
 
     static std::string output;
     output = cmJoin(this->CompileOptions, ";");
-    return &output;
+    return cmProp(output);
   }
 
   if (prop == propCOMPILE_DEFINITIONS) {
@@ -402,7 +412,7 @@ cmProp cmSourceFile::GetProperty(const std::string& prop) const
 
     static std::string output;
     output = cmJoin(this->CompileDefinitions, ";");
-    return &output;
+    return cmProp(output);
   }
 
   cmProp retVal = this->Properties.GetPropertyValue(prop);

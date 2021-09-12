@@ -39,6 +39,13 @@ set(ENV{HOME} \"${TEST_HOME}\")
 ")
 endif()
 
+# Suppress generator deprecation warnings in test suite.
+if(CMAKE_GENERATOR MATCHES "^Visual Studio 10 2010")
+  set(TEST_WARN_VS10_CODE "set(ENV{CMAKE_WARN_VS10} OFF)")
+else()
+  set(TEST_WARN_VS10_CODE "")
+endif()
+
 # 3.9 or later provides a definitive answer to whether we are multi-config
 # through a global property. Prior to 3.9, CMAKE_CONFIGURATION_TYPES being set
 # is assumed to mean multi-config, but developers might modify it so it is
@@ -1640,6 +1647,53 @@ if(BUILD_TESTING)
     TIMEOUT ${CMAKE_LONG_TEST_TIMEOUT}
     WORKING_DIRECTORY ${CMake_SOURCE_DIR}/Tests/ExternalProjectUpdate
     DEPENDS ExternalProjectUpdateSetup )
+
+  execute_process(
+    COMMAND ${CMAKE_COMMAND}
+    "-E" create_symlink
+    "${CMake_SOURCE_DIR}/Tests/CMakeLists.txt"        # random source file that exists
+    "${CMake_BINARY_DIR}/Tests/try_to_create_symlink" # random target file in existing directory
+    RESULT_VARIABLE _symlink_result
+    )
+  if(_symlink_result EQUAL 0)
+    file(REMOVE "${CMake_BINARY_DIR}/Tests/try_to_create_symlink")
+    function(add_installmode_test _mode)
+      set(ENV{CMAKE_INSTALL_MODE} _mode)
+      set(_maybe_InstallMode_CTEST_OPTIONS)
+      set(_maybe_BUILD_OPTIONS)
+      if(_isMultiConfig)
+        set(_maybe_CTEST_OPTIONS -C $<CONFIGURATION>)
+      else()
+        set(_maybe_BUILD_OPTIONS "-DCMAKE_BUILD_TYPE=$<CONFIGURATION>")
+      endif()
+      add_test(
+        NAME "InstallMode-${_mode}"
+        COMMAND
+          ${CMAKE_CTEST_COMMAND} -V ${_maybe_CTEST_OPTIONS}
+        --build-and-test
+          "${CMake_SOURCE_DIR}/Tests/InstallMode"
+          "${CMake_BINARY_DIR}/Tests/InstallMode-${_mode}"
+        ${build_generator_args}
+        --build-project superpro
+        --build-exe-dir "${CMake_BINARY_DIR}/Tests/InstallMode-${_mode}"
+        --force-new-ctest-process
+        --build-options
+          ${_maybe_BUILD_OPTIONS}
+          "-DCMAKE_INSTALL_PREFIX:PATH=${CMake_BINARY_DIR}/Tests/InstallMode-${_mode}/install"
+        )
+      list(APPEND TEST_BUILD_DIRS "${CMake_BINARY_DIR}/Tests/InstallMode-${_mode}")
+      unset(ENV{CMAKE_INSTALL_MODE})
+    endfunction()
+
+    add_installmode_test(COPY)
+    add_installmode_test(REL_SYMLINK)
+    add_installmode_test(REL_SYMLINK_OR_COPY)
+    add_installmode_test(ABS_SYMLINK)
+    add_installmode_test(ABS_SYMLINK_OR_COPY)
+    add_installmode_test(SYMLINK)
+    add_installmode_test(SYMLINK_OR_COPY)
+  endif()
+
 
   # do each of the tutorial steps
   function(add_tutorial_test step_name use_mymath tutorial_arg pass_regex)

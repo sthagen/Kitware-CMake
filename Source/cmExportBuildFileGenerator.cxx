@@ -18,6 +18,7 @@
 #include "cmMakefile.h"
 #include "cmMessageType.h"
 #include "cmPolicies.h"
+#include "cmProperty.h"
 #include "cmStateTypes.h"
 #include "cmStringAlgorithms.h"
 #include "cmTarget.h"
@@ -254,7 +255,7 @@ void cmExportBuildFileGenerator::SetImportLocationProperty(
 
 void cmExportBuildFileGenerator::HandleMissingTarget(
   std::string& link_libs, std::vector<std::string>& missingTargets,
-  cmGeneratorTarget* depender, cmGeneratorTarget* dependee)
+  cmGeneratorTarget const* depender, cmGeneratorTarget* dependee)
 {
   // The target is not in the export.
   if (!this->AppendMode) {
@@ -321,7 +322,7 @@ cmExportBuildFileGenerator::FindBuildExportInfo(cmGlobalGenerator* gg,
 }
 
 void cmExportBuildFileGenerator::ComplainAboutMissingTarget(
-  cmGeneratorTarget* depender, cmGeneratorTarget* dependee,
+  cmGeneratorTarget const* depender, cmGeneratorTarget const* dependee,
   std::vector<std::string> const& exportFiles)
 {
   std::ostringstream e;
@@ -344,7 +345,7 @@ void cmExportBuildFileGenerator::ComplainAboutMissingTarget(
 }
 
 std::string cmExportBuildFileGenerator::InstallNameDir(
-  cmGeneratorTarget* target, const std::string& config)
+  cmGeneratorTarget const* target, const std::string& config)
 {
   std::string install_name_dir;
 

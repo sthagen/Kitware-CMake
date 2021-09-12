@@ -570,6 +570,13 @@ int cmCoreTryCompile::TryCompileCode(std::vector<std::string> const& argv,
               *cmp0123 == "NEW"_s ? "NEW" : "OLD");
     }
 
+    /* Set cache/normal variable policy to match outer project.
+       It may affect toolchain files.  */
+    if (this->Makefile->GetPolicyStatus(cmPolicies::CMP0126) !=
+        cmPolicies::NEW) {
+      fprintf(fout, "cmake_policy(SET CMP0126 OLD)\n");
+    }
+
     std::string projectLangs;
     for (std::string const& li : testLangs) {
       projectLangs += " " + li;
@@ -599,7 +606,7 @@ int cmCoreTryCompile::TryCompileCode(std::vector<std::string> const& argv,
       std::string langFlags = "CMAKE_" + li + "_FLAGS";
       cmProp flags = this->Makefile->GetDefinition(langFlags);
       fprintf(fout, "set(CMAKE_%s_FLAGS %s)\n", li.c_str(),
-              cmOutputConverter::EscapeForCMake(cmToCStrSafe(flags)).c_str());
+              cmOutputConverter::EscapeForCMake(flags).c_str());
       fprintf(fout,
               "set(CMAKE_%s_FLAGS \"${CMAKE_%s_FLAGS}"
               " ${COMPILE_DEFINITIONS}\")\n",
@@ -637,9 +644,8 @@ int cmCoreTryCompile::TryCompileCode(std::vector<std::string> const& argv,
           std::string const langFlagsCfg =
             cmStrCat("CMAKE_", li, "_FLAGS_", cfg);
           cmProp flagsCfg = this->Makefile->GetDefinition(langFlagsCfg);
-          fprintf(
-            fout, "set(%s %s)\n", langFlagsCfg.c_str(),
-            cmOutputConverter::EscapeForCMake(cmToCStrSafe(flagsCfg)).c_str());
+          fprintf(fout, "set(%s %s)\n", langFlagsCfg.c_str(),
+                  cmOutputConverter::EscapeForCMake(flagsCfg).c_str());
         }
       } break;
     }
@@ -672,8 +678,7 @@ int cmCoreTryCompile::TryCompileCode(std::vector<std::string> const& argv,
           cmProp exeLinkFlags =
             this->Makefile->GetDefinition("CMAKE_EXE_LINKER_FLAGS");
           fprintf(fout, "set(CMAKE_EXE_LINKER_FLAGS %s)\n",
-                  cmOutputConverter::EscapeForCMake(cmToCStrSafe(exeLinkFlags))
-                    .c_str());
+                  cmOutputConverter::EscapeForCMake(exeLinkFlags).c_str());
         }
         break;
     }

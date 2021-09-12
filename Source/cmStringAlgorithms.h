@@ -14,24 +14,11 @@
 
 #include <cm/string_view>
 
+#include "cmProperty.h"
 #include "cmRange.h"
 
 /** String range type.  */
 using cmStringRange = cmRange<std::vector<std::string>::const_iterator>;
-
-/** Check for non-empty string.  */
-inline bool cmNonempty(const char* str)
-{
-  return str && *str;
-}
-inline bool cmNonempty(cm::string_view str)
-{
-  return !str.empty();
-}
-inline bool cmNonempty(std::string const* str)
-{
-  return str && !str->empty();
-}
 
 /** Returns length of a literal string.  */
 template <size_t N>
@@ -175,6 +162,10 @@ public:
   cmAlphaNum(unsigned long long int val);
   cmAlphaNum(float val);
   cmAlphaNum(double val);
+  cmAlphaNum(cmProp value)
+    : View_(*value)
+  {
+  }
 
   cm::string_view View() const { return this->View_; }
 
@@ -227,20 +218,44 @@ inline bool cmIsInternallyOn(const char* val)
   return cmIsInternallyOn(cm::string_view(val));
 }
 
+/** Check for non-empty Property/Variable value.  */
+inline bool cmNonempty(cm::string_view val)
+{
+  return !cmProp::IsEmpty(val);
+}
+inline bool cmNonempty(const char* val)
+{
+  return !cmProp::IsEmpty(val);
+}
+inline bool cmNonempty(cmProp val)
+{
+  return !val.IsEmpty();
+}
+
 /** Return true if value is NOTFOUND or ends in -NOTFOUND.  */
-bool cmIsNOTFOUND(cm::string_view val);
+inline bool cmIsNOTFOUND(cm::string_view val)
+{
+  return cmProp::IsNOTFOUND(val);
+}
+inline bool cmIsNOTFOUND(cmProp val)
+{
+  return val.IsNOTFOUND();
+}
 
 /**
  * Does a string indicate a true or ON value? This is not the same as ifdef.
  */
-bool cmIsOn(cm::string_view val);
+inline bool cmIsOn(cm::string_view val)
+{
+  return cmProp::IsOn(val);
+}
 inline bool cmIsOn(const char* val)
 {
-  return val && cmIsOn(cm::string_view(val));
+  return cmProp::IsOn(val);
 }
-inline bool cmIsOn(std::string const* val)
+inline bool cmIsOn(cmProp val)
 {
-  return val && cmIsOn(*val);
+  return val.IsOn();
 }
 
 /**
@@ -250,14 +265,17 @@ inline bool cmIsOn(std::string const* val)
  * IsON and IsOff both returning false. Note that the special path
  * NOTFOUND, *-NOTFOUND or IGNORE will cause IsOff to return true.
  */
-bool cmIsOff(cm::string_view val);
+inline bool cmIsOff(cm::string_view val)
+{
+  return cmProp::IsOff(val);
+}
 inline bool cmIsOff(const char* val)
 {
-  return !val || cmIsOff(cm::string_view(val));
+  return cmProp::IsOff(val);
 }
-inline bool cmIsOff(std::string const* val)
+inline bool cmIsOff(cmProp val)
 {
-  return !val || cmIsOff(*val);
+  return val.IsOff();
 }
 
 /** Returns true if string @a str starts with the character @a prefix.  */
@@ -270,6 +288,16 @@ inline bool cmHasPrefix(cm::string_view str, char prefix)
 inline bool cmHasPrefix(cm::string_view str, cm::string_view prefix)
 {
   return str.compare(0, prefix.size(), prefix) == 0;
+}
+
+/** Returns true if string @a str starts with string @a prefix.  */
+inline bool cmHasPrefix(cm::string_view str, cmProp prefix)
+{
+  if (!prefix) {
+    return false;
+  }
+
+  return str.compare(0, prefix->size(), prefix) == 0;
 }
 
 /** Returns true if string @a str starts with string @a prefix.  */
@@ -290,6 +318,17 @@ inline bool cmHasSuffix(cm::string_view str, cm::string_view suffix)
 {
   return str.size() >= suffix.size() &&
     str.compare(str.size() - suffix.size(), suffix.size(), suffix) == 0;
+}
+
+/** Returns true if string @a str ends with string @a suffix.  */
+inline bool cmHasSuffix(cm::string_view str, cmProp suffix)
+{
+  if (!suffix) {
+    return false;
+  }
+
+  return str.size() >= suffix->size() &&
+    str.compare(str.size() - suffix->size(), suffix->size(), suffix) == 0;
 }
 
 /** Returns true if string @a str ends with string @a suffix.  */

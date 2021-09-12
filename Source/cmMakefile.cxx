@@ -212,57 +212,29 @@ void cmMakefile::MaybeWarnCMP0074(std::string const& pkg)
   }
 }
 
-cmStringRange cmMakefile::GetIncludeDirectoriesEntries() const
+cmBTStringRange cmMakefile::GetIncludeDirectoriesEntries() const
 {
   return this->StateSnapshot.GetDirectory().GetIncludeDirectoriesEntries();
 }
 
-cmBacktraceRange cmMakefile::GetIncludeDirectoriesBacktraces() const
-{
-  return this->StateSnapshot.GetDirectory()
-    .GetIncludeDirectoriesEntryBacktraces();
-}
-
-cmStringRange cmMakefile::GetCompileOptionsEntries() const
+cmBTStringRange cmMakefile::GetCompileOptionsEntries() const
 {
   return this->StateSnapshot.GetDirectory().GetCompileOptionsEntries();
 }
 
-cmBacktraceRange cmMakefile::GetCompileOptionsBacktraces() const
-{
-  return this->StateSnapshot.GetDirectory().GetCompileOptionsEntryBacktraces();
-}
-
-cmStringRange cmMakefile::GetCompileDefinitionsEntries() const
+cmBTStringRange cmMakefile::GetCompileDefinitionsEntries() const
 {
   return this->StateSnapshot.GetDirectory().GetCompileDefinitionsEntries();
 }
 
-cmBacktraceRange cmMakefile::GetCompileDefinitionsBacktraces() const
-{
-  return this->StateSnapshot.GetDirectory()
-    .GetCompileDefinitionsEntryBacktraces();
-}
-
-cmStringRange cmMakefile::GetLinkOptionsEntries() const
+cmBTStringRange cmMakefile::GetLinkOptionsEntries() const
 {
   return this->StateSnapshot.GetDirectory().GetLinkOptionsEntries();
 }
 
-cmBacktraceRange cmMakefile::GetLinkOptionsBacktraces() const
-{
-  return this->StateSnapshot.GetDirectory().GetLinkOptionsEntryBacktraces();
-}
-
-cmStringRange cmMakefile::GetLinkDirectoriesEntries() const
+cmBTStringRange cmMakefile::GetLinkDirectoriesEntries() const
 {
   return this->StateSnapshot.GetDirectory().GetLinkDirectoriesEntries();
-}
-
-cmBacktraceRange cmMakefile::GetLinkDirectoriesBacktraces() const
-{
-  return this->StateSnapshot.GetDirectory()
-    .GetLinkDirectoriesEntryBacktraces();
 }
 
 cmListFileBacktrace cmMakefile::GetBacktrace() const
@@ -1386,10 +1358,10 @@ void cmMakefile::AddLinkDirectory(std::string const& directory, bool before)
 {
   if (before) {
     this->StateSnapshot.GetDirectory().PrependLinkDirectoriesEntry(
-      directory, this->Backtrace);
+      BT<std::string>(directory, this->Backtrace));
   } else {
     this->StateSnapshot.GetDirectory().AppendLinkDirectoriesEntry(
-      directory, this->Backtrace);
+      BT<std::string>(directory, this->Backtrace));
   }
 }
 
@@ -1444,7 +1416,7 @@ bool cmMakefile::ParseDefineFlag(std::string const& def, bool remove)
       std::string ndefs = cmJoin(cmMakeRange(defBegin, defEnd), ";");
 
       // Store the new list.
-      this->SetProperty("COMPILE_DEFINITIONS", ndefs.c_str());
+      this->SetProperty("COMPILE_DEFINITIONS", ndefs);
     }
   } else {
     // Append the definition to the directory property.
@@ -1465,30 +1437,29 @@ void cmMakefile::InitializeFromParent(cmMakefile* parent)
   // Include transform property.  There is no per-config version.
   {
     const char* prop = "IMPLICIT_DEPENDS_INCLUDE_TRANSFORM";
-    this->SetProperty(prop, cmToCStr(parent->GetProperty(prop)));
+    this->SetProperty(prop, parent->GetProperty(prop));
   }
 
   // compile definitions property and per-config versions
   cmPolicies::PolicyStatus polSt = this->GetPolicyStatus(cmPolicies::CMP0043);
   if (polSt == cmPolicies::WARN || polSt == cmPolicies::OLD) {
     this->SetProperty("COMPILE_DEFINITIONS",
-                      cmToCStr(parent->GetProperty("COMPILE_DEFINITIONS")));
+                      parent->GetProperty("COMPILE_DEFINITIONS"));
     std::vector<std::string> configs =
       this->GetGeneratorConfigs(cmMakefile::ExcludeEmptyConfig);
     for (std::string const& config : configs) {
       std::string defPropName =
         cmStrCat("COMPILE_DEFINITIONS_", cmSystemTools::UpperCase(config));
       cmProp prop = parent->GetProperty(defPropName);
-      this->SetProperty(defPropName, cmToCStr(prop));
+      this->SetProperty(defPropName, prop);
     }
   }
 
   // labels
-  this->SetProperty("LABELS", cmToCStr(parent->GetProperty("LABELS")));
+  this->SetProperty("LABELS", parent->GetProperty("LABELS"));
 
   // link libraries
-  this->SetProperty("LINK_LIBRARIES",
-                    cmToCStr(parent->GetProperty("LINK_LIBRARIES")));
+  this->SetProperty("LINK_LIBRARIES", parent->GetProperty("LINK_LIBRARIES"));
 
   // the initial project name
   this->StateSnapshot.SetProjectName(parent->StateSnapshot.GetProjectName());
@@ -1877,16 +1848,16 @@ void cmMakefile::AddIncludeDirectories(const std::vector<std::string>& incs,
   std::string entryString = cmJoin(incs, ";");
   if (before) {
     this->StateSnapshot.GetDirectory().PrependIncludeDirectoriesEntry(
-      entryString, this->Backtrace);
+      BT<std::string>(entryString, this->Backtrace));
   } else {
     this->StateSnapshot.GetDirectory().AppendIncludeDirectoriesEntry(
-      entryString, this->Backtrace);
+      BT<std::string>(entryString, this->Backtrace));
   }
 
   // Property on each target:
   for (auto& target : this->Targets) {
     cmTarget& t = target.second;
-    t.InsertInclude(entryString, this->Backtrace, before);
+    t.InsertInclude(BT<std::string>(entryString, this->Backtrace), before);
   }
 }
 
@@ -1956,7 +1927,7 @@ void cmMakefile::AddCacheDefinition(const std::string& name, const char* value,
         nvalue += files[cc];
       }
 
-      this->GetCMakeInstance()->AddCacheEntry(name, nvalue.c_str(), doc, type);
+      this->GetCMakeInstance()->AddCacheEntry(name, nvalue, doc, type);
       nvalue = *this->GetState()->GetInitializedCacheValue(name);
       value = nvalue.c_str();
     }
@@ -2308,7 +2279,7 @@ void cmMakefile::ExpandVariablesCMP0019()
         << "  " << dirs << "\n";
       /* clang-format on */
     }
-    this->SetProperty("INCLUDE_DIRECTORIES", dirs.c_str());
+    this->SetProperty("INCLUDE_DIRECTORIES", dirs);
   }
 
   // Also for each target's INCLUDE_DIRECTORIES property:
@@ -2579,12 +2550,7 @@ cmProp cmMakefile::GetDefinition(const std::string& name) const
 
 const std::string& cmMakefile::GetSafeDefinition(const std::string& name) const
 {
-  static std::string const empty;
-  cmProp def = this->GetDefinition(name);
-  if (!def) {
-    return empty;
-  }
-  return *def;
+  return this->GetDefinition(name);
 }
 
 bool cmMakefile::GetDefExpandList(const std::string& name,
@@ -2967,7 +2933,7 @@ MessageType cmMakefile::ExpandVariablesInStringNew(
               break;
             case ENVIRONMENT:
               if (cmSystemTools::GetEnv(lookup, svalue)) {
-                value = &svalue;
+                value = cmProp(svalue);
               }
               break;
             case CACHE:
@@ -3595,13 +3561,13 @@ int cmMakefile::TryCompile(const std::string& srcdir,
       // Tell the single-configuration generator which one to use.
       // Add this before the user-provided CMake arguments in case
       // one of the arguments is -DCMAKE_BUILD_TYPE=...
-      cm.AddCacheEntry("CMAKE_BUILD_TYPE", config->c_str(),
-                       "Build configuration", cmStateEnums::STRING);
+      cm.AddCacheEntry("CMAKE_BUILD_TYPE", config, "Build configuration",
+                       cmStateEnums::STRING);
     }
   }
   cmProp recursionDepth = this->GetDefinition("CMAKE_MAXIMUM_RECURSION_DEPTH");
   if (recursionDepth) {
-    cm.AddCacheEntry("CMAKE_MAXIMUM_RECURSION_DEPTH", recursionDepth->c_str(),
+    cm.AddCacheEntry("CMAKE_MAXIMUM_RECURSION_DEPTH", recursionDepth,
                      "Maximum recursion depth", cmStateEnums::STRING);
   }
   // if cmake args were provided then pass them in
@@ -3991,6 +3957,10 @@ void cmMakefile::SetProperty(const std::string& prop, const char* value)
 {
   this->StateSnapshot.GetDirectory().SetProperty(prop, value, this->Backtrace);
 }
+void cmMakefile::SetProperty(const std::string& prop, cmProp value)
+{
+  this->StateSnapshot.GetDirectory().SetProperty(prop, value, this->Backtrace);
+}
 
 void cmMakefile::AppendProperty(const std::string& prop,
                                 const std::string& value, bool asString)
@@ -4012,7 +3982,7 @@ cmProp cmMakefile::GetProperty(const std::string& prop) const
                      return pair.first;
                    });
     output = cmJoin(keys, ";");
-    return &output;
+    return cmProp(output);
   }
 
   return this->StateSnapshot.GetDirectory().GetProperty(prop);

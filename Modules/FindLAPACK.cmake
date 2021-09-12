@@ -491,6 +491,30 @@ if(NOT LAPACK_NOT_FOUND_MESSAGE)
     )
   endif()
 
+  # LAPACK in SCSL library? (SGI/Cray Scientific Library)
+  if(NOT LAPACK_LIBRARIES
+      AND (BLA_VENDOR MATCHES "SCSL" OR BLA_VENDOR STREQUAL "All"))
+    set(_lapack_scsl_lib "scs")
+
+    # Check for OpenMP support, VIA BLA_VENDOR of scs_mp
+    if(BLA_VENDOR MATCHES "_mp")
+      set(_lapack_scsl_lib "${_lapack_scsl_lib}_mp")
+    endif()
+
+    check_lapack_libraries(
+      LAPACK_LIBRARIES
+      LAPACK
+      cheev
+      ""
+      "${_lapack_scsl_lib}"
+      ""
+      ""
+      ""
+      "${BLAS_LIBRARIES}"
+    )
+    unset(_lapack_scsl_lib)
+  endif()
+
   # BLAS in acml library?
   if(BLA_VENDOR MATCHES "ACML" OR BLA_VENDOR STREQUAL "All")
     if(BLAS_LIBRARIES MATCHES ".+acml.+")
@@ -584,6 +608,30 @@ if(NOT LAPACK_NOT_FOUND_MESSAGE)
       set(_lapack_fphsa_req_var LAPACK_LINKER_FLAGS)
     endif()
     unset(_ssl2_suffix)
+  endif()
+
+  # LAPACK in IBM ESSL library?
+  if(NOT LAPACK_LIBRARIES
+      AND (BLA_VENDOR MATCHES "IBMESSL" OR BLA_VENDOR STREQUAL "All"))
+    set(_lapack_essl_lib "essl")
+
+    # Check for OpenMP support, VIA BLA_VENDOR of esslsmp
+    if(BLA_VENDOR MATCHES "_SMP")
+      set(_lapack_essl_lib "${_lapack_essl_lib}smp")
+    endif()
+
+    check_lapack_libraries(
+      LAPACK_LIBRARIES
+      LAPACK
+      cheev
+      ""
+      "${_lapack_essl_lib}"
+      ""
+      ""
+      ""
+      "${BLAS_LIBRARIES}"
+    )
+    unset(_lapack_essl_lib)
   endif()
 
   # NVHPC Library?

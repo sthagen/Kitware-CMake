@@ -178,6 +178,7 @@ public:
   std::vector<std::string> GetCommandNames() const;
 
   void SetGlobalProperty(const std::string& prop, const char* value);
+  void SetGlobalProperty(const std::string& prop, cmProp value);
   void AppendGlobalProperty(const std::string& prop, const std::string& value,
                             bool asString = false);
   cmProp GetGlobalProperty(const std::string& prop);
@@ -218,6 +219,18 @@ public:
 private:
   friend class cmake;
   void AddCacheEntry(const std::string& key, const char* value,
+                     const char* helpString, cmStateEnums::CacheEntryType type)
+  {
+    this->AddCacheEntry(key,
+                        value ? cmProp(std::string(value)) : cmProp(nullptr),
+                        helpString, type);
+  }
+  void AddCacheEntry(const std::string& key, const std::string& value,
+                     const char* helpString, cmStateEnums::CacheEntryType type)
+  {
+    this->AddCacheEntry(key, cmProp(value), helpString, type);
+  }
+  void AddCacheEntry(const std::string& key, cmProp value,
                      const char* helpString,
                      cmStateEnums::CacheEntryType type);
 

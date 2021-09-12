@@ -490,10 +490,7 @@ void cmVisualStudio10TargetGenerator::Generate()
 
       e1.Element("Platform", this->Platform);
       cmProp projLabel = this->GeneratorTarget->GetProperty("PROJECT_LABEL");
-      if (!projLabel) {
-        projLabel = &this->Name;
-      }
-      e1.Element("ProjectName", *projLabel);
+      e1.Element("ProjectName", projLabel ? projLabel : this->Name);
       {
         cmProp targetFramework =
           this->GeneratorTarget->GetProperty("DOTNET_TARGET_FRAMEWORK");
@@ -511,15 +508,15 @@ void cmVisualStudio10TargetGenerator::Generate()
             p = this->GeneratorTarget->GetProperty(
               "DOTNET_TARGET_FRAMEWORK_VERSION");
           }
-          const char* targetFrameworkVersion = cmToCStr(p);
-          if (!targetFrameworkVersion && this->ProjectType == csproj &&
+          std::string targetFrameworkVersion = p;
+          if (targetFrameworkVersion.empty() && this->ProjectType == csproj &&
               this->GlobalGenerator->TargetsWindowsCE() &&
               this->GlobalGenerator->GetVersion() ==
                 cmGlobalVisualStudioGenerator::VS12) {
             // VS12 .NETCF default to .NET framework 3.9
             targetFrameworkVersion = "v3.9";
           }
-          if (targetFrameworkVersion) {
+          if (!targetFrameworkVersion.empty()) {
             e1.Element("TargetFrameworkVersion", targetFrameworkVersion);
           }
         }
@@ -1468,7 +1465,10 @@ void cmVisualStudio10TargetGenerator::WriteCustomRule(
     cmCustomCommandGenerator ccg(command, c, lg, true);
     std::string comment = lg->ConstructComment(ccg);
     comment = cmVS10EscapeComment(comment);
-    std::string script = lg->ConstructScript(ccg);
+    cmLocalVisualStudioGenerator::IsManaged isManaged = (this->Managed)
+      ? cmLocalVisualStudioGenerator::managed
+      : cmLocalVisualStudioGenerator::unmanaged;
+    std::string script = lg->ConstructScript(ccg, isManaged);
     bool symbolic = false;
     // input files for custom command
     std::stringstream additional_inputs;
@@ -1799,8 +1799,8 @@ void cmVisualStudio10TargetGenerator::WriteGroupSources(
   }
 }
 
-void cmVisualStudio10TargetGenerator::WriteHeaderSource(Elem& e1,
-                                                        cmSourceFile const* sf)
+void cmVisualStudio10TargetGenerator::WriteHeaderSource(
+  Elem& e1, cmSourceFile const* sf, ConfigToSettings const& toolSettings)
 {
   std::string const& fileName = sf->GetFullPath();
   Elem e2(e1, "ClInclude");
@@ -1811,6 +1811,7 @@ void cmVisualStudio10TargetGenerator::WriteHeaderSource(Elem& e1,
     e2.Element("DependentUpon",
                fileName.substr(0, fileName.find_last_of(".")));
   }
+  this->FinishWritingSource(e2, toolSettings);
 }
 
 void cmVisualStudio10TargetGenerator::ParseSettingsProperty(
@@ -1867,8 +1868,8 @@ bool cmVisualStudio10TargetGenerator::PropertyIsSameInAllConfigs(
   return true;
 }
 
-void cmVisualStudio10TargetGenerator::WriteExtraSource(Elem& e1,
-                                                       cmSourceFile const* sf)
+void cmVisualStudio10TargetGenerator::WriteExtraSource(
+  Elem& e1, cmSourceFile const* sf, ConfigToSettings& toolSettings)
 {
   bool toolHasSettings = false;
   const char* tool = "None";
@@ -1879,10 +1880,6 @@ void cmVisualStudio10TargetGenerator::WriteExtraSource(Elem& e1,
   std::string copyToOutDir;
   std::string includeInVsix;
   std::string ext = cmSystemTools::LowerCase(sf->GetExtension());
-  ConfigToSettings toolSettings;
-  for (const auto& config : this->Configurations) {
-    toolSettings[config];
-  }
 
   if (this->ProjectType == csproj && !this->InSourceBuild) {
     toolHasSettings = true;
@@ -2050,10 +2047,6 @@ void cmVisualStudio10TargetGenerator::WriteExtraSource(Elem& e1,
     }
   }
 
-  if (cmProp p = sf->GetProperty("VS_SETTINGS")) {
-    ParseSettingsProperty(*p, toolSettings);
-  }
-
   if (!toolSettings.empty()) {
     toolHasSettings = true;
   }
@@ -2063,27 +2056,7 @@ void cmVisualStudio10TargetGenerator::WriteExtraSource(Elem& e1,
   if (toolHasSettings) {
     e2.SetHasElements();
 
-    std::vector<std::string> writtenSettings;
-    for (const auto& configSettings : toolSettings) {
-      for (const auto& setting : configSettings.second) {
-
-        if (std::find(writtenSettings.begin(), writtenSettings.end(),
-                      setting.first) != writtenSettings.end()) {
-          continue;
-        }
-
-        if (PropertyIsSameInAllConfigs(toolSettings, setting.first)) {
-          e2.Element(setting.first, setting.second);
-          writtenSettings.push_back(setting.first);
-        } else {
-          e2.WritePlatformConfigTag(setting.first,
-                                    "'$(Configuration)|$(Platform)'=='" +
-                                      configSettings.first + "|" +
-                                      this->Platform + "'",
-                                    setting.second);
-        }
-      }
-    }
+    this->FinishWritingSource(e2, toolSettings);
 
     if (!deployContent.empty()) {
       cmGeneratorExpression ge;
@@ -2220,6 +2193,15 @@ void cmVisualStudio10TargetGenerator::WriteAllSources(Elem& e0)
       // Skip explicit reference to CMakeLists.txt source.
       continue;
     }
+
+    ConfigToSettings toolSettings;
+    for (const auto& config : this->Configurations) {
+      toolSettings[config];
+    }
+    if (cmProp p = si.Source->GetProperty("VS_SETTINGS")) {
+      ParseSettingsProperty(*p, toolSettings);
+    }
+
     const char* tool = nullptr;
     switch (si.Kind) {
       case cmGeneratorTarget::SourceKindAppManifest:
@@ -2247,10 +2229,10 @@ void cmVisualStudio10TargetGenerator::WriteAllSources(Elem& e0)
         }
         break;
       case cmGeneratorTarget::SourceKindExtra:
-        this->WriteExtraSource(e1, si.Source);
+        this->WriteExtraSource(e1, si.Source, toolSettings);
         break;
       case cmGeneratorTarget::SourceKindHeader:
-        this->WriteHeaderSource(e1, si.Source);
+        this->WriteHeaderSource(e1, si.Source, toolSettings);
         break;
       case cmGeneratorTarget::SourceKindIDL:
         tool = "Midl";
@@ -2360,11 +2342,39 @@ void cmVisualStudio10TargetGenerator::WriteAllSources(Elem& e0)
       if (!isCSharp && !exclude_configs.empty()) {
         this->WriteExcludeFromBuild(e2, exclude_configs);
       }
+
+      this->FinishWritingSource(e2, toolSettings);
     }
   }
 
   if (this->IsMissingFiles) {
     this->WriteMissingFiles(e1);
+  }
+}
+
+void cmVisualStudio10TargetGenerator::FinishWritingSource(
+  Elem& e2, ConfigToSettings const& toolSettings)
+{
+  std::vector<std::string> writtenSettings;
+  for (const auto& configSettings : toolSettings) {
+    for (const auto& setting : configSettings.second) {
+
+      if (std::find(writtenSettings.begin(), writtenSettings.end(),
+                    setting.first) != writtenSettings.end()) {
+        continue;
+      }
+
+      if (PropertyIsSameInAllConfigs(toolSettings, setting.first)) {
+        e2.Element(setting.first, setting.second);
+        writtenSettings.push_back(setting.first);
+      } else {
+        e2.WritePlatformConfigTag(setting.first,
+                                  "'$(Configuration)|$(Platform)'=='" +
+                                    configSettings.first + "|" +
+                                    this->Platform + "'",
+                                  setting.second);
+      }
+    }
   }
 }
 
@@ -4091,6 +4101,9 @@ void cmVisualStudio10TargetGenerator::WriteMidlOptions(
   if (this->ProjectType == csproj) {
     return;
   }
+  if (this->GeneratorTarget->GetType() > cmStateEnums::UTILITY) {
+    return;
+  }
 
   // This processes *any* of the .idl files specified in the project's file
   // list (and passed as the item metadata %(Filename) expressing the rule
@@ -4205,7 +4218,10 @@ void cmVisualStudio10TargetGenerator::WriteEvent(
       comment += lg->ConstructComment(ccg);
       script += pre;
       pre = "\n";
-      script += lg->ConstructScript(ccg);
+      cmLocalVisualStudioGenerator::IsManaged isManaged = (this->Managed)
+        ? cmLocalVisualStudioGenerator::managed
+        : cmLocalVisualStudioGenerator::unmanaged;
+      script += lg->ConstructScript(ccg, isManaged);
 
       stdPipesUTF8 = stdPipesUTF8 || cc.GetStdPipesUTF8();
     }

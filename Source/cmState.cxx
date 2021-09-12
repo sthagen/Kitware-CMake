@@ -206,7 +206,7 @@ bool cmState::GetCacheEntryPropertyAsBool(std::string const& key,
   return this->CacheManager->GetCacheEntryPropertyAsBool(key, propertyName);
 }
 
-void cmState::AddCacheEntry(const std::string& key, const char* value,
+void cmState::AddCacheEntry(const std::string& key, cmProp value,
                             const char* helpString,
                             cmStateEnums::CacheEntryType type)
 {
@@ -277,15 +277,10 @@ cmStateSnapshot cmState::Reset()
     cmLinkedTree<cmStateDetail::BuildsystemDirectoryStateType>::iterator it =
       this->BuildsystemDirectory.Truncate();
     it->IncludeDirectories.clear();
-    it->IncludeDirectoryBacktraces.clear();
     it->CompileDefinitions.clear();
-    it->CompileDefinitionsBacktraces.clear();
     it->CompileOptions.clear();
-    it->CompileOptionsBacktraces.clear();
     it->LinkOptions.clear();
-    it->LinkOptionsBacktraces.clear();
     it->LinkDirectories.clear();
-    it->LinkDirectoriesBacktraces.clear();
     it->DirectoryEnd = pos;
     it->NormalTargetNames.clear();
     it->ImportedTargetNames.clear();
@@ -569,6 +564,10 @@ void cmState::SetGlobalProperty(const std::string& prop, const char* value)
 {
   this->GlobalProperties.SetProperty(prop, value);
 }
+void cmState::SetGlobalProperty(const std::string& prop, cmProp value)
+{
+  this->GlobalProperties.SetProperty(prop, value);
+}
 
 void cmState::AppendGlobalProperty(const std::string& prop,
                                    const std::string& value, bool asString)
@@ -603,47 +602,47 @@ cmProp cmState::GetGlobalProperty(const std::string& prop)
   if (prop == "CMAKE_C_KNOWN_FEATURES") {
     static const std::string s_out(
       &FOR_EACH_C_FEATURE(STRING_LIST_ELEMENT)[1]);
-    return &s_out;
+    return cmProp(s_out);
   }
   if (prop == "CMAKE_C90_KNOWN_FEATURES") {
     static const std::string s_out(
       &FOR_EACH_C90_FEATURE(STRING_LIST_ELEMENT)[1]);
-    return &s_out;
+    return cmProp(s_out);
   }
   if (prop == "CMAKE_C99_KNOWN_FEATURES") {
     static const std::string s_out(
       &FOR_EACH_C99_FEATURE(STRING_LIST_ELEMENT)[1]);
-    return &s_out;
+    return cmProp(s_out);
   }
   if (prop == "CMAKE_C11_KNOWN_FEATURES") {
     static const std::string s_out(
       &FOR_EACH_C11_FEATURE(STRING_LIST_ELEMENT)[1]);
-    return &s_out;
+    return cmProp(s_out);
   }
   if (prop == "CMAKE_CXX_KNOWN_FEATURES") {
     static const std::string s_out(
       &FOR_EACH_CXX_FEATURE(STRING_LIST_ELEMENT)[1]);
-    return &s_out;
+    return cmProp(s_out);
   }
   if (prop == "CMAKE_CXX98_KNOWN_FEATURES") {
     static const std::string s_out(
       &FOR_EACH_CXX98_FEATURE(STRING_LIST_ELEMENT)[1]);
-    return &s_out;
+    return cmProp(s_out);
   }
   if (prop == "CMAKE_CXX11_KNOWN_FEATURES") {
     static const std::string s_out(
       &FOR_EACH_CXX11_FEATURE(STRING_LIST_ELEMENT)[1]);
-    return &s_out;
+    return cmProp(s_out);
   }
   if (prop == "CMAKE_CXX14_KNOWN_FEATURES") {
     static const std::string s_out(
       &FOR_EACH_CXX14_FEATURE(STRING_LIST_ELEMENT)[1]);
-    return &s_out;
+    return cmProp(s_out);
   }
   if (prop == "CMAKE_CUDA_KNOWN_FEATURES") {
     static const std::string s_out(
       &FOR_EACH_CUDA_FEATURE(STRING_LIST_ELEMENT)[1]);
-    return &s_out;
+    return cmProp(s_out);
   }
 
 #undef STRING_LIST_ELEMENT

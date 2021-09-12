@@ -296,6 +296,25 @@ void cmGlobalVisualStudio7Generator::Generate()
     this->CallVisualStudioMacro(MacroReload,
                                 GetSLNFile(this->LocalGenerators[0].get()));
   }
+
+  if (this->Version == VS10 && !this->CMakeInstance->GetIsInTryCompile()) {
+    std::string cmakeWarnVS10;
+    if (cmProp cached = this->CMakeInstance->GetState()->GetCacheEntryValue(
+          "CMAKE_WARN_VS10")) {
+      this->CMakeInstance->MarkCliAsUsed("CMAKE_WARN_VS10");
+      cmakeWarnVS10 = *cached;
+    } else {
+      cmSystemTools::GetEnv("CMAKE_WARN_VS10", cmakeWarnVS10);
+    }
+    if (cmakeWarnVS10.empty() || !cmIsOff(cmakeWarnVS10)) {
+      this->CMakeInstance->IssueMessage(
+        MessageType::WARNING,
+        "The \"Visual Studio 10 2010\" generator is deprecated "
+        "and will be removed in a future version of CMake."
+        "\n"
+        "Add CMAKE_WARN_VS10=OFF to the cache to disable this warning.");
+    }
+  }
 }
 
 void cmGlobalVisualStudio7Generator::OutputSLNFile(
@@ -372,10 +391,9 @@ void cmGlobalVisualStudio7Generator::WriteTargetsToSolution(
       std::string project = target->GetName();
       std::string location = *expath;
 
-      this->WriteExternalProject(
-        fout, project, location,
-        cmToCStr(target->GetProperty("VS_PROJECT_TYPE")),
-        target->GetUtilities());
+      this->WriteExternalProject(fout, project, location,
+                                 target->GetProperty("VS_PROJECT_TYPE"),
+                                 target->GetUtilities());
       written = true;
     } else {
       cmProp vcprojName = target->GetProperty("GENERATOR_FILE_NAME");

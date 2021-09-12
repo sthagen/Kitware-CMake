@@ -409,10 +409,8 @@ public:
   TargetOrString ResolveTargetReference(std::string const& name,
                                         cmLocalGenerator const* lg) const;
 
-  cmLinkItem ResolveLinkItem(std::string const& name,
-                             cmListFileBacktrace const& bt) const;
-  cmLinkItem ResolveLinkItem(std::string const& name,
-                             cmListFileBacktrace const& bt,
+  cmLinkItem ResolveLinkItem(BT<std::string> const& name) const;
+  cmLinkItem ResolveLinkItem(BT<std::string> const& name,
                              cmLocalGenerator const* lg) const;
 
   // Compute the set of languages compiled by the target.  This is
@@ -837,7 +835,7 @@ public:
   std::string GetFortranModuleDirectory(std::string const& working_dir) const;
   bool IsFortranBuildingInstrinsicModules() const;
 
-  const std::string& GetSourcesProperty() const;
+  cmProp GetSourcesProperty() const;
 
   void AddISPCGeneratedHeader(std::string const& header,
                               std::string const& config);
@@ -905,8 +903,7 @@ private:
 
   void ComputeVersionedName(std::string& vName, std::string const& prefix,
                             std::string const& base, std::string const& suffix,
-                            std::string const& name,
-                            const char* version) const;
+                            std::string const& name, cmProp version) const;
 
   struct CompatibleInterfacesBase
   {

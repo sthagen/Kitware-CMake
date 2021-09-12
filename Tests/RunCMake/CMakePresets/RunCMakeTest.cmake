@@ -260,6 +260,7 @@ unset(CMakePresets_FILE)
 run_cmake_presets(GoodUserOnly)
 run_cmake_presets(GoodUserFromMain)
 run_cmake_presets(GoodUserFromUser)
+run_cmake_presets(V2InheritV3Optional)
 
 # Test CMakeUserPresets.json errors
 run_cmake_presets(UserDuplicateInUser)
@@ -312,6 +313,11 @@ unset(CMakePresets_FILE)
 # Test optional generator and buildDir fields
 run_cmake_presets(OptionalBinaryDirField -B "${RunCMake_BINARY_DIR}/OptionalBinaryDirField/build")
 run_cmake_presets(OptionalGeneratorField -G "${RunCMake_GENERATOR}")
+set(CMakePresets_NO_S_ARG TRUE)
+set(CMakePresets_SOURCE_ARG "../OptionalBinaryDirFieldNoS")
+run_cmake_presets(OptionalBinaryDirFieldNoS)
+unset(CMakePresets_SOURCE_ARG)
+unset(CMakePresets_NO_S_ARG)
 
 # Test the example from the documentation
 file(READ "${RunCMake_SOURCE_DIR}/../../../Help/manual/presets/example.json" _example)
