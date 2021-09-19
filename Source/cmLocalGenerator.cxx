@@ -1961,10 +1961,10 @@ void cmLocalGenerator::AddLanguageFlags(std::string& flags,
     cmStrCat("CMAKE_", lang, "_SIMULATE_ID"));
   if (lang == "Swift") {
     if (cmProp v = target->GetProperty("Swift_LANGUAGE_VERSION")) {
-      if (cmSystemTools::VersionCompare(cmSystemTools::OP_GREATER_EQUAL,
-                                        cmToCStr(this->Makefile->GetDefinition(
-                                          "CMAKE_Swift_COMPILER_VERSION")),
-                                        "4.2")) {
+      if (cmSystemTools::VersionCompare(
+            cmSystemTools::OP_GREATER_EQUAL,
+            this->Makefile->GetDefinition("CMAKE_Swift_COMPILER_VERSION"),
+            "4.2")) {
         this->AppendFlags(flags, "-swift-version " + *v);
       }
     }
@@ -2510,6 +2510,16 @@ void cmLocalGenerator::AddPchDependencies(cmGeneratorTarget* target)
     static const std::array<std::string, 4> langs = { { "C", "CXX", "OBJC",
                                                         "OBJCXX" } };
 
+    bool haveAnyPch = false;
+    if (this->GetGlobalGenerator()->IsXcode()) {
+      for (const std::string& lang : langs) {
+        const std::string pchHeader = target->GetPchHeader(config, lang, "");
+        if (!pchHeader.empty()) {
+          haveAnyPch = true;
+        }
+      }
+    }
+
     for (const std::string& lang : langs) {
       auto langSources = std::count_if(
         sources.begin(), sources.end(), [lang](cmSourceFile* sf) {
@@ -2550,6 +2560,11 @@ void cmLocalGenerator::AddPchDependencies(cmGeneratorTarget* target)
         const std::string pchHeader = target->GetPchHeader(config, lang, arch);
 
         if (pchSource.empty() || pchHeader.empty()) {
+          if (this->GetGlobalGenerator()->IsXcode() && haveAnyPch) {
+            for (auto* sf : sources) {
+              sf->SetProperty("SKIP_PRECOMPILE_HEADERS", "ON");
+            }
+          }
           continue;
         }
 
@@ -2607,8 +2622,8 @@ void cmLocalGenerator::AddPchDependencies(cmGeneratorTarget* target)
 
                 // MSVC 2008 is producing both .pdb and .idb files with /Zi.
                 bool msvc2008OrLess =
-                  cmSystemTools::VersionCompare(
-                    cmSystemTools::OP_LESS, compilerVersion.c_str(), "16.0") &&
+                  cmSystemTools::VersionCompare(cmSystemTools::OP_LESS,
+                                                compilerVersion, "16.0") &&
                   compilerId == "MSVC";
                 // but not when used via toolset -Tv90
                 if (this->Makefile->GetSafeDefinition(
@@ -2639,7 +2654,8 @@ void cmLocalGenerator::AddPchDependencies(cmGeneratorTarget* target)
                   cmStrCat(" ",
                            this->ConvertToOutputFormat(pchSourceObj, SHELL)),
                   true);
-              } else {
+              } else if (reuseTarget->GetType() ==
+                         cmStateEnums::OBJECT_LIBRARY) {
                 target->Target->AppendProperty(
                   "INTERFACE_LINK_LIBRARIES",
                   cmStrCat("$<$<CONFIG:", config,
