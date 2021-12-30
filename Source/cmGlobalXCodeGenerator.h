@@ -11,10 +11,12 @@
 #include <string>
 #include <vector>
 
+#include <cm/optional>
 #include <cm/string_view>
 
 #include "cmGlobalGenerator.h"
 #include "cmTransformDepfile.h"
+#include "cmValue.h"
 #include "cmXCodeObject.h"
 
 class cmCustomCommand;
@@ -138,11 +140,6 @@ protected:
   void AddExtraIDETargets() override;
   void Generate() override;
 
-  FindMakeProgramStage GetFindMakeProgramStage() const override
-  {
-    return FindMakeProgramStage::Early;
-  }
-
 private:
   enum EmbedActionFlags
   {
@@ -221,6 +218,7 @@ private:
                           const std::string& dstSubfolderSpec,
                           int actionsOnByDefault);
   void AddEmbeddedFrameworks(cmXCodeObject* target);
+  void AddEmbeddedPlugIns(cmXCodeObject* target);
   void AddEmbeddedAppExtensions(cmXCodeObject* target);
   void AddPositionIndependentLinkAttribute(cmGeneratorTarget* target,
                                            cmXCodeObject* buildSettings,
@@ -327,7 +325,7 @@ private:
   bool XcodeBuildCommandInitialized;
 
   void PrintCompilerAdvice(std::ostream&, std::string const&,
-                           const char*) const override
+                           cmValue) const override
   {
   }
 

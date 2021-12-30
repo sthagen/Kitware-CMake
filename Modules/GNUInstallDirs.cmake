@@ -52,8 +52,10 @@ where ``<dir>`` is one of:
   .. versionadded:: 3.9
     run-time variable data (``LOCALSTATEDIR/run``)
 ``LIBDIR``
-  object code libraries (``lib`` or ``lib64``
-  or ``lib/<multiarch-tuple>`` on Debian)
+  object code libraries (``lib`` or ``lib64``)
+
+  On Debian, this may be ``lib/<multiarch-tuple>`` when
+  :variable:`CMAKE_INSTALL_PREFIX` is ``/``, ``/usr``, or ``/usr/local``.
 ``INCLUDEDIR``
   C header files (``include``)
 ``OLDINCLUDEDIR``
@@ -180,6 +182,8 @@ _GNUInstallDirs_cache_path(CMAKE_INSTALL_BINDIR "bin"
   "User executables (bin)")
 _GNUInstallDirs_cache_path(CMAKE_INSTALL_SBINDIR "sbin"
   "System admin executables (sbin)")
+_GNUInstallDirs_cache_path(CMAKE_INSTALL_LIBEXECDIR "libexec"
+  "Program executables (libexec)")
 _GNUInstallDirs_cache_path(CMAKE_INSTALL_SYSCONFDIR "etc"
   "Read-only single-machine data (etc)")
 _GNUInstallDirs_cache_path(CMAKE_INSTALL_SHAREDSTATEDIR "com"
@@ -251,7 +255,9 @@ if(NOT DEFINED CMAKE_INSTALL_LIBDIR OR (_libdir_set
     elseif(DEFINED ENV{CONDA_PREFIX})
       set(conda_prefix "$ENV{CONDA_PREFIX}")
       cmake_path(ABSOLUTE_PATH conda_prefix NORMALIZE)
-      if("${CMAKE_INSTALL_PREFIX}" STREQUAL conda_prefix)
+      if("${CMAKE_INSTALL_PREFIX}" STREQUAL conda_prefix AND
+         NOT ("${CMAKE_INSTALL_PREFIX}" MATCHES "^/usr/?$" OR
+              "${CMAKE_INSTALL_PREFIX}" MATCHES "^/usr/local/?$"))
         set(__system_type_for_install "conda")
       endif()
     endif()
@@ -267,7 +273,9 @@ if(NOT DEFINED CMAKE_INSTALL_LIBDIR OR (_libdir_set
 
     if(__system_type_for_install STREQUAL "debian")
       if(CMAKE_LIBRARY_ARCHITECTURE)
-        if("${CMAKE_INSTALL_PREFIX}" MATCHES "^/usr/?$")
+        if("${CMAKE_INSTALL_PREFIX}" STREQUAL "/"
+            OR "${CMAKE_INSTALL_PREFIX}" MATCHES "^/usr/?$"
+            OR "${CMAKE_INSTALL_PREFIX}" MATCHES "^/usr/local/?$")
           set(_LIBDIR_DEFAULT "lib/${CMAKE_LIBRARY_ARCHITECTURE}")
         endif()
         if(DEFINED _GNUInstallDirs_LAST_CMAKE_INSTALL_PREFIX
@@ -301,19 +309,6 @@ set(_GNUInstallDirs_LAST_CMAKE_INSTALL_PREFIX "${CMAKE_INSTALL_PREFIX}" CACHE IN
 unset(_libdir_set)
 unset(__LAST_LIBDIR_DEFAULT)
 
-if(CMAKE_SYSTEM_NAME MATCHES "^(Linux|kFreeBSD|GNU)$"
-    AND NOT CMAKE_CROSSCOMPILING
-    AND NOT EXISTS "/etc/arch-release"
-    AND EXISTS "/etc/debian_version" # is this a debian system ?
-    AND "${CMAKE_INSTALL_PREFIX}" MATCHES "^/usr/?$")
-  # see https://refspecs.linuxfoundation.org/FHS_3.0/fhs-3.0.html#usrlibexec
-  # and https://www.debian.org/doc/debian-policy/ch-opersys#file-system-structure (section 9.1.1 bullet point 4)
-  _GNUInstallDirs_cache_path(CMAKE_INSTALL_LIBEXECDIR "${CMAKE_INSTALL_LIBDIR}"
-    "Program executables (${CMAKE_INSTALL_LIBDIR})")
-else()
-  _GNUInstallDirs_cache_path(CMAKE_INSTALL_LIBEXECDIR "libexec"
-    "Program executables (libexec)")
-endif()
 _GNUInstallDirs_cache_path(CMAKE_INSTALL_INCLUDEDIR "include"
   "C header files (include)")
 _GNUInstallDirs_cache_path(CMAKE_INSTALL_OLDINCLUDEDIR "/usr/include"
@@ -337,7 +332,7 @@ else()
     "Info documentation (DATAROOTDIR/info)")
 endif()
 
-if(CMAKE_SYSTEM_NAME MATCHES "^(([^k].*)?BSD|DragonFly)$")
+if(CMAKE_SYSTEM_NAME MATCHES "^(([^k].*)?BSD|DragonFly)$" AND NOT CMAKE_SYSTEM_NAME MATCHES "^(FreeBSD)$")
   _GNUInstallDirs_cache_path_fallback(CMAKE_INSTALL_MANDIR "man"
     "Man documentation (man)")
 else()

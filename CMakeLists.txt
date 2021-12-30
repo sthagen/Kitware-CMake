@@ -1,9 +1,14 @@
 # Distributed under the OSI-approved BSD 3-Clause License.  See accompanying
 # file Copyright.txt or https://cmake.org/licensing for details.
 
-cmake_minimum_required(VERSION 3.1...3.20 FATAL_ERROR)
+cmake_minimum_required(VERSION 3.1...3.21 FATAL_ERROR)
 set(CMAKE_USER_MAKE_RULES_OVERRIDE_C ${CMAKE_CURRENT_SOURCE_DIR}/Source/Modules/OverrideC.cmake)
 set(CMAKE_USER_MAKE_RULES_OVERRIDE_CXX ${CMAKE_CURRENT_SOURCE_DIR}/Source/Modules/OverrideCXX.cmake)
+
+if(POLICY CMP0129)
+  cmake_policy(SET CMP0129 NEW) # CMake 3.23
+endif()
+
 project(CMake)
 unset(CMAKE_USER_MAKE_RULES_OVERRIDE_CXX)
 unset(CMAKE_USER_MAKE_RULES_OVERRIDE_C)
@@ -633,7 +638,7 @@ macro (CMAKE_BUILD_UTILITIES)
       message(FATAL_ERROR
         "CMAKE_USE_SYSTEM_JSONCPP is ON but a JsonCpp is not found!")
     endif()
-    if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
+    if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|LCC|Clang")
       set_property(TARGET JsonCpp::JsonCpp APPEND PROPERTY
         INTERFACE_COMPILE_OPTIONS -Wno-deprecated-declarations)
     endif()
@@ -820,7 +825,8 @@ if(NOT CMake_TEST_EXTERNAL_CMAKE)
        (CMAKE_C_COMPILER_ID STREQUAL "Clang" AND
         NOT "${CMAKE_C_COMPILER_VERSION}" VERSION_LESS 3.0 AND
         NOT "x${CMAKE_C_SIMULATE_ID}" STREQUAL "xMSVC") OR
-       CMAKE_C_COMPILER_ID STREQUAL "AppleClang")
+       CMAKE_C_COMPILER_ID STREQUAL "AppleClang" OR
+       CMAKE_C_COMPILER_ID STREQUAL "LCC")
       set(C_FLAGS_LIST -Wcast-align -Werror-implicit-function-declaration -Wchar-subscripts
                        -Wall -W -Wpointer-arith -Wwrite-strings -Wformat-security
                        -Wmissing-format-attribute -fno-common -Wundef

@@ -78,12 +78,13 @@ else()
         set(CMAKE_Fortran_COMPILER_LIST
           ftn
           ifort ifc ifx efc pgf95 pgfortran lf95 xlf95 fort
-          flang gfortran gfortran-4 g95 f90 pgf90
+          flang lfortran gfortran gfortran-4 g95 f90 pgf90
           frt pgf77 xlf g77 f77 nag
           )
       endif()
 
       # Vendor-specific compiler names.
+      set(_Fortran_COMPILER_NAMES_LCC       lfortran gfortran)
       set(_Fortran_COMPILER_NAMES_GNU       gfortran gfortran-4 g95 g77)
       set(_Fortran_COMPILER_NAMES_Intel     ifort ifc efc ifx)
       set(_Fortran_COMPILER_NAMES_Absoft    af95 af90 af77)
@@ -234,11 +235,6 @@ if(NOT CMAKE_Fortran_COMPILER_ID_RUN)
   # Set old compiler and platform id variables.
   if(CMAKE_Fortran_COMPILER_ID MATCHES "GNU")
     set(CMAKE_COMPILER_IS_GNUG77 1)
-  endif()
-  if(CMAKE_Fortran_PLATFORM_ID MATCHES "MinGW")
-    set(CMAKE_COMPILER_IS_MINGW 1)
-  elseif(CMAKE_Fortran_PLATFORM_ID MATCHES "Cygwin")
-    set(CMAKE_COMPILER_IS_CYGWIN 1)
   endif()
 endif()
 

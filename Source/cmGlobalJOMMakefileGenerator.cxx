@@ -2,8 +2,12 @@
    file Copyright.txt or https://cmake.org/licensing for details.  */
 #include "cmGlobalJOMMakefileGenerator.h"
 
+#include <ostream>
+
+#include <cmext/algorithm>
+
 #include "cmDocumentationEntry.h"
-#include "cmLocalUnixMakefileGenerator3.h"
+#include "cmGlobalGenerator.h"
 #include "cmMakefile.h"
 #include "cmState.h"
 #include "cmake.h"
@@ -39,8 +43,9 @@ void cmGlobalJOMMakefileGenerator::GetDocumentation(
   entry.Brief = "Generates JOM makefiles.";
 }
 
-void cmGlobalJOMMakefileGenerator::PrintCompilerAdvice(
-  std::ostream& os, std::string const& lang, const char* envVar) const
+void cmGlobalJOMMakefileGenerator::PrintCompilerAdvice(std::ostream& os,
+                                                       std::string const& lang,
+                                                       cmValue envVar) const
 {
   if (lang == "CXX" || lang == "C") {
     /* clang-format off */

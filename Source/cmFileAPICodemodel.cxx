@@ -23,11 +23,13 @@
 #include "cmCryptoHash.h"
 #include "cmExportSet.h"
 #include "cmFileAPI.h"
+#include "cmFileSet.h"
 #include "cmGeneratorExpression.h"
 #include "cmGeneratorTarget.h"
 #include "cmGlobalGenerator.h"
 #include "cmInstallDirectoryGenerator.h"
 #include "cmInstallExportGenerator.h"
+#include "cmInstallFileSetGenerator.h"
 #include "cmInstallFilesGenerator.h"
 #include "cmInstallGenerator.h"
 #include "cmInstallGetRuntimeDependenciesGenerator.h"
@@ -41,7 +43,6 @@
 #include "cmListFileCache.h"
 #include "cmLocalGenerator.h"
 #include "cmMakefile.h"
-#include "cmProperty.h"
 #include "cmSourceFile.h"
 #include "cmSourceGroup.h"
 #include "cmState.h"
@@ -53,6 +54,7 @@
 #include "cmTarget.h"
 #include "cmTargetDepend.h"
 #include "cmTargetExport.h"
+#include "cmValue.h"
 #include "cmake.h"
 
 namespace {
@@ -813,7 +815,7 @@ Json::Value CodemodelConfig::DumpProject(Project& p)
 Json::Value CodemodelConfig::DumpMinimumCMakeVersion(cmStateSnapshot s)
 {
   Json::Value minimumCMakeVersion;
-  if (cmProp def = s.GetDefinition("CMAKE_MINIMUM_REQUIRED_VERSION")) {
+  if (cmValue def = s.GetDefinition("CMAKE_MINIMUM_REQUIRED_VERSION")) {
     minimumCMakeVersion = Json::objectValue;
     minimumCMakeVersion["string"] = *def;
   }
@@ -1043,6 +1045,53 @@ Json::Value DirectoryObject::DumpInstaller(cmInstallGenerator* gen)
         installer["runtimeDependencySetType"] = "library";
         break;
     }
+  } else if (auto* installFileSet =
+               dynamic_cast<cmInstallFileSetGenerator*>(gen)) {
+    installer["type"] = "fileSet";
+    installer["destination"] = installFileSet->GetDestination(this->Config);
+
+    auto* fileSet = installFileSet->GetFileSet();
+    auto* target = installFileSet->GetTarget();
+
+    auto dirCges = fileSet->CompileDirectoryEntries();
+    auto dirs = fileSet->EvaluateDirectoryEntries(
+      dirCges, target->GetLocalGenerator(), this->Config, target);
+
+    auto entryCges = fileSet->CompileFileEntries();
+    std::map<std::string, std::vector<std::string>> entries;
+    for (auto const& entryCge : entryCges) {
+      fileSet->EvaluateFileEntry(dirs, entries, entryCge,
+                                 target->GetLocalGenerator(), this->Config,
+                                 target);
+    }
+
+    Json::Value files = Json::arrayValue;
+    for (auto const& it : entries) {
+      auto dir = it.first;
+      if (!dir.empty()) {
+        dir += '/';
+      }
+      for (auto const& file : it.second) {
+        files.append(this->DumpInstallerPath(
+          this->TopSource, file,
+          cmStrCat(dir, cmSystemTools::GetFilenameName(file))));
+      }
+    }
+    installer["paths"] = std::move(files);
+    installer["fileSetName"] = fileSet->GetName();
+    installer["fileSetType"] = fileSet->GetType();
+    installer["fileSetDirectories"] = Json::arrayValue;
+    for (auto const& dir : dirs) {
+      installer["fileSetDirectories"].append(
+        RelativeIfUnder(this->TopSource, dir));
+    }
+    installer["fileSetTarget"] = Json::objectValue;
+    installer["fileSetTarget"]["id"] = TargetId(target, this->TopBuild);
+    installer["fileSetTarget"]["index"] = this->TargetIndexMap[target];
+
+    if (installFileSet->GetOptional()) {
+      installer["isOptional"] = true;
+    }
   }
 
   // Add fields common to all install generators.
@@ -1187,10 +1236,10 @@ void Target::ProcessLanguage(std::string const& lang)
 {
   CompileData& cd = this->CompileDataMap[lang];
   cd.Language = lang;
-  if (cmProp sysrootCompile =
+  if (cmValue sysrootCompile =
         this->GT->Makefile->GetDefinition("CMAKE_SYSROOT_COMPILE")) {
     cd.Sysroot = *sysrootCompile;
-  } else if (cmProp sysroot =
+  } else if (cmValue sysroot =
                this->GT->Makefile->GetDefinition("CMAKE_SYSROOT")) {
     cd.Sysroot = *sysroot;
   }
@@ -1259,7 +1308,7 @@ CompileData Target::BuildCompileData(cmSourceFile* sf)
                                                     fd.Language);
 
   const std::string COMPILE_FLAGS("COMPILE_FLAGS");
-  if (cmProp cflags = sf->GetProperty(COMPILE_FLAGS)) {
+  if (cmValue cflags = sf->GetProperty(COMPILE_FLAGS)) {
     std::string flags = genexInterpreter.Evaluate(*cflags, COMPILE_FLAGS);
     fd.Flags.emplace_back(std::move(flags), JBTIndex());
   }
@@ -1353,7 +1402,7 @@ CompileData Target::BuildCompileData(cmSourceFile* sf)
   std::set<std::string> configFileDefines;
   const std::string defPropName =
     "COMPILE_DEFINITIONS_" + cmSystemTools::UpperCase(this->Config);
-  if (cmProp config_defs = sf->GetProperty(defPropName)) {
+  if (cmValue config_defs = sf->GetProperty(defPropName)) {
     lg->AppendDefines(
       configFileDefines,
       genexInterpreter.Evaluate(*config_defs, COMPILE_DEFINITIONS));
@@ -1739,10 +1788,10 @@ Json::Value Target::DumpLink()
       link["commandFragments"] = std::move(commandFragments);
     }
   }
-  if (cmProp sysrootLink =
+  if (cmValue sysrootLink =
         this->GT->Makefile->GetDefinition("CMAKE_SYSROOT_LINK")) {
     link["sysroot"] = this->DumpSysroot(*sysrootLink);
-  } else if (cmProp sysroot =
+  } else if (cmValue sysroot =
                this->GT->Makefile->GetDefinition("CMAKE_SYSROOT")) {
     link["sysroot"] = this->DumpSysroot(*sysroot);
   }
@@ -1868,7 +1917,7 @@ Json::Value Target::DumpDependency(cmTargetDepend const& td)
 Json::Value Target::DumpFolder()
 {
   Json::Value folder;
-  if (cmProp f = this->GT->GetProperty("FOLDER")) {
+  if (cmValue f = this->GT->GetProperty("FOLDER")) {
     folder = Json::objectValue;
     folder["name"] = *f;
   }

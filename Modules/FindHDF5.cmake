@@ -161,6 +161,8 @@ include(${CMAKE_CURRENT_LIST_DIR}/FindPackageHandleStandardArgs.cmake)
 # scope somewhere else. We can't rely on it because different components may
 # have been requested for this call.
 set(HDF5_FOUND OFF)
+set(HDF5_LIBRARIES)
+set(HDF5_HL_LIBRARIES)
 
 # List of the valid HDF5 components
 set(HDF5_VALID_LANGUAGE_BINDINGS C CXX Fortran)
@@ -317,8 +319,6 @@ function(_HDF5_test_regular_compiler_Fortran success is_parallel)
     file(WRITE ${test_file}
       "program hdf5_hello\n"
       "  use hdf5\n"
-      "  use h5lt\n"
-      "  use h5ds\n"
       "  integer error\n"
       "  call h5open_f(error)\n"
       "  call h5close_f(error)\n"
@@ -560,7 +560,7 @@ if(NOT HDF5_FOUND AND NOT HDF5_NO_FIND_PACKAGE_CONFIG_FILE)
                 set(HDF5_${_lang}_FOUND TRUE)
             endif()
             if(HDF5_FIND_HL)
-                get_target_property(_lang_hl_location ${HDF5_${_lang}_HL_TARGET}${_suffix} IMPORTED_IMPLIB_${_hdf5_imported_conf} )
+                get_target_property(_hdf5_lang_hl_location ${HDF5_${_lang}_HL_TARGET}${_suffix} IMPORTED_IMPLIB_${_hdf5_imported_conf} )
                 if (NOT _hdf5_lang_hl_location)
                     get_target_property(_hdf5_lang_hl_location ${HDF5_${_lang}_HL_TARGET}${_suffix} LOCATION_${_hdf5_imported_conf})
                     if (NOT _hdf5_hl_lang_location)
@@ -586,6 +586,9 @@ if(NOT HDF5_FOUND)
   set(HDF5_COMPILER_NO_INTERROGATE TRUE)
   # Only search for languages we've enabled
   foreach(_lang IN LISTS HDF5_LANGUAGE_BINDINGS)
+    set(HDF5_${_lang}_LIBRARIES)
+    set(HDF5_${_lang}_HL_LIBRARIES)
+
     # First check to see if our regular compiler is one of wrappers
     if(_lang STREQUAL "C")
       _HDF5_test_regular_compiler_C(
@@ -811,6 +814,9 @@ if( NOT HDF5_FOUND )
     endif()
 
     foreach(_lang IN LISTS HDF5_LANGUAGE_BINDINGS)
+        set(HDF5_${_lang}_LIBRARIES)
+        set(HDF5_${_lang}_HL_LIBRARIES)
+
         # The "main" library.
         set(_hdf5_main_library "")
 
@@ -873,7 +879,7 @@ if( NOT HDF5_FOUND )
             # Add library-based search paths for Fortran modules.
             if (NOT _hdf5_main_library STREQUAL "")
               # gfortran module directory
-              if (CMAKE_Fortran_COMPILER_ID STREQUAL "GNU")
+              if (CMAKE_Fortran_COMPILER_ID STREQUAL "GNU" OR CMAKE_Fortran_COMPILER_ID STREQUAL "LCC")
                 get_filename_component(_hdf5_library_dir "${_hdf5_main_library}" DIRECTORY)
                 list(APPEND _hdf5_inc_extra_paths "${_hdf5_library_dir}")
                 unset(_hdf5_library_dir)

@@ -38,12 +38,12 @@
 #include "cmGeneratedFileStream.h"
 #include "cmGlobalGenerator.h"
 #include "cmMakefile.h"
-#include "cmProperty.h"
 #include "cmState.h"
 #include "cmStateSnapshot.h"
 #include "cmStringAlgorithms.h"
 #include "cmSystemTools.h"
 #include "cmTimestamp.h"
+#include "cmValue.h"
 #include "cmWorkingDirectory.h"
 #include "cmXMLWriter.h"
 #include "cmake.h"
@@ -59,6 +59,8 @@ public:
   }
 
   virtual ~cmCTestCommand() = default;
+  cmCTestCommand(const cmCTestCommand&) = default;
+  cmCTestCommand& operator=(const cmCTestCommand&) = default;
 
   bool operator()(std::vector<cmListFileArgument> const& args,
                   cmExecutionStatus& status)
@@ -79,75 +81,20 @@ public:
   cmCTestTestHandler* TestHandler;
 };
 
-bool cmCTestSubdirCommand(std::vector<std::string> const& args,
-                          cmExecutionStatus& status)
+bool ReadSubdirectory(std::string fname, cmExecutionStatus& status)
 {
-  if (args.empty()) {
-    status.SetError("called with incorrect number of arguments");
-    return false;
-  }
-  std::string cwd = cmSystemTools::GetCurrentWorkingDirectory();
-  for (std::string const& arg : args) {
-    std::string fname;
-
-    if (cmSystemTools::FileIsFullPath(arg)) {
-      fname = arg;
-    } else {
-      fname = cmStrCat(cwd, '/', arg);
-    }
-
-    if (!cmSystemTools::FileIsDirectory(fname)) {
-      // No subdirectory? So what...
-      continue;
-    }
-    bool readit = false;
-    {
-      cmWorkingDirectory workdir(fname);
-      if (workdir.Failed()) {
-        status.SetError("Failed to change directory to " + fname + " : " +
-                        std::strerror(workdir.GetLastResult()));
-        return false;
-      }
-      const char* testFilename;
-      if (cmSystemTools::FileExists("CTestTestfile.cmake")) {
-        // does the CTestTestfile.cmake exist ?
-        testFilename = "CTestTestfile.cmake";
-      } else if (cmSystemTools::FileExists("DartTestfile.txt")) {
-        // does the DartTestfile.txt exist ?
-        testFilename = "DartTestfile.txt";
-      } else {
-        // No CTestTestfile? Who cares...
-        continue;
-      }
-      fname += "/";
-      fname += testFilename;
-      readit = status.GetMakefile().ReadDependentFile(fname);
-    }
-    if (!readit) {
-      status.SetError(cmStrCat("Could not load include file: ", fname));
-      return false;
-    }
-  }
-  return true;
-}
-
-bool cmCTestAddSubdirectoryCommand(std::vector<std::string> const& args,
-                                   cmExecutionStatus& status)
-{
-  if (args.empty()) {
-    status.SetError("called with incorrect number of arguments");
-    return false;
-  }
-
-  std::string fname =
-    cmStrCat(cmSystemTools::GetCurrentWorkingDirectory(), '/', args[0]);
-
   if (!cmSystemTools::FileExists(fname)) {
     // No subdirectory? So what...
     return true;
   }
   bool readit = false;
   {
+    cmWorkingDirectory workdir(fname);
+    if (workdir.Failed()) {
+      status.SetError("Failed to change directory to " + fname + " : " +
+                      std::strerror(workdir.GetLastResult()));
+      return false;
+    }
     const char* testFilename;
     if (cmSystemTools::FileExists("CTestTestfile.cmake")) {
       // does the CTestTestfile.cmake exist ?
@@ -168,6 +115,44 @@ bool cmCTestAddSubdirectoryCommand(std::vector<std::string> const& args,
     return false;
   }
   return true;
+}
+
+bool cmCTestSubdirCommand(std::vector<std::string> const& args,
+                          cmExecutionStatus& status)
+{
+  if (args.empty()) {
+    status.SetError("called with incorrect number of arguments");
+    return false;
+  }
+  std::string cwd = cmSystemTools::GetCurrentWorkingDirectory();
+  for (std::string const& arg : args) {
+    std::string fname;
+
+    if (cmSystemTools::FileIsFullPath(arg)) {
+      fname = arg;
+    } else {
+      fname = cmStrCat(cwd, '/', arg);
+    }
+
+    if (!ReadSubdirectory(std::move(fname), status)) {
+      return false;
+    }
+  }
+  return true;
+}
+
+bool cmCTestAddSubdirectoryCommand(std::vector<std::string> const& args,
+                                   cmExecutionStatus& status)
+{
+  if (args.empty()) {
+    status.SetError("called with incorrect number of arguments");
+    return false;
+  }
+
+  std::string fname =
+    cmStrCat(cmSystemTools::GetCurrentWorkingDirectory(), '/', args[0]);
+
+  return ReadSubdirectory(std::move(fname), status);
 }
 
 class cmCTestAddTestCommand : public cmCTestCommand
@@ -521,7 +506,7 @@ bool cmCTestTestHandler::ProcessOptions()
   if (cmIsOn(this->GetOption("ScheduleRandom"))) {
     this->CTest->SetScheduleType("Random");
   }
-  if (cmProp repeat = this->GetOption("Repeat")) {
+  if (cmValue repeat = this->GetOption("Repeat")) {
     cmsys::RegularExpression repeatRegex(
       "^(UNTIL_FAIL|UNTIL_PASS|AFTER_TIMEOUT):([0-9]+)$");
     if (repeatRegex.find(repeat)) {
@@ -557,7 +542,7 @@ bool cmCTestTestHandler::ProcessOptions()
                this->IncludeLabelRegularExpressions);
   BuildLabelRE(this->GetMultiOption("ExcludeLabelRegularExpression"),
                this->ExcludeLabelRegularExpressions);
-  cmProp val = this->GetOption("IncludeRegularExpression");
+  cmValue val = this->GetOption("IncludeRegularExpression");
   if (val) {
     this->UseIncludeRegExp();
     this->SetIncludeRegExp(val);
@@ -621,7 +606,7 @@ void cmCTestTestHandler::LogTestSummary(const std::vector<std::string>& passed,
     this->PrintLabelOrSubprojectSummary(false);
   }
   char realBuf[1024];
-  sprintf(realBuf, "%6.2f sec", durationInSecs.count());
+  snprintf(realBuf, sizeof(realBuf), "%6.2f sec", durationInSecs.count());
   cmCTestOptionalLog(this->CTest, HANDLER_OUTPUT,
                      "\nTotal Test time (real) = " << realBuf << "\n",
                      this->Quiet);
@@ -782,7 +767,7 @@ void cmCTestTestHandler::PrintLabelOrSubprojectSummary(bool doSubProject)
     label.resize(maxlen + 3, ' ');
 
     char buf[1024];
-    sprintf(buf, "%6.2f sec*proc", labelTimes[i]);
+    snprintf(buf, sizeof(buf), "%6.2f sec*proc", labelTimes[i]);
 
     std::ostringstream labelCountStr;
     labelCountStr << "(" << labelCounts[i] << " test";
@@ -1829,7 +1814,7 @@ bool cmCTestTestHandler::GetListOfTests()
     // SEND_ERROR or FATAL_ERROR in CTestTestfile or TEST_INCLUDE_FILES
     return false;
   }
-  cmProp specFile = mf.GetDefinition("CTEST_RESOURCE_SPEC_FILE");
+  cmValue specFile = mf.GetDefinition("CTEST_RESOURCE_SPEC_FILE");
   if (this->ResourceSpecFile.empty() && specFile) {
     this->ResourceSpecFile = *specFile;
   }
@@ -2091,7 +2076,7 @@ void cmCTestTestHandler::SetExcludeRegExp(const std::string& arg)
   this->ExcludeRegExp = arg;
 }
 
-void cmCTestTestHandler::SetTestsToRunInformation(cmProp in)
+void cmCTestTestHandler::SetTestsToRunInformation(cmValue in)
 {
   if (!in) {
     return;
@@ -2181,7 +2166,7 @@ bool cmCTestTestHandler::SetTestsProperties(
             // Ensure we have complete triples otherwise the data is corrupt.
             if (triples.size() % 3 == 0) {
               cmState state(cmState::Unknown);
-              rt.Backtrace = cmListFileBacktrace(state.CreateBaseSnapshot());
+              rt.Backtrace = cmListFileBacktrace();
 
               // the first entry represents the top of the trace so we need to
               // reconstruct the backtrace in reverse

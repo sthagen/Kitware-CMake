@@ -51,12 +51,22 @@ The :variable:`CMAKE_MINIMUM_REQUIRED_VERSION` variable may also be used
 to determine whether to report an error on use of deprecated macros or
 functions.
 
+
+Policies Introduced by CMake 3.23
+=================================
+
+.. toctree::
+   :maxdepth: 1
+
+   CMP0129: Compiler id for MCST LCC compilers is now LCC, not GNU. </policy/CMP0129>
+
 Policies Introduced by CMake 3.22
 =================================
 
 .. toctree::
    :maxdepth: 1
 
+   CMP0128: Selection of language standard and extension flags improved. </policy/CMP0128>
    CMP0127: cmake_dependent_option() supports full Condition Syntax. </policy/CMP0127>
 
 Policies Introduced by CMake 3.21

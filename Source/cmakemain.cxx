@@ -25,11 +25,11 @@
 #include "cmGlobalGenerator.h"
 #include "cmMakefile.h"
 #include "cmMessageMetadata.h"
-#include "cmProperty.h"
 #include "cmState.h"
 #include "cmStateTypes.h"
 #include "cmStringAlgorithms.h"
 #include "cmSystemTools.h"
+#include "cmValue.h"
 #include "cmake.h"
 #include "cmcmd.h"
 
@@ -90,6 +90,10 @@ const char* cmDocumentationOptions[][2] = {
     "useful on one try_compile at a time." },
   { "--debug-output", "Put cmake in a debug mode." },
   { "--debug-find", "Put cmake find in a debug mode." },
+  { "--debug-find-pkg=<pkg-name>[,...]",
+    "Limit cmake debug-find to the comma-separated list of packages" },
+  { "--debug-find-var=<var-name>[,...]",
+    "Limit cmake debug-find to the comma-separated list of result variables" },
   { "--trace", "Put cmake in trace mode." },
   { "--trace-expand", "Put cmake in trace mode with variable expansion." },
   { "--trace-format=<human|json-v1>", "Set the output format of the trace." },
@@ -375,11 +379,11 @@ int do_cmake(int ac, char const* const* av)
       cmStateEnums::CacheEntryType t = cm.GetState()->GetCacheEntryType(k);
       if (t != cmStateEnums::INTERNAL && t != cmStateEnums::STATIC &&
           t != cmStateEnums::UNINITIALIZED) {
-        cmProp advancedProp =
+        cmValue advancedProp =
           cm.GetState()->GetCacheEntryProperty(k, "ADVANCED");
         if (list_all_cached || !advancedProp) {
           if (list_help) {
-            cmProp help =
+            cmValue help =
               cm.GetState()->GetCacheEntryProperty(k, "HELPSTRING");
             std::cout << "// " << (help ? *help : "") << std::endl;
           }

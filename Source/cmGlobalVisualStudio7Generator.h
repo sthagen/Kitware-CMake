@@ -2,14 +2,26 @@
    file Copyright.txt or https://cmake.org/licensing for details.  */
 #pragma once
 
+#include <iosfwd>
+#include <map>
 #include <memory>
+#include <set>
+#include <string>
+#include <utility>
+#include <vector>
 
-#include "cmGlobalGeneratorFactory.h"
+#include <cm3p/json/value.h>
+
 #include "cmGlobalVisualStudioGenerator.h"
-#include "cmProperty.h"
+#include "cmValue.h"
 
-class cmTarget;
+class cmGeneratorTarget;
 struct cmIDEFlagTable;
+class cmLocalGenerator;
+class cmMakefile;
+class cmake;
+template <typename T>
+class BT;
 
 /** \class cmGlobalVisualStudio7Generator
  * \brief Write a Unix makefiles.
@@ -143,7 +155,7 @@ protected:
 
   virtual void WriteExternalProject(
     std::ostream& fout, const std::string& name, const std::string& path,
-    cmProp typeGuid,
+    cmValue typeGuid,
     const std::set<BT<std::pair<std::string, bool>>>& dependencies) = 0;
 
   std::string ConvertToSolutionPath(const std::string& path);

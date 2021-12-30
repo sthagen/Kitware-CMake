@@ -21,10 +21,10 @@
 #include "cmInstalledFile.h"
 #include "cmListFileCache.h"
 #include "cmMessageType.h"
-#include "cmProperty.h"
 #include "cmState.h"
 #include "cmStateSnapshot.h"
 #include "cmStateTypes.h"
+#include "cmValue.h"
 
 #if !defined(CMAKE_BOOTSTRAP)
 #  include <cm/optional>
@@ -329,21 +329,21 @@ public:
   /**
    * Given a variable name, return its value (as a string).
    */
-  cmProp GetCacheDefinition(const std::string&) const;
+  cmValue GetCacheDefinition(const std::string&) const;
   //! Add an entry into the cache
   void AddCacheEntry(const std::string& key, const char* value,
                      const char* helpString, int type)
   {
     this->AddCacheEntry(key,
-                        value ? cmProp(std::string(value)) : cmProp(nullptr),
+                        value ? cmValue(std::string(value)) : cmValue(nullptr),
                         helpString, type);
   }
   void AddCacheEntry(const std::string& key, const std::string& value,
                      const char* helpString, int type)
   {
-    this->AddCacheEntry(key, cmProp(value), helpString, type);
+    this->AddCacheEntry(key, cmValue(value), helpString, type);
   }
-  void AddCacheEntry(const std::string& key, cmProp value,
+  void AddCacheEntry(const std::string& key, cmValue value,
                      const char* helpString, int type);
 
   bool DoWriteGlobVerifyTarget() const;
@@ -408,14 +408,14 @@ public:
 
   //! Set/Get a property of this target file
   void SetProperty(const std::string& prop, const char* value);
-  void SetProperty(const std::string& prop, cmProp value);
+  void SetProperty(const std::string& prop, cmValue value);
   void SetProperty(const std::string& prop, const std::string& value)
   {
-    this->SetProperty(prop, cmProp(value));
+    this->SetProperty(prop, cmValue(value));
   }
   void AppendProperty(const std::string& prop, const std::string& value,
                       bool asString = false);
-  cmProp GetProperty(const std::string& prop);
+  cmValue GetProperty(const std::string& prop);
   bool GetPropertyAsBool(const std::string& prop);
 
   //! Get or create an cmInstalledFile instance and return a pointer to it
@@ -486,7 +486,11 @@ public:
 
   //! Do we want debug output from the find commands during the cmake run.
   bool GetDebugFindOutput() const { return this->DebugFindOutput; }
-  void SetDebugFindOutputOn(bool b) { this->DebugFindOutput = b; }
+  bool GetDebugFindOutput(std::string const& var) const;
+  bool GetDebugFindPkgOutput(std::string const& var) const;
+  void SetDebugFindOutput(bool b) { this->DebugFindOutput = b; }
+  void SetDebugFindOutputPkgs(std::string const& args);
+  void SetDebugFindOutputVars(std::string const& args);
 
   //! Do we want trace output during the cmake run.
   bool GetTrace() const { return this->Trace; }
@@ -703,6 +707,9 @@ private:
   std::unique_ptr<cmMessenger> Messenger;
 
   std::vector<std::string> TraceOnlyThisSources;
+
+  std::set<std::string> DebugFindPkgs;
+  std::set<std::string> DebugFindVars;
 
   LogLevel MessageLogLevel = LogLevel::LOG_STATUS;
   bool LogLevelWasSetViaCLI = false;

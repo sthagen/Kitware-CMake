@@ -2,6 +2,9 @@
    file Copyright.txt or https://cmake.org/licensing for details.  */
 #include "cmGlobalVisualStudio7Generator.h"
 
+#include <algorithm>
+#include <cstdio>
+#include <ostream>
 #include <utility>
 #include <vector>
 
@@ -10,19 +13,22 @@
 
 #include <windows.h>
 
-#include <assert.h>
-
-#include "cmsys/Encoding.hxx"
-
 #include "cmGeneratedFileStream.h"
 #include "cmGeneratorExpression.h"
 #include "cmGeneratorTarget.h"
+#include "cmGlobalGenerator.h"
+#include "cmLocalGenerator.h"
 #include "cmLocalVisualStudio7Generator.h"
 #include "cmMakefile.h"
 #include "cmMessageType.h"
 #include "cmState.h"
+#include "cmStateTypes.h"
 #include "cmStringAlgorithms.h"
+#include "cmSystemTools.h"
+#include "cmTarget.h"
+#include "cmTargetDepend.h"
 #include "cmUuid.h"
+#include "cmVisualStudioGeneratorOptions.h"
 #include "cmake.h"
 
 static cmVS7FlagTable cmVS7ExtraFlagTable[] = {
@@ -37,6 +43,7 @@ static cmVS7FlagTable cmVS7ExtraFlagTable[] = {
     cmVS7FlagTable::UserValueIgnored | cmVS7FlagTable::Continue },
   { "PrecompiledHeaderThrough", "Yu", "Precompiled Header Name", "",
     cmVS7FlagTable::UserValueRequired },
+  { "UsePrecompiledHeader", "Y-", "Don't use precompiled header", "0", 0 },
   { "WholeProgramOptimization", "LTCG", "WholeProgramOptimization", "true",
     0 },
 
@@ -299,7 +306,7 @@ void cmGlobalVisualStudio7Generator::Generate()
 
   if (this->Version == VS10 && !this->CMakeInstance->GetIsInTryCompile()) {
     std::string cmakeWarnVS10;
-    if (cmProp cached = this->CMakeInstance->GetState()->GetCacheEntryValue(
+    if (cmValue cached = this->CMakeInstance->GetState()->GetCacheEntryValue(
           "CMAKE_WARN_VS10")) {
       this->CMakeInstance->MarkCliAsUsed("CMAKE_WARN_VS10");
       cmakeWarnVS10 = *cached;
@@ -354,20 +361,28 @@ void cmGlobalVisualStudio7Generator::WriteTargetConfigurations(
     if (!target->IsInBuildSystem()) {
       continue;
     }
-    cmProp expath = target->GetProperty("EXTERNAL_MSPROJECT");
+    cmValue expath = target->GetProperty("EXTERNAL_MSPROJECT");
     if (expath) {
       std::set<std::string> allConfigurations(configs.begin(), configs.end());
-      cmProp mapping = target->GetProperty("VS_PLATFORM_MAPPING");
+      cmValue mapping = target->GetProperty("VS_PLATFORM_MAPPING");
       this->WriteProjectConfigurations(fout, target->GetName(), *target,
                                        configs, allConfigurations,
                                        mapping ? *mapping : "");
     } else {
       const std::set<std::string>& configsPartOfDefaultBuild =
         this->IsPartOfDefaultBuild(configs, projectTargets, target);
-      cmProp vcprojName = target->GetProperty("GENERATOR_FILE_NAME");
+      cmValue vcprojName = target->GetProperty("GENERATOR_FILE_NAME");
       if (vcprojName) {
+        std::string mapping;
+
+        // On VS 19 and above, always map .NET SDK projects to "Any CPU".
+        if (target->IsDotNetSdkTarget() &&
+            this->GetVersion() >= VSVersion::VS16 &&
+            !this->IsReservedTarget(target->GetName())) {
+          mapping = "Any CPU";
+        }
         this->WriteProjectConfigurations(fout, *vcprojName, *target, configs,
-                                         configsPartOfDefaultBuild);
+                                         configsPartOfDefaultBuild, mapping);
       }
     }
   }
@@ -386,7 +401,7 @@ void cmGlobalVisualStudio7Generator::WriteTargetsToSolution(
     bool written = false;
 
     // handle external vc project files
-    cmProp expath = target->GetProperty("EXTERNAL_MSPROJECT");
+    cmValue expath = target->GetProperty("EXTERNAL_MSPROJECT");
     if (expath) {
       std::string project = target->GetName();
       std::string location = *expath;
@@ -396,7 +411,7 @@ void cmGlobalVisualStudio7Generator::WriteTargetsToSolution(
                                  target->GetUtilities());
       written = true;
     } else {
-      cmProp vcprojName = target->GetProperty("GENERATOR_FILE_NAME");
+      cmValue vcprojName = target->GetProperty("GENERATOR_FILE_NAME");
       if (vcprojName) {
         cmLocalGenerator* lg = target->GetLocalGenerator();
         std::string dir = lg->GetCurrentBinaryDirectory();
@@ -449,7 +464,7 @@ void cmGlobalVisualStudio7Generator::WriteTargetDepends(
     if (!target->IsInBuildSystem()) {
       continue;
     }
-    cmProp vcprojName = target->GetProperty("GENERATOR_FILE_NAME");
+    cmValue vcprojName = target->GetProperty("GENERATOR_FILE_NAME");
     if (vcprojName) {
       std::string dir =
         target->GetLocalGenerator()->GetCurrentSourceDirectory();
@@ -537,7 +552,7 @@ void cmGlobalVisualStudio7Generator::WriteSLNGlobalSections(
           extensibilityAddInsOverridden = true;
         }
         fout << "\tGlobalSection(" << name << ") = " << sectionType << "\n";
-        cmProp p = root->GetMakefile()->GetProperty(it);
+        cmValue p = root->GetMakefile()->GetProperty(it);
         std::vector<std::string> keyValuePairs = cmExpandedList(p ? *p : "");
         for (std::string const& itPair : keyValuePairs) {
           const std::string::size_type posEqual = itPair.find('=');
@@ -636,7 +651,7 @@ std::string cmGlobalVisualStudio7Generator::WriteUtilityDepend(
 std::string cmGlobalVisualStudio7Generator::GetGUID(std::string const& name)
 {
   std::string const& guidStoreName = name + "_GUID_CMAKE";
-  if (cmProp storedGUID =
+  if (cmValue storedGUID =
         this->CMakeInstance->GetCacheDefinition(guidStoreName)) {
     return *storedGUID;
   }
@@ -686,7 +701,7 @@ std::set<std::string> cmGlobalVisualStudio7Generator::IsPartOfDefaultBuild(
           "CMAKE_VS_INCLUDE_" + t + "_TO_DEFAULT_BUILD";
         // inspect CMAKE_VS_INCLUDE_<t>_TO_DEFAULT_BUILD properties
         for (std::string const& i : configs) {
-          cmProp propertyValue =
+          cmValue propertyValue =
             target->Target->GetMakefile()->GetDefinition(propertyName);
           if (propertyValue &&
               cmIsOn(cmGeneratorExpression::Evaluate(

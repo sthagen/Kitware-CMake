@@ -10,12 +10,12 @@
 #include "cmListFileCache.h"
 #include "cmMakefile.h"
 #include "cmMessageType.h"
-#include "cmProperty.h"
 #include "cmState.h"
 #include "cmStateSnapshot.h"
 #include "cmStateTypes.h"
 #include "cmStringAlgorithms.h"
 #include "cmSystemTools.h"
+#include "cmValue.h"
 #include "cmVersion.h"
 
 static bool stringToId(const char* input, cmPolicies::PolicyID& pid)
@@ -103,7 +103,7 @@ static bool isPolicyNewerThan(cmPolicies::PolicyID id, unsigned int majorV,
   return false;
 }
 
-const char* idToShortDescription(cmPolicies::PolicyID id)
+static const char* idToShortDescription(cmPolicies::PolicyID id)
 {
   switch (id) {
 #define POLICY_CASE(ID, SHORT_DESCRIPTION)                                    \

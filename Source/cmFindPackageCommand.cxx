@@ -25,14 +25,15 @@
 #include "cmMakefile.h"
 #include "cmMessageType.h"
 #include "cmPolicies.h"
-#include "cmProperty.h"
 #include "cmRange.h"
 #include "cmSearchPath.h"
 #include "cmState.h"
 #include "cmStateTypes.h"
 #include "cmStringAlgorithms.h"
 #include "cmSystemTools.h"
+#include "cmValue.h"
 #include "cmVersion.h"
+#include "cmake.h"
 
 #if defined(__HAIKU__)
 #  include <FindDirectory.h>
@@ -137,18 +138,15 @@ bool cmFindPackageCommand::InitialPass(std::vector<std::string> const& args)
   }
 
   // Lookup required version of CMake.
-  if (cmProp rv =
+  if (cmValue rv =
         this->Makefile->GetDefinition("CMAKE_MINIMUM_REQUIRED_VERSION")) {
     unsigned int v[3] = { 0, 0, 0 };
     sscanf(rv->c_str(), "%u.%u.%u", &v[0], &v[1], &v[2]);
     this->RequiredCMakeVersion = CMake_VERSION_ENCODE(v[0], v[1], v[2]);
   }
 
-  this->DebugMode = this->ComputeIfDebugModeWanted();
-  this->DebugBuffer.clear();
-
   // Lookup target architecture, if any.
-  if (cmProp arch =
+  if (cmValue arch =
         this->Makefile->GetDefinition("CMAKE_LIBRARY_ARCHITECTURE")) {
     this->LibraryArchitecture = *arch;
   }
@@ -177,7 +175,7 @@ bool cmFindPackageCommand::InitialPass(std::vector<std::string> const& args)
   // Check if User Package Registry should be disabled
   // The `CMAKE_FIND_USE_PACKAGE_REGISTRY` has
   // priority over the deprecated CMAKE_FIND_PACKAGE_NO_PACKAGE_REGISTRY
-  if (cmProp def =
+  if (cmValue def =
         this->Makefile->GetDefinition("CMAKE_FIND_USE_PACKAGE_REGISTRY")) {
     this->NoUserRegistry = !cmIsOn(*def);
   } else if (this->Makefile->IsOn("CMAKE_FIND_PACKAGE_NO_PACKAGE_REGISTRY")) {
@@ -187,7 +185,7 @@ bool cmFindPackageCommand::InitialPass(std::vector<std::string> const& args)
   // Check if System Package Registry should be disabled
   // The `CMAKE_FIND_USE_SYSTEM_PACKAGE_REGISTRY` has
   // priority over the deprecated CMAKE_FIND_PACKAGE_NO_SYSTEM_PACKAGE_REGISTRY
-  if (cmProp def = this->Makefile->GetDefinition(
+  if (cmValue def = this->Makefile->GetDefinition(
         "CMAKE_FIND_USE_SYSTEM_PACKAGE_REGISTRY")) {
     this->NoSystemRegistry = !cmIsOn(*def);
   } else if (this->Makefile->IsOn(
@@ -201,7 +199,7 @@ bool cmFindPackageCommand::InitialPass(std::vector<std::string> const& args)
   }
 
   // Check if Sorting should be enabled
-  if (cmProp so =
+  if (cmValue so =
         this->Makefile->GetDefinition("CMAKE_FIND_PACKAGE_SORT_ORDER")) {
 
     if (*so == "NAME") {
@@ -212,7 +210,7 @@ bool cmFindPackageCommand::InitialPass(std::vector<std::string> const& args)
       this->SortOrder = None;
     }
   }
-  if (cmProp sd =
+  if (cmValue sd =
         this->Makefile->GetDefinition("CMAKE_FIND_PACKAGE_SORT_DIRECTION")) {
     this->SortDirection = (*sd == "ASC") ? Asc : Dec;
   }
@@ -235,6 +233,10 @@ bool cmFindPackageCommand::InitialPass(std::vector<std::string> const& args)
 
   // Always search directly in a generated path.
   this->SearchPathSuffixes.emplace_back();
+
+  // Process debug mode
+  this->DebugMode = this->ComputeIfDebugModeWanted(this->Name);
+  this->DebugBuffer.clear();
 
   // Parse the arguments.
   enum Doing
@@ -619,6 +621,12 @@ bool cmFindPackageCommand::InitialPass(std::vector<std::string> const& args)
   return loadedPackage;
 }
 
+bool cmFindPackageCommand::ComputeIfDebugModeWanted(std::string const& var)
+{
+  return this->ComputeIfDebugModeWanted() ||
+    this->Makefile->GetCMakeInstance()->GetDebugFindPkgOutput(var);
+}
+
 bool cmFindPackageCommand::FindPackageUsingModuleMode()
 {
   bool foundModule = false;
@@ -671,7 +679,7 @@ void cmFindPackageCommand::SetVersionVariables(
   addDefinition(prefix, version);
 
   char buf[64];
-  sprintf(buf, "%u", major);
+  snprintf(buf, sizeof(buf), "%u", major);
   addDefinition(prefix + "_MAJOR", buf);
   sprintf(buf, "%u", minor);
   addDefinition(prefix + "_MINOR", buf);
@@ -753,7 +761,7 @@ void cmFindPackageCommand::SetModuleVariables(const std::string& components)
 void cmFindPackageCommand::AddFindDefinition(const std::string& var,
                                              cm::string_view value)
 {
-  if (cmProp old = this->Makefile->GetDefinition(var)) {
+  if (cmValue old = this->Makefile->GetDefinition(var)) {
     this->OriginalDefs[var].exists = true;
     this->OriginalDefs[var].value = *old;
   } else {
@@ -846,7 +854,7 @@ bool cmFindPackageCommand::HandlePackageMode(
   this->ConsideredConfigs.clear();
 
   // Try to find the config file.
-  cmProp def = this->Makefile->GetDefinition(this->Variable);
+  cmValue def = this->Makefile->GetDefinition(this->Variable);
 
   // Try to load the config file if the directory is known
   bool fileFound = false;
@@ -1206,7 +1214,7 @@ bool cmFindPackageCommand::ReadListFile(const std::string& f,
 void cmFindPackageCommand::AppendToFoundProperty(bool found)
 {
   std::vector<std::string> foundContents;
-  cmProp foundProp =
+  cmValue foundProp =
     this->Makefile->GetState()->GetGlobalProperty("PACKAGES_FOUND");
   if (cmNonempty(foundProp)) {
     cmExpandList(*foundProp, foundContents, false);
@@ -1218,7 +1226,7 @@ void cmFindPackageCommand::AppendToFoundProperty(bool found)
   }
 
   std::vector<std::string> notFoundContents;
-  cmProp notFoundProp =
+  cmValue notFoundProp =
     this->Makefile->GetState()->GetGlobalProperty("PACKAGES_NOT_FOUND");
   if (cmNonempty(notFoundProp)) {
     cmExpandList(*notFoundProp, notFoundContents, false);

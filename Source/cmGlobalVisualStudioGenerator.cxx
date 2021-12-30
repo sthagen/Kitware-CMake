@@ -3,8 +3,12 @@
    file Copyright.txt or https://cmake.org/licensing for details.  */
 #include "cmGlobalVisualStudioGenerator.h"
 
+#include <cassert>
 #include <future>
 #include <iostream>
+#include <sstream>
+#include <system_error>
+#include <utility>
 
 #include <cm/iterator>
 #include <cm/memory>
@@ -14,17 +18,20 @@
 #include <objbase.h>
 #include <shellapi.h>
 
-#include "cmsys/Encoding.hxx"
-
 #include "cmCallVisualStudioMacro.h"
 #include "cmCustomCommand.h"
 #include "cmCustomCommandLines.h"
 #include "cmGeneratedFileStream.h"
 #include "cmGeneratorTarget.h"
-#include "cmLocalVisualStudioGenerator.h"
+#include "cmLocalGenerator.h"
 #include "cmMakefile.h"
+#include "cmMessageType.h"
+#include "cmPolicies.h"
 #include "cmSourceFile.h"
 #include "cmState.h"
+#include "cmStateTypes.h"
+#include "cmStringAlgorithms.h"
+#include "cmSystemTools.h"
 #include "cmTarget.h"
 #include "cmake.h"
 
@@ -199,19 +206,18 @@ void cmGlobalVisualStudioGenerator::AddExtraIDETargets()
 {
   // Add a special target that depends on ALL projects for easy build
   // of one configuration only.
-  const char* no_working_dir = nullptr;
-  std::vector<std::string> no_byproducts;
-  std::vector<std::string> no_depends;
-  cmCustomCommandLines no_commands;
   for (auto const& it : this->ProjectMap) {
     std::vector<cmLocalGenerator*> const& gen = it.second;
     // add the ALL_BUILD to the first local generator of each project
     if (!gen.empty()) {
       // Use no actual command lines so that the target itself is not
       // considered always out of date.
-      cmTarget* allBuild = gen[0]->AddUtilityCommand(
-        "ALL_BUILD", true, no_working_dir, no_byproducts, no_depends,
-        no_commands, cmPolicies::NEW, false, "Build all projects");
+      auto cc = cm::make_unique<cmCustomCommand>();
+      cc->SetCMP0116Status(cmPolicies::NEW);
+      cc->SetEscapeOldStyle(false);
+      cc->SetComment("Build all projects");
+      cmTarget* allBuild =
+        gen[0]->AddUtilityCommand("ALL_BUILD", true, std::move(cc));
 
       gen[0]->AddGeneratorTarget(
         cm::make_unique<cmGeneratorTarget>(allBuild, gen[0]));
@@ -519,7 +525,7 @@ std::string cmGlobalVisualStudioGenerator::GetUtilityDepend(
 std::string cmGlobalVisualStudioGenerator::GetStartupProjectName(
   cmLocalGenerator const* root) const
 {
-  cmProp n = root->GetMakefile()->GetProperty("VS_STARTUP_PROJECT");
+  cmValue n = root->GetMakefile()->GetProperty("VS_STARTUP_PROJECT");
   if (cmNonempty(n)) {
     std::string startup = *n;
     if (this->FindTarget(startup)) {
@@ -820,7 +826,7 @@ bool cmGlobalVisualStudioGenerator::TargetIsFortranOnly(
   // This allows the project to control the language choice in
   // a target with none of its own sources, e.g. when also using
   // object libraries.
-  cmProp linkLang = gt->GetProperty("LINKER_LANGUAGE");
+  cmValue linkLang = gt->GetProperty("LINKER_LANGUAGE");
   if (cmNonempty(linkLang)) {
     languages.insert(*linkLang);
   }
@@ -942,9 +948,13 @@ void cmGlobalVisualStudioGenerator::AddSymbolExportCommand(
 
   cmCustomCommandLines commandLines = cmMakeSingleCommandLine(
     { cmakeCommand, "-E", "__create_def", mdi->DefFile, objs_file });
-  cmCustomCommand command(outputs, empty, empty, commandLines,
-                          gt->Target->GetMakefile()->GetBacktrace(),
-                          "Auto build dll exports", ".", true);
+  cmCustomCommand command;
+  command.SetOutputs(outputs);
+  command.SetCommandLines(commandLines);
+  command.SetComment("Auto build dll exports");
+  command.SetBacktrace(gt->Target->GetMakefile()->GetBacktrace());
+  command.SetWorkingDirectory(".");
+  command.SetStdPipesUTF8(true);
   commands.push_back(std::move(command));
 }
 

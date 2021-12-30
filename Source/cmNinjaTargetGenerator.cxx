@@ -31,7 +31,6 @@
 #include "cmNinjaNormalTargetGenerator.h"
 #include "cmNinjaUtilityTargetGenerator.h"
 #include "cmOutputConverter.h"
-#include "cmProperty.h"
 #include "cmRange.h"
 #include "cmRulePlaceholderExpander.h"
 #include "cmSourceFile.h"
@@ -40,6 +39,7 @@
 #include "cmStateTypes.h"
 #include "cmStringAlgorithms.h"
 #include "cmSystemTools.h"
+#include "cmValue.h"
 #include "cmake.h"
 
 std::unique_ptr<cmNinjaTargetGenerator> cmNinjaTargetGenerator::New(
@@ -224,13 +224,13 @@ std::string cmNinjaTargetGenerator::ComputeFlagsForObject(
     this->LocalGenerator, config, this->GeneratorTarget, language);
 
   const std::string COMPILE_FLAGS("COMPILE_FLAGS");
-  if (cmProp cflags = source->GetProperty(COMPILE_FLAGS)) {
+  if (cmValue cflags = source->GetProperty(COMPILE_FLAGS)) {
     this->LocalGenerator->AppendFlags(
       flags, genexInterpreter.Evaluate(*cflags, COMPILE_FLAGS));
   }
 
   const std::string COMPILE_OPTIONS("COMPILE_OPTIONS");
-  if (cmProp coptions = source->GetProperty(COMPILE_OPTIONS)) {
+  if (cmValue coptions = source->GetProperty(COMPILE_OPTIONS)) {
     this->LocalGenerator->AppendCompileOptions(
       flags, genexInterpreter.Evaluate(*coptions, COMPILE_OPTIONS));
   }
@@ -263,10 +263,7 @@ void cmNinjaTargetGenerator::AddIncludeFlags(std::string& languageFlags,
                                               language, config);
   // Add include directory flags.
   std::string includeFlags = this->LocalGenerator->GetIncludeFlags(
-    includes, this->GeneratorTarget, language, config, false,
-    // full include paths for RC needed by cmcldeps
-    language == "RC" ? cmLocalGenerator::IncludePathStyle::Absolute
-                     : cmLocalGenerator::IncludePathStyle::Default);
+    includes, this->GeneratorTarget, language, config, false);
   if (this->GetGlobalGenerator()->IsGCCOnWindows()) {
     std::replace(includeFlags.begin(), includeFlags.end(), '\\', '/');
   }
@@ -290,14 +287,14 @@ std::string cmNinjaTargetGenerator::ComputeDefines(cmSourceFile const* source,
   }
 
   const std::string COMPILE_DEFINITIONS("COMPILE_DEFINITIONS");
-  if (cmProp compile_defs = source->GetProperty(COMPILE_DEFINITIONS)) {
+  if (cmValue compile_defs = source->GetProperty(COMPILE_DEFINITIONS)) {
     this->LocalGenerator->AppendDefines(
       defines, genexInterpreter.Evaluate(*compile_defs, COMPILE_DEFINITIONS));
   }
 
   std::string defPropName =
     cmStrCat("COMPILE_DEFINITIONS_", cmSystemTools::UpperCase(config));
-  if (cmProp config_compile_defs = source->GetProperty(defPropName)) {
+  if (cmValue config_compile_defs = source->GetProperty(defPropName)) {
     this->LocalGenerator->AppendDefines(
       defines,
       genexInterpreter.Evaluate(*config_compile_defs, COMPILE_DEFINITIONS));
@@ -318,15 +315,14 @@ std::string cmNinjaTargetGenerator::ComputeIncludes(
     this->LocalGenerator, config, this->GeneratorTarget, language);
 
   const std::string INCLUDE_DIRECTORIES("INCLUDE_DIRECTORIES");
-  if (cmProp cincludes = source->GetProperty(INCLUDE_DIRECTORIES)) {
+  if (cmValue cincludes = source->GetProperty(INCLUDE_DIRECTORIES)) {
     this->LocalGenerator->AppendIncludeDirectories(
       includes, genexInterpreter.Evaluate(*cincludes, INCLUDE_DIRECTORIES),
       *source);
   }
 
   std::string includesString = this->LocalGenerator->GetIncludeFlags(
-    includes, this->GeneratorTarget, language, config, false,
-    cmLocalGenerator::IncludePathStyle::Absolute);
+    includes, this->GeneratorTarget, language, config, false);
   this->LocalGenerator->AppendFlags(includesString,
                                     this->GetIncludes(language, config));
 
@@ -605,6 +601,7 @@ void cmNinjaTargetGenerator::WriteCompileRule(const std::string& lang,
   vars.TargetCompilePDB = "$TARGET_COMPILE_PDB";
   vars.ObjectDir = "$OBJECT_DIR";
   vars.ObjectFileDir = "$OBJECT_FILE_DIR";
+  vars.CudaCompileMode = "$CUDA_COMPILE_MODE";
   vars.ISPCHeader = "$ISPC_HEADER_FILE";
 
   cmMakefile* mf = this->GetMakefile();
@@ -638,7 +635,7 @@ void cmNinjaTargetGenerator::WriteCompileRule(const std::string& lang,
     cmLocalGenerator::SHELL);
 
   std::string launcher;
-  cmProp val = this->GetLocalGenerator()->GetRuleLauncher(
+  cmValue val = this->GetLocalGenerator()->GetRuleLauncher(
     this->GetGeneratorTarget(), "RULE_LAUNCH_COMPILE");
   if (cmNonempty(val)) {
     launcher = cmStrCat(*val, ' ');
@@ -771,7 +768,7 @@ void cmNinjaTargetGenerator::WriteCompileRule(const std::string& lang,
     if (!mf->GetIsSourceFileTryCompile()) {
       rule.DepType = "gcc";
       rule.DepFile = "$DEP_FILE";
-      cmProp d = mf->GetDefinition("CMAKE_C_COMPILER");
+      cmValue d = mf->GetDefinition("CMAKE_C_COMPILER");
       const std::string cl =
         d ? *d : mf->GetSafeDefinition("CMAKE_CXX_COMPILER");
       std::string cmcldepsPath;
@@ -815,26 +812,31 @@ void cmNinjaTargetGenerator::WriteCompileRule(const std::string& lang,
   vars.Flags = flags.c_str();
   vars.DependencyFile = rule.DepFile.c_str();
 
-  // Rule for compiling object file.
-  std::vector<std::string> compileCmds;
+  std::string cudaCompileMode;
   if (lang == "CUDA") {
-    std::string cmdVar;
     if (this->GeneratorTarget->GetPropertyAsBool(
           "CUDA_SEPARABLE_COMPILATION")) {
-      cmdVar = "CMAKE_CUDA_COMPILE_SEPARABLE_COMPILATION";
-    } else if (this->GeneratorTarget->GetPropertyAsBool(
-                 "CUDA_PTX_COMPILATION")) {
-      cmdVar = "CMAKE_CUDA_COMPILE_PTX_COMPILATION";
-    } else {
-      cmdVar = "CMAKE_CUDA_COMPILE_WHOLE_COMPILATION";
+      const std::string& rdcFlag =
+        this->Makefile->GetRequiredDefinition("_CMAKE_CUDA_RDC_FLAG");
+      cudaCompileMode = cmStrCat(cudaCompileMode, rdcFlag, " ");
     }
-    const std::string& compileCmd = mf->GetRequiredDefinition(cmdVar);
-    cmExpandList(compileCmd, compileCmds);
-  } else {
-    const std::string cmdVar = cmStrCat("CMAKE_", lang, "_COMPILE_OBJECT");
-    const std::string& compileCmd = mf->GetRequiredDefinition(cmdVar);
-    cmExpandList(compileCmd, compileCmds);
+    if (this->GeneratorTarget->GetPropertyAsBool("CUDA_PTX_COMPILATION")) {
+      const std::string& ptxFlag =
+        this->Makefile->GetRequiredDefinition("_CMAKE_CUDA_PTX_FLAG");
+      cudaCompileMode = cmStrCat(cudaCompileMode, ptxFlag);
+    } else {
+      const std::string& wholeFlag =
+        this->Makefile->GetRequiredDefinition("_CMAKE_CUDA_WHOLE_FLAG");
+      cudaCompileMode = cmStrCat(cudaCompileMode, wholeFlag);
+    }
+    vars.CudaCompileMode = cudaCompileMode.c_str();
   }
+
+  // Rule for compiling object file.
+  std::vector<std::string> compileCmds;
+  const std::string cmdVar = cmStrCat("CMAKE_", lang, "_COMPILE_OBJECT");
+  const std::string& compileCmd = mf->GetRequiredDefinition(cmdVar);
+  cmExpandList(compileCmd, compileCmds);
 
   // See if we need to use a compiler launcher like ccache or distcc
   std::string compilerLauncher;
@@ -843,7 +845,7 @@ void cmNinjaTargetGenerator::WriteCompileRule(const std::string& lang,
        lang == "HIP" || lang == "ISPC" || lang == "OBJC" ||
        lang == "OBJCXX")) {
     std::string const clauncher_prop = cmStrCat(lang, "_COMPILER_LAUNCHER");
-    cmProp clauncher = this->GeneratorTarget->GetProperty(clauncher_prop);
+    cmValue clauncher = this->GeneratorTarget->GetProperty(clauncher_prop);
     if (cmNonempty(clauncher)) {
       compilerLauncher = *clauncher;
     }
@@ -853,10 +855,10 @@ void cmNinjaTargetGenerator::WriteCompileRule(const std::string& lang,
   if (!compileCmds.empty() &&
       (lang == "C" || lang == "CXX" || lang == "OBJC" || lang == "OBJCXX")) {
     std::string const tidy_prop = cmStrCat(lang, "_CLANG_TIDY");
-    cmProp tidy = this->GeneratorTarget->GetProperty(tidy_prop);
-    cmProp iwyu = nullptr;
-    cmProp cpplint = nullptr;
-    cmProp cppcheck = nullptr;
+    cmValue tidy = this->GeneratorTarget->GetProperty(tidy_prop);
+    cmValue iwyu = nullptr;
+    cmValue cpplint = nullptr;
+    cmValue cppcheck = nullptr;
     if (lang == "C" || lang == "CXX") {
       std::string const iwyu_prop = cmStrCat(lang, "_INCLUDE_WHAT_YOU_USE");
       iwyu = this->GeneratorTarget->GetProperty(iwyu_prop);
@@ -882,7 +884,7 @@ void cmNinjaTargetGenerator::WriteCompileRule(const std::string& lang,
         // Only add --driver-mode if it is not already specified, as adding
         // it unconditionally might override a user-specified driver-mode
         if (iwyu.Get()->find("--driver-mode=") == std::string::npos) {
-          cmProp p = this->Makefile->GetDefinition(
+          cmValue p = this->Makefile->GetDefinition(
             cmStrCat("CMAKE_", lang, "_INCLUDE_WHAT_YOU_USE_DRIVER_MODE"));
           std::string driverMode;
 
@@ -900,7 +902,7 @@ void cmNinjaTargetGenerator::WriteCompileRule(const std::string& lang,
       }
       if (cmNonempty(tidy)) {
         run_iwyu += " --tidy=";
-        cmProp p = this->Makefile->GetDefinition(
+        cmValue p = this->Makefile->GetDefinition(
           cmStrCat("CMAKE_", lang, "_CLANG_TIDY_DRIVER_MODE"));
         std::string driverMode;
         if (cmNonempty(p)) {
@@ -1007,7 +1009,7 @@ void cmNinjaTargetGenerator::WriteObjectBuildStatements(
       config);
   }
   if (firstForConfig) {
-    cmProp pchExtension =
+    cmValue pchExtension =
       this->GetMakefile()->GetDefinition("CMAKE_PCH_EXTENSION");
 
     std::vector<cmSourceFile const*> externalObjects;
@@ -1112,7 +1114,7 @@ void cmNinjaTargetGenerator::WriteObjectBuildStatements(
                "output-file-map.json");
     std::string const targetSwiftDepsPath = [this, config]() -> std::string {
       cmGeneratorTarget const* target = this->GeneratorTarget;
-      if (cmProp name = target->GetProperty("Swift_DEPENDENCIES_FILE")) {
+      if (cmValue name = target->GetProperty("Swift_DEPENDENCIES_FILE")) {
         return *name;
       }
       return this->ConvertToNinjaPath(
@@ -1236,7 +1238,7 @@ void cmNinjaTargetGenerator::WriteObjectBuildStatement(
   // build response file name
   std::string cmakeLinkVar = cmStrCat(cmakeVarLang, "_RESPONSE_FILE_FLAG");
 
-  cmProp flag = this->GetMakefile()->GetDefinition(cmakeLinkVar);
+  cmValue flag = this->GetMakefile()->GetDefinition(cmakeLinkVar);
 
   bool const lang_supports_response =
     !(language == "RC" || (language == "CUDA" && !flag));
@@ -1278,7 +1280,7 @@ void cmNinjaTargetGenerator::WriteObjectBuildStatement(
 
   objBuild.Outputs.push_back(objectFileName);
   if (firstForConfig) {
-    cmProp pchExtension =
+    cmValue pchExtension =
       this->GetMakefile()->GetDefinition("CMAKE_PCH_EXTENSION");
     if (!cmHasSuffix(objectFileName, pchExtension)) {
       // Add this object to the list of object files.
@@ -1318,7 +1320,7 @@ void cmNinjaTargetGenerator::WriteObjectBuildStatement(
     }
   }
 
-  if (cmProp objectDeps = source->GetProperty("OBJECT_DEPENDS")) {
+  if (cmValue objectDeps = source->GetProperty("OBJECT_DEPENDS")) {
     std::vector<std::string> objDepList = cmExpandedList(*objectDeps);
     std::copy(objDepList.begin(), objDepList.end(),
               std::back_inserter(depList));
@@ -1407,8 +1409,7 @@ void cmNinjaTargetGenerator::WriteObjectBuildStatement(
         cmSystemTools::GetParentDirectory(source->GetFullPath()));
 
       std::string sourceDirectoryFlag = this->LocalGenerator->GetIncludeFlags(
-        sourceDirectory, this->GeneratorTarget, language, config, false,
-        cmLocalGenerator::IncludePathStyle::Default);
+        sourceDirectory, this->GeneratorTarget, language, config, false);
 
       vars["INCLUDES"] = cmStrCat(sourceDirectoryFlag, ' ', vars["INCLUDES"]);
     }
@@ -1464,13 +1465,13 @@ void cmNinjaTargetGenerator::WriteObjectBuildStatement(
       cmSystemTools::GetFilenameWithoutLastExtension(objectName);
     ispcSource = cmSystemTools::GetFilenameWithoutLastExtension(ispcSource);
 
-    cmProp ispcSuffixProp =
+    cmValue ispcSuffixProp =
       this->GeneratorTarget->GetProperty("ISPC_HEADER_SUFFIX");
     assert(ispcSuffixProp);
 
     std::string ispcHeaderDirectory =
       this->GeneratorTarget->GetObjectDirectory(config);
-    if (cmProp prop =
+    if (cmValue prop =
           this->GeneratorTarget->GetProperty("ISPC_HEADER_DIRECTORY")) {
       ispcHeaderDirectory =
         cmStrCat(this->LocalGenerator->GetBinaryDirectory(), '/', *prop);
@@ -1521,7 +1522,7 @@ void cmNinjaTargetGenerator::WriteObjectBuildStatement(
                                            objBuild, commandLineLengthLimit);
   }
 
-  if (cmProp objectOutputs = source->GetProperty("OBJECT_OUTPUTS")) {
+  if (cmValue objectOutputs = source->GetProperty("OBJECT_OUTPUTS")) {
     std::string evaluatedObjectOutputs = cmGeneratorExpression::Evaluate(
       *objectOutputs, this->LocalGenerator, config);
 
@@ -1601,13 +1602,13 @@ void cmNinjaTargetGenerator::EmitSwiftDependencyInfo(
   std::string const objectFilePath =
     this->ConvertToNinjaPath(this->GetObjectFilePath(source, config));
   std::string const swiftDepsPath = [source, objectFilePath]() -> std::string {
-    if (cmProp name = source->GetProperty("Swift_DEPENDENCIES_FILE")) {
+    if (cmValue name = source->GetProperty("Swift_DEPENDENCIES_FILE")) {
       return *name;
     }
     return cmStrCat(objectFilePath, ".swiftdeps");
   }();
   std::string const swiftDiaPath = [source, objectFilePath]() -> std::string {
-    if (cmProp name = source->GetProperty("Swift_DIAGNOSTICS_FILE")) {
+    if (cmValue name = source->GetProperty("Swift_DIAGNOSTICS_FILE")) {
       return *name;
     }
     return cmStrCat(objectFilePath, ".dia");
@@ -1715,7 +1716,7 @@ void cmNinjaTargetGenerator::ExportObjectCompileCommand(
 
 void cmNinjaTargetGenerator::AdditionalCleanFiles(const std::string& config)
 {
-  if (cmProp prop_value =
+  if (cmValue prop_value =
         this->GeneratorTarget->GetProperty("ADDITIONAL_CLEAN_FILES")) {
     cmLocalNinjaGenerator* lg = this->LocalGenerator;
     std::vector<std::string> cleanFiles;
@@ -1749,7 +1750,7 @@ void cmNinjaTargetGenerator::EnsureDirectoryExists(
   } else {
     cmGlobalNinjaGenerator* gg = this->GetGlobalGenerator();
     std::string fullPath = gg->GetCMakeInstance()->GetHomeOutputDirectory();
-    // Also ensures their is a trailing slash.
+    // Also ensures there is a trailing slash.
     gg->StripNinjaOutputPathPrefixAsSuffix(fullPath);
     fullPath += path;
     cmSystemTools::MakeDirectory(fullPath);
@@ -1805,7 +1806,7 @@ void cmNinjaTargetGenerator::addPoolNinjaVariable(
   const std::string& pool_property, cmGeneratorTarget* target,
   cmNinjaVars& vars)
 {
-  cmProp pool = target->GetProperty(pool_property);
+  cmValue pool = target->GetProperty(pool_property);
   if (pool) {
     vars["pool"] = *pool;
   }

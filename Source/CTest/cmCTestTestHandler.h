@@ -5,6 +5,7 @@
 #include "cmConfigure.h" // IWYU pragma: keep
 
 #include <chrono>
+#include <cstddef>
 #include <cstdint>
 #include <iosfwd>
 #include <map>
@@ -13,8 +14,6 @@
 #include <utility>
 #include <vector>
 
-#include <stddef.h>
-
 #include "cmsys/RegularExpression.hxx"
 
 #include "cmCTest.h"
@@ -22,7 +21,7 @@
 #include "cmCTestResourceSpec.h"
 #include "cmDuration.h"
 #include "cmListFileCache.h"
-#include "cmProperty.h"
+#include "cmValue.h"
 
 class cmMakefile;
 class cmXMLWriter;
@@ -82,7 +81,7 @@ public:
   }
 
   //! pass the -I argument down
-  void SetTestsToRunInformation(cmProp);
+  void SetTestsToRunInformation(cmValue);
 
   cmCTestTestHandler();
 

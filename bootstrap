@@ -297,6 +297,7 @@ CMAKE_CXX_SOURCES="\
   cmBinUtilsWindowsPEObjdumpGetRuntimeDependenciesTool \
   cmBreakCommand \
   cmBuildCommand \
+  cmCMakeLanguageCommand \
   cmCMakeMinimumRequired \
   cmCMakePath \
   cmCMakePathCommand \
@@ -340,6 +341,7 @@ CMAKE_CXX_SOURCES="\
   cmFileCommand \
   cmFileCopier \
   cmFileInstaller \
+  cmFileSet \
   cmFileTime \
   cmFileTimeCache \
   cmFileTimes \
@@ -385,6 +387,7 @@ CMAKE_CXX_SOURCES="\
   cmInstallCommandArguments \
   cmInstallDirectoryGenerator \
   cmInstallExportGenerator \
+  cmInstallFileSetGenerator \
   cmInstallFilesCommand \
   cmInstallFilesGenerator \
   cmInstallGenerator \
@@ -426,7 +429,7 @@ CMAKE_CXX_SOURCES="\
   cmPolicies \
   cmProcessOutput \
   cmProjectCommand \
-  cmProperty \
+  cmValue \
   cmPropertyDefinition \
   cmPropertyMap \
   cmGccDepfileLexerHelper \
@@ -622,6 +625,7 @@ else
     src/unix/process.c \
     src/unix/signal.c \
     src/unix/stream.c \
+    src/unix/tcp.c \
     "
 fi
 

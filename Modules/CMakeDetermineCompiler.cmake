@@ -32,7 +32,7 @@ macro(_cmake_find_compiler lang)
   endif()
 
   # Look for directories containing compilers of reference languages.
-  set(_${lang}_COMPILER_HINTS)
+  set(_${lang}_COMPILER_HINTS "${CMAKE_${lang}_COMPILER_HINTS}")
   foreach(l ${_languages})
     if(CMAKE_${l}_COMPILER AND IS_ABSOLUTE "${CMAKE_${l}_COMPILER}")
       get_filename_component(_hint "${CMAKE_${l}_COMPILER}" PATH)
@@ -148,7 +148,7 @@ macro(_cmake_find_compiler_path lang)
 endmacro()
 
 function(_cmake_find_compiler_sysroot lang)
-  if(CMAKE_${lang}_COMPILER_ID STREQUAL "GNU")
+  if(CMAKE_${lang}_COMPILER_ID STREQUAL "GNU" OR CMAKE_${lang}_COMPILER_ID STREQUAL "LCC")
     execute_process(COMMAND "${CMAKE_${lang}_COMPILER}" -print-sysroot
       OUTPUT_STRIP_TRAILING_WHITESPACE
       OUTPUT_VARIABLE _cmake_sysroot_run_out

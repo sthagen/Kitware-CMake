@@ -150,42 +150,28 @@ function(CMAKE_DETERMINE_COMPILER_ID lang flagvar src)
     endif()
   endif()
 
-  # When invoked with HIPCC we need to extract the path to the underlying
-  # clang compiler when possible. This fixes the following issues:
-  #   env variables can change how hipcc behaves
-  #   allows us to properly find the binutils bundled with hip
-  if(CMAKE_${lang}_COMPILER_ID STREQUAL "ROCMClang"
-     AND CMAKE_${lang}_COMPILER MATCHES ".*hipcc")
-    get_filename_component(_hipcc_dir "${CMAKE_${lang}_COMPILER}" DIRECTORY)
+  # For LCC Fortran we need to explicitly query the version.
+  if(lang STREQUAL "Fortran"
+     AND CMAKE_${lang}_COMPILER_ID STREQUAL "LCC")
     execute_process(
-      COMMAND "${_hipcc_dir}/hipconfig"
-      --hipclangpath
-      OUTPUT_VARIABLE output
+      COMMAND "${CMAKE_${lang}_COMPILER}"
+      --version
+      OUTPUT_VARIABLE output ERROR_VARIABLE output
       RESULT_VARIABLE result
+      TIMEOUT 10
     )
-    if(result EQUAL 0 AND EXISTS "${output}")
-      if(lang STREQUAL "C")
-        set_property(CACHE CMAKE_${lang}_COMPILER PROPERTY VALUE "${output}/clang")
-        set(CMAKE_${lang}_COMPILER "${output}/clang" PARENT_SCOPE)
-      else()
-        set_property(CACHE CMAKE_${lang}_COMPILER PROPERTY VALUE "${output}/clang++")
-        set(CMAKE_${lang}_COMPILER "${output}/clang++" PARENT_SCOPE)
-      endif()
-    endif()
-    if(lang STREQUAL "HIP")
-      execute_process(
-        COMMAND "${_hipcc_dir}/hipconfig"
-        --rocmpath
-        OUTPUT_VARIABLE output
-        RESULT_VARIABLE result
+    file(APPEND ${CMAKE_BINARY_DIR}${CMAKE_FILES_DIRECTORY}/CMakeOutput.log
+      "Running the ${lang} compiler: \"${CMAKE_${lang}_COMPILER}\" --version\n"
+      "${output}\n"
       )
-      if(result EQUAL 0)
-        set(_CMAKE_HIP_COMPILER_ROCM_ROOT "${output}" PARENT_SCOPE)
-      endif()
+
+    if(output MATCHES [[\(GCC\) ([0-9]+\.[0-9]+(\.[0-9]+)?) compatible]])
+      set(CMAKE_${lang}_SIMULATE_ID "GNU")
+      set(CMAKE_${lang}_SIMULATE_VERSION "${CMAKE_MATCH_1}")
     endif()
   endif()
 
-  if (COMPILER_QNXNTO AND CMAKE_${lang}_COMPILER_ID STREQUAL "GNU")
+  if (COMPILER_QNXNTO AND (CMAKE_${lang}_COMPILER_ID STREQUAL "GNU" OR CMAKE_${lang}_COMPILER_ID STREQUAL "LCC"))
     execute_process(
       COMMAND "${CMAKE_${lang}_COMPILER}"
       -V
@@ -302,6 +288,7 @@ function(CMAKE_DETERMINE_COMPILER_ID lang flagvar src)
   set(CMAKE_${lang}_SIMULATE_ID "${CMAKE_${lang}_SIMULATE_ID}" PARENT_SCOPE)
   set(CMAKE_${lang}_SIMULATE_VERSION "${CMAKE_${lang}_SIMULATE_VERSION}" PARENT_SCOPE)
   set(CMAKE_${lang}_STANDARD_COMPUTED_DEFAULT "${CMAKE_${lang}_STANDARD_COMPUTED_DEFAULT}" PARENT_SCOPE)
+  set(CMAKE_${lang}_EXTENSIONS_COMPUTED_DEFAULT "${CMAKE_${lang}_EXTENSIONS_COMPUTED_DEFAULT}" PARENT_SCOPE)
   set(CMAKE_${lang}_COMPILER_PRODUCED_OUTPUT "${COMPILER_${lang}_PRODUCED_OUTPUT}" PARENT_SCOPE)
   set(CMAKE_${lang}_COMPILER_PRODUCED_FILES "${COMPILER_${lang}_PRODUCED_FILES}" PARENT_SCOPE)
 endfunction()
@@ -354,15 +341,13 @@ Id flags: ${testflags} ${CMAKE_${lang}_COMPILER_ID_FLAGS_ALWAYS}
       set(id_cl "$(CLToolExe)")
     elseif(CMAKE_VS_PLATFORM_TOOLSET MATCHES "v[0-9]+_clang_.*")
       set(id_cl clang.exe)
-    # Executable names have been chosen according documentation
-    # URL: (https://software.intel.com/content/www/us/en/develop/documentation/get-started-with-dpcpp-compiler/top.html#top_GUID-A9B4C91D-97AC-450D-9742-9D895BC8AEE1)
     elseif(CMAKE_VS_PLATFORM_TOOLSET MATCHES "Intel")
       if(CMAKE_VS_PLATFORM_TOOLSET MATCHES "DPC\\+\\+ Compiler")
         set(id_cl dpcpp.exe)
-      elseif(CMAKE_VS_PLATFORM_TOOLSET MATCHES "C\\+\\+ Compiler 2021")
-        set(id_cl icx.exe)
-      elseif(CMAKE_VS_PLATFORM_TOOLSET MATCHES "C\\+\\+ Compiler")
+      elseif(CMAKE_VS_PLATFORM_TOOLSET MATCHES "C\\+\\+ Compiler ([8-9]\\.|1[0-9]\\.|XE)")
         set(id_cl icl.exe)
+      elseif(CMAKE_VS_PLATFORM_TOOLSET MATCHES "C\\+\\+ Compiler")
+        set(id_cl icx.exe)
       endif()
     else()
       set(id_cl cl.exe)
@@ -454,6 +439,15 @@ Id flags: ${testflags} ${CMAKE_${lang}_COMPILER_ID_FLAGS_ALWAYS}
     endif()
     if(CMAKE_VS_PLATFORM_TOOLSET_VCTARGETS_CUSTOM_DIR)
       set(id_ToolsetVCTargetsDir "<VCTargetsPath>${CMAKE_VS_PLATFORM_TOOLSET_VCTARGETS_CUSTOM_DIR}</VCTargetsPath>")
+    endif()
+    if(CMAKE_VS_TARGET_FRAMEWORK_VERSION)
+      set(id_TargetFrameworkVersion "<TargetFrameworkVersion>${CMAKE_VS_TARGET_FRAMEWORK_VERSION}</TargetFrameworkVersion>")
+    endif()
+    if(CMAKE_VS_TARGET_FRAMEWORK_IDENTIFIER)
+      set(id_TargetFrameworkIdentifier "<TargetFrameworkIdentifier>${CMAKE_VS_TARGET_FRAMEWORK_IDENTIFIER}</TargetFrameworkIdentifier>")
+    endif()
+    if(CMAKE_VS_TARGET_FRAMEWORK_TARGETS_VERSION)
+      set(id_TargetFrameworkTargetsVersion "<TargetFrameworkTargetsVersion>${CMAKE_VS_TARGET_FRAMEWORK_TARGETS_VERSION}</TargetFrameworkTargetsVersion>")
     endif()
     set(id_CustomGlobals "")
     foreach(pair IN LISTS CMAKE_VS_GLOBALS)
@@ -573,7 +567,8 @@ Id flags: ${testflags} ${CMAKE_${lang}_COMPILER_ID_FLAGS_ALWAYS}
     else()
       set(id_toolset "")
     endif()
-    if("${lang}" STREQUAL "Swift")
+    set(id_lang_version "")
+    if("x${lang}" STREQUAL "xSwift")
       if(CMAKE_Swift_LANGUAGE_VERSION)
         set(id_lang_version "SWIFT_VERSION = ${CMAKE_Swift_LANGUAGE_VERSION};")
       elseif(XCODE_VERSION VERSION_GREATER_EQUAL 10.2)
@@ -583,8 +578,14 @@ Id flags: ${testflags} ${CMAKE_${lang}_COMPILER_ID_FLAGS_ALWAYS}
       else()
         set(id_lang_version "SWIFT_VERSION = 2.3;")
       endif()
-    else()
-      set(id_lang_version "")
+    elseif("x${lang}" STREQUAL "xC" OR "x${lang}" STREQUAL "xOBJC")
+      if(CMAKE_${lang}_COMPILER_ID_FLAGS MATCHES "(^| )(-std=[^ ]+)( |$)")
+        set(id_lang_version "OTHER_CFLAGS = \"${CMAKE_MATCH_2}\";")
+      endif()
+    elseif("x${lang}" STREQUAL "xCXX" OR "x${lang}" STREQUAL "xOBJCXX")
+      if(CMAKE_${lang}_COMPILER_ID_FLAGS MATCHES "(^| )(-std=[^ ]+)( |$)")
+        set(id_lang_version "OTHER_CPLUSPLUSFLAGS = \"${CMAKE_MATCH_2}\";")
+      endif()
     endif()
     if(CMAKE_OSX_DEPLOYMENT_TARGET)
       set(id_deployment_target
@@ -659,12 +660,8 @@ Id flags: ${testflags} ${CMAKE_${lang}_COMPILER_ID_FLAGS_ALWAYS}
   elseif("${CMAKE_GENERATOR}" MATCHES "Green Hills MULTI")
     set(id_dir ${CMAKE_${lang}_COMPILER_ID_DIR})
     set(id_src "${src}")
-    if (GHS_PRIMARY_TARGET)
-      set(ghs_primary_target "${GHS_PRIMARY_TARGET}")
-    else()
-      set(ghs_primary_target "${CMAKE_GENERATOR_PLATFORM}_${GHS_TARGET_PLATFORM}.tgt")
-    endif()
-    if ("${GHS_TARGET_PLATFORM}" MATCHES "integrity")
+    set(ghs_primary_target "${GHS_PRIMARY_TARGET}")
+    if ("${ghs_primary_target}" MATCHES "integrity")
         set(bsp_name "macro GHS_BSP=${GHS_BSP_NAME}")
         set(os_dir "macro GHS_OS=${GHS_OS_DIR}")
     endif()
@@ -916,8 +913,11 @@ function(CMAKE_DETERMINE_COMPILER_ID_CHECK lang file)
       if("${info}" MATCHES "INFO:qnxnto\\[\\]")
         set(COMPILER_QNXNTO 1)
       endif()
-      if("${info}" MATCHES "INFO:dialect_default\\[([^]\"]*)\\]")
+      if("${info}" MATCHES "INFO:standard_default\\[([^]\"]*)\\]")
         set(CMAKE_${lang}_STANDARD_COMPUTED_DEFAULT "${CMAKE_MATCH_1}")
+      endif()
+      if("${info}" MATCHES "INFO:extensions_default\\[([^]\"]*)\\]")
+        set(CMAKE_${lang}_EXTENSIONS_COMPUTED_DEFAULT "${CMAKE_MATCH_1}")
       endif()
     endforeach()
 
@@ -1028,6 +1028,7 @@ function(CMAKE_DETERMINE_COMPILER_ID_CHECK lang file)
   set(CMAKE_${lang}_SIMULATE_VERSION "${CMAKE_${lang}_SIMULATE_VERSION}" PARENT_SCOPE)
   set(COMPILER_QNXNTO "${COMPILER_QNXNTO}" PARENT_SCOPE)
   set(CMAKE_${lang}_STANDARD_COMPUTED_DEFAULT "${CMAKE_${lang}_STANDARD_COMPUTED_DEFAULT}" PARENT_SCOPE)
+  set(CMAKE_${lang}_EXTENSIONS_COMPUTED_DEFAULT "${CMAKE_${lang}_EXTENSIONS_COMPUTED_DEFAULT}" PARENT_SCOPE)
 endfunction()
 
 #-----------------------------------------------------------------------------

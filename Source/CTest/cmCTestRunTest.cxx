@@ -229,7 +229,8 @@ bool cmCTestRunTest::EndTest(size_t completed, size_t total, bool started)
 
   passed = this->TestResult.Status == cmCTestTestHandler::COMPLETED;
   char buf[1024];
-  sprintf(buf, "%6.2f sec", this->TestProcess->GetTotalTime().count());
+  snprintf(buf, sizeof(buf), "%6.2f sec",
+           this->TestProcess->GetTotalTime().count());
   outputStream << buf << "\n";
 
   bool passedOrSkipped = passed || skipped;
@@ -294,9 +295,10 @@ bool cmCTestRunTest::EndTest(size_t completed, size_t total, bool started)
     ttime -= minutes;
     auto seconds = std::chrono::duration_cast<std::chrono::seconds>(ttime);
     char buffer[100];
-    sprintf(buffer, "%02d:%02d:%02d", static_cast<unsigned>(hours.count()),
-            static_cast<unsigned>(minutes.count()),
-            static_cast<unsigned>(seconds.count()));
+    snprintf(buffer, sizeof(buffer), "%02d:%02d:%02d",
+             static_cast<unsigned>(hours.count()),
+             static_cast<unsigned>(minutes.count()),
+             static_cast<unsigned>(seconds.count()));
     *this->TestHandler->LogFile
       << "----------------------------------------------------------"
       << std::endl;
@@ -782,6 +784,9 @@ bool cmCTestRunTest::ForkProcess(
 
   std::ostringstream envMeasurement;
   if (environment && !environment->empty()) {
+    // Environment modification works on the assumption that the environment is
+    // actually modified here. If another strategy is used, there will need to
+    // be updates below in `apply_diff`.
     cmSystemTools::AppendEnv(*environment);
     for (auto const& var : *environment) {
       envMeasurement << var << std::endl;
@@ -800,13 +805,22 @@ bool cmCTestRunTest::ForkProcess(
     auto apply_diff =
       [&env_application](const std::string& name,
                          std::function<void(std::string&)> const& apply) {
-        auto entry = env_application.find(name);
+        cm::optional<std::string> old_value = env_application[name];
         std::string output;
-        if (entry != env_application.end() && entry->second) {
-          output = *entry->second;
+        if (old_value) {
+          output = *old_value;
+        } else {
+          // This only works because the environment is actually modified above
+          // (`AppendEnv`). If CTest ever just creates an environment block
+          // directly, that block will need to be queried for the subprocess'
+          // value instead.
+          const char* curval = cmSystemTools::GetEnv(name);
+          if (curval) {
+            output = curval;
+          }
         }
         apply(output);
-        entry->second = output;
+        env_application[name] = output;
       };
 
     bool err_occurred = false;

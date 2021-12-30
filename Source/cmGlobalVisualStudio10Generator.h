@@ -2,13 +2,24 @@
    file Copyright.txt or https://cmake.org/licensing for details.  */
 #pragma once
 
+#include <cstddef>
 #include <memory>
 #include <set>
+#include <string>
+#include <vector>
 
 #include <cm/optional>
 #include <cm/string_view>
 
 #include "cmGlobalVisualStudio8Generator.h"
+
+class cmGeneratorTarget;
+class cmGlobalGeneratorFactory;
+class cmLocalGenerator;
+class cmMakefile;
+class cmSourceFile;
+class cmake;
+struct cmIDEFlagTable;
 
 /** \class cmGlobalVisualStudio10Generator
  * \brief Write a Unix makefiles.
@@ -19,6 +30,8 @@ class cmGlobalVisualStudio10Generator : public cmGlobalVisualStudio8Generator
 {
 public:
   static std::unique_ptr<cmGlobalGeneratorFactory> NewFactory();
+
+  bool IsVisualStudioAtLeast10() const override { return true; }
 
   bool MatchesGeneratorName(const std::string& name) const override;
 
@@ -132,6 +145,8 @@ public:
 
   bool GetSupportsUnityBuilds() const { return this->SupportsUnityBuilds; }
 
+  virtual cm::optional<std::string> FindMSBuildCommandEarly(cmMakefile* mf);
+
   bool FindMakeProgram(cmMakefile* mf) override;
 
   bool IsIPOSupported() const override { return true; }
@@ -222,6 +237,7 @@ protected:
   bool SystemIsWindowsPhone = false;
   bool SystemIsWindowsStore = false;
   bool SystemIsAndroid = false;
+  bool MSBuildCommandInitialized = false;
 
 private:
   class Factory;
@@ -243,7 +259,6 @@ private:
   LongestSourcePath LongestSource;
 
   std::string MSBuildCommand;
-  bool MSBuildCommandInitialized;
   std::set<std::string> AndroidExecutableWarnings;
   virtual std::string FindMSBuildCommand();
   std::string FindDevEnvCommand() override;

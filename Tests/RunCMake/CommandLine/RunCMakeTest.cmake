@@ -247,8 +247,14 @@ function(run_BuildDir)
     run_cmake_command(BuildDir--build-jobs-no-number-trailing--target ${CMAKE_COMMAND} -E chdir ..
       ${CMAKE_COMMAND} --build BuildDir-build -j --target CustomTarget)
     if(RunCMake_GENERATOR MATCHES "Unix Makefiles" OR RunCMake_GENERATOR MATCHES "Ninja")
+      set(_backup_lang "$ENV{LANG}")
+      set(_backup_lc_messages "$ENV{LC_MESSAGES}")
+      set(ENV{LANG} "C")
+      set(ENV{LC_MESSAGES} "C")
       run_cmake_command(BuildDir--build-jobs-no-number-trailing--invalid-target ${CMAKE_COMMAND} -E chdir ..
         ${CMAKE_COMMAND} --build BuildDir-build -j --target invalid-target)
+      set(ENV{LANG} "${_backup_lang}")
+      set(ENV{LC_MESSAGES} "${_backup_lc_messages}")
     endif()
     run_cmake_command(BuildDir--build--parallel-no-number ${CMAKE_COMMAND} -E chdir ..
       ${CMAKE_COMMAND} --build BuildDir-build --parallel)
@@ -647,9 +653,10 @@ run_cmake_command(E_cat_directory
 
 file(WRITE "${out}/first_file.txt" "first file to append\n")
 file(WRITE "${out}/second_file.txt" "second file to append\n")
+file(WRITE "${out}/empty_file.txt" "")
 file(WRITE "${out}/unicode_file.txt" "àéùç - 한국어") # Korean in Korean
 run_cmake_command(E_cat_good_cat
-  ${CMAKE_COMMAND} -E cat "${out}/first_file.txt" "${out}/second_file.txt" "${out}/unicode_file.txt")
+  ${CMAKE_COMMAND} -E cat "${out}/first_file.txt" "${out}/second_file.txt" "${out}/empty_file.txt" "${out}/unicode_file.txt")
 unset(out)
 
 run_cmake_command(E_cat_good_binary_cat

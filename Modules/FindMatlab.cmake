@@ -288,6 +288,7 @@ if(NOT MATLAB_ADDITIONAL_VERSIONS)
 endif()
 
 set(MATLAB_VERSIONS_MAPPING
+  "R2021b=9.11"
   "R2021a=9.10"
   "R2020b=9.9"
   "R2020a=9.8"
@@ -477,7 +478,7 @@ function(matlab_extract_all_installed_versions_from_registry win64 matlab_versio
 
   if(matlabs_from_registry)
     list(REMOVE_DUPLICATES matlabs_from_registry)
-    list(SORT matlabs_from_registry)
+    list(SORT matlabs_from_registry COMPARE NATURAL)
     list(REVERSE matlabs_from_registry)
   endif()
 
@@ -521,7 +522,7 @@ macro(extract_matlab_versions_from_registry_brute_force matlab_versions)
   # we order from more recent to older
   if(matlab_supported_versions)
     list(REMOVE_DUPLICATES matlab_supported_versions)
-    list(SORT matlab_supported_versions)
+    list(SORT matlab_supported_versions COMPARE NATURAL)
     list(REVERSE matlab_supported_versions)
   endif()
 
@@ -1571,6 +1572,29 @@ if(_numbers_of_matlab_roots GREATER 0)
     list(GET _matlab_possible_roots ${_matlab_or_mcr_index} Matlab_Or_MCR)
     list(GET _matlab_possible_roots ${_list_index} Matlab_VERSION_STRING)
     list(GET _matlab_possible_roots ${_matlab_root_dir_index} Matlab_ROOT_DIR)
+  elseif(DEFINED Matlab_FIND_VERSION)
+    foreach(_matlab_root_index RANGE 1 ${_numbers_of_matlab_roots} 3)
+      list(GET _matlab_possible_roots ${_matlab_root_index} _matlab_root_version)
+      if(_matlab_root_version VERSION_GREATER_EQUAL Matlab_FIND_VERSION)
+        set(_list_index ${_matlab_root_index})
+        break()
+      endif()
+    endforeach()
+
+    if(_list_index LESS 0)
+      set(_list_index 1)
+    endif()
+
+    math(EXPR _matlab_or_mcr_index "${_list_index} - 1")
+    math(EXPR _matlab_root_dir_index "${_list_index} + 1")
+    list(GET _matlab_possible_roots ${_matlab_or_mcr_index} Matlab_Or_MCR)
+    list(GET _matlab_possible_roots ${_list_index} Matlab_VERSION_STRING)
+    list(GET _matlab_possible_roots ${_matlab_root_dir_index} Matlab_ROOT_DIR)
+    # adding a warning in case of ambiguity
+    if(_numbers_of_matlab_roots GREATER 3 AND MATLAB_FIND_DEBUG)
+      message(WARNING "[MATLAB] Found several distributions of Matlab. Setting the current version to ${Matlab_VERSION_STRING} (located ${Matlab_ROOT_DIR})."
+                      " If this is not the desired behavior, use the EXACT keyword or provide the -DMatlab_ROOT_DIR=... on the command line")
+    endif()
   else()
     list(GET _matlab_possible_roots 0 Matlab_Or_MCR)
     list(GET _matlab_possible_roots 1 Matlab_VERSION_STRING)

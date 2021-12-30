@@ -12,21 +12,27 @@
 #include <vector>
 
 #include "cmAlgorithms.h"
-#include "cmListFileCache.h"
 #include "cmPolicies.h"
-#include "cmProperty.h"
 #include "cmStateTypes.h"
 #include "cmStringAlgorithms.h"
 #include "cmTargetLinkLibraryType.h"
+#include "cmValue.h"
 
 class cmCustomCommand;
+class cmFileSet;
 class cmGlobalGenerator;
 class cmInstallTargetGenerator;
+class cmListFileBacktrace;
+class cmListFileContext;
 class cmMakefile;
-class cmMessenger;
 class cmPropertyMap;
 class cmSourceFile;
 class cmTargetInternals;
+
+template <typename T>
+class BT;
+template <typename T>
+class BTs;
 
 /** \class cmTarget
  * \brief Represent a library or executable target loaded from a makefile.
@@ -170,21 +176,20 @@ public:
 
   //! Set/Get a property of this target file
   void SetProperty(const std::string& prop, const char* value);
-  void SetProperty(const std::string& prop, cmProp value);
+  void SetProperty(const std::string& prop, cmValue value);
   void SetProperty(const std::string& prop, const std::string& value)
   {
-    this->SetProperty(prop, cmProp(value));
+    this->SetProperty(prop, cmValue(value));
   }
   void AppendProperty(const std::string& prop, const std::string& value,
                       bool asString = false);
   //! Might return a nullptr if the property is not set or invalid
-  cmProp GetProperty(const std::string& prop) const;
+  cmValue GetProperty(const std::string& prop) const;
   //! Always returns a valid pointer
   std::string const& GetSafeProperty(std::string const& prop) const;
   bool GetPropertyAsBool(const std::string& prop) const;
   void CheckProperty(const std::string& prop, cmMakefile* context) const;
-  cmProp GetComputedProperty(const std::string& prop, cmMessenger* messenger,
-                             cmListFileBacktrace const& context) const;
+  cmValue GetComputedProperty(const std::string& prop, cmMakefile& mf) const;
   //! Get all properties
   cmPropertyMap const& GetProperties() const;
 
@@ -199,8 +204,8 @@ public:
   bool IsPerConfig() const;
   bool CanCompileSources() const;
 
-  bool GetMappedConfig(std::string const& desired_config, cmProp& loc,
-                       cmProp& imp, std::string& suffix) const;
+  bool GetMappedConfig(std::string const& desired_config, cmValue& loc,
+                       cmValue& imp, std::string& suffix) const;
 
   //! Return whether this target is an executable with symbol exports enabled.
   bool IsExecutableWithExports() const;
@@ -260,6 +265,12 @@ public:
 
   cmBTStringRange GetLinkImplementationEntries() const;
 
+  cmBTStringRange GetLinkInterfaceEntries() const;
+
+  cmBTStringRange GetHeaderSetsEntries() const;
+
+  cmBTStringRange GetInterfaceHeaderSetsEntries() const;
+
   std::string ImportedGetFullPath(const std::string& config,
                                   cmStateEnums::ArtifactType artifact) const;
 
@@ -267,6 +278,16 @@ public:
   {
     bool operator()(cmTarget const* t1, cmTarget const* t2) const;
   };
+
+  const cmFileSet* GetFileSet(const std::string& name) const;
+  cmFileSet* GetFileSet(const std::string& name);
+  std::pair<cmFileSet*, bool> GetOrCreateFileSet(const std::string& name,
+                                                 const std::string& type);
+
+  std::vector<std::string> GetAllInterfaceFileSets() const;
+
+  static std::string GetFileSetsPropertyName(const std::string& type);
+  static std::string GetInterfaceFileSetsPropertyName(const std::string& type);
 
 private:
   template <typename ValueType>

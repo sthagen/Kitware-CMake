@@ -3,16 +3,24 @@
 #include "cmXCodeScheme.h"
 
 #include <iomanip>
-#include <iostream>
 #include <sstream>
 #include <utility>
 
 #include <cmext/algorithm>
 
+#include "cmsys/String.h"
+
 #include "cmGeneratedFileStream.h"
 #include "cmGeneratorExpression.h"
 #include "cmGeneratorTarget.h"
-#include "cmXMLSafe.h"
+#include "cmStateTypes.h"
+#include "cmStringAlgorithms.h"
+#include "cmSystemTools.h"
+#include "cmValue.h"
+#include "cmXCodeObject.h"
+#include "cmXMLWriter.h"
+
+class cmLocalGenerator;
 
 cmXCodeScheme::cmXCodeScheme(cmLocalGenerator* lg, cmXCodeObject* xcObj,
                              TestObjects tests,
@@ -148,6 +156,16 @@ void cmXCodeScheme::WriteLaunchAction(cmXMLWriter& xout,
                                     true);
   xout.Attribute("debugServiceExtension", "internal");
   xout.Attribute("allowLocationSimulation", "YES");
+  if (cmValue gpuFrameCaptureMode = this->Target->GetTarget()->GetProperty(
+        "XCODE_SCHEME_ENABLE_GPU_FRAME_CAPTURE_MODE")) {
+    std::string value = *gpuFrameCaptureMode;
+    if (cmsysString_strcasecmp(value.c_str(), "Metal") == 0) {
+      value = "1";
+    } else if (cmsysString_strcasecmp(value.c_str(), "Disabled") == 0) {
+      value = "3";
+    }
+    xout.Attribute("enableGPUFrameCaptureMode", value);
+  }
 
   // Diagnostics tab begin
 
@@ -204,7 +222,7 @@ void cmXCodeScheme::WriteLaunchAction(cmXMLWriter& xout,
 
   // Info tab begin
 
-  if (cmProp exe =
+  if (cmValue exe =
         this->Target->GetTarget()->GetProperty("XCODE_SCHEME_EXECUTABLE")) {
 
     xout.StartElement("PathRunnable");
@@ -220,7 +238,7 @@ void cmXCodeScheme::WriteLaunchAction(cmXMLWriter& xout,
 
   // Arguments tab begin
 
-  if (cmProp argList =
+  if (cmValue argList =
         this->Target->GetTarget()->GetProperty("XCODE_SCHEME_ARGUMENTS")) {
     std::vector<std::string> arguments = cmExpandedList(*argList);
     if (!arguments.empty()) {
@@ -240,7 +258,7 @@ void cmXCodeScheme::WriteLaunchAction(cmXMLWriter& xout,
     }
   }
 
-  if (cmProp envList =
+  if (cmValue envList =
         this->Target->GetTarget()->GetProperty("XCODE_SCHEME_ENVIRONMENT")) {
     std::vector<std::string> envs = cmExpandedList(*envList);
     if (!envs.empty()) {
@@ -323,7 +341,7 @@ bool cmXCodeScheme::WriteLaunchActionBooleanAttribute(
   cmXMLWriter& xout, const std::string& attrName, const std::string& varName,
   bool defaultValue)
 {
-  cmProp property = Target->GetTarget()->GetProperty(varName);
+  cmValue property = Target->GetTarget()->GetProperty(varName);
   bool isOn = (!property && defaultValue) || cmIsOn(property);
 
   if (isOn) {

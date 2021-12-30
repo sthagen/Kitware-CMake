@@ -17,11 +17,11 @@
 #include "cmCursesStandardIncludes.h"
 #include "cmCursesStringWidget.h"
 #include "cmCursesWidget.h"
-#include "cmProperty.h"
 #include "cmState.h"
 #include "cmStateTypes.h"
 #include "cmStringAlgorithms.h"
 #include "cmSystemTools.h"
+#include "cmValue.h"
 #include "cmVersion.h"
 #include "cmake.h"
 
@@ -162,7 +162,7 @@ void cmCursesMainForm::RePost()
     // If normal mode, count only non-advanced entries
     this->NumberOfVisibleEntries = 0;
     for (cmCursesCacheEntryComposite& entry : this->Entries) {
-      cmProp existingValue =
+      cmValue existingValue =
         this->CMakeInstance->GetState()->GetCacheEntryValue(entry.GetValue());
       bool advanced =
         this->CMakeInstance->GetState()->GetCacheEntryPropertyAsBool(
@@ -183,7 +183,7 @@ void cmCursesMainForm::RePost()
 
   // Assign fields
   for (cmCursesCacheEntryComposite& entry : this->Entries) {
-    cmProp existingValue =
+    cmValue existingValue =
       this->CMakeInstance->GetState()->GetCacheEntryValue(entry.GetValue());
     bool advanced =
       this->CMakeInstance->GetState()->GetCacheEntryPropertyAsBool(
@@ -242,7 +242,7 @@ void cmCursesMainForm::Render(int left, int top, int width, int height)
     // If normal, display only non-advanced entries
     this->NumberOfVisibleEntries = 0;
     for (cmCursesCacheEntryComposite& entry : this->Entries) {
-      cmProp existingValue =
+      cmValue existingValue =
         this->CMakeInstance->GetState()->GetCacheEntryValue(entry.GetValue());
       bool advanced =
         this->CMakeInstance->GetState()->GetCacheEntryPropertyAsBool(
@@ -260,7 +260,7 @@ void cmCursesMainForm::Render(int left, int top, int width, int height)
     bool isNewPage;
     int i = 0;
     for (cmCursesCacheEntryComposite& entry : this->Entries) {
-      cmProp existingValue =
+      cmValue existingValue =
         this->CMakeInstance->GetState()->GetCacheEntryValue(entry.GetValue());
       bool advanced =
         this->CMakeInstance->GetState()->GetCacheEntryPropertyAsBool(
@@ -322,22 +322,22 @@ void cmCursesMainForm::PrintKeys(int process /* = 0 */)
       memset(thirdLine, ' ', 68);
     } else {
       if (this->OkToGenerate) {
-        sprintf(firstLine,
-                "      [l] Show log output   [c] Configure"
-                "       [g] Generate        ");
+        snprintf(firstLine, sizeof(firstLine),
+                 "      [l] Show log output   [c] Configure"
+                 "       [g] Generate        ");
       } else {
-        sprintf(firstLine,
-                "      [l] Show log output   [c] Configure"
-                "                           ");
+        snprintf(firstLine, sizeof(firstLine),
+                 "      [l] Show log output   [c] Configure"
+                 "                           ");
       }
       {
         const char* toggleKeyInstruction =
           "      [t] Toggle advanced mode (currently %s)";
-        sprintf(thirdLine, toggleKeyInstruction,
-                this->AdvancedMode ? "on" : "off");
+        snprintf(thirdLine, sizeof(thirdLine), toggleKeyInstruction,
+                 this->AdvancedMode ? "on" : "off");
       }
-      sprintf(secondLine,
-              "      [h] Help              [q] Quit without generating");
+      snprintf(secondLine, sizeof(secondLine),
+               "      [h] Help              [q] Quit without generating");
     }
 
     curses_move(y - 4, 0);
@@ -356,7 +356,8 @@ void cmCursesMainForm::PrintKeys(int process /* = 0 */)
 
   if (cw) {
     char pageLine[512] = "";
-    sprintf(pageLine, "Page %d of %d", cw->GetPage(), this->NumberOfPages);
+    snprintf(pageLine, sizeof(pageLine), "Page %d of %d", cw->GetPage(),
+             this->NumberOfPages);
     curses_move(0, 65 - static_cast<unsigned int>(strlen(pageLine)) - 1);
     printw(fmt_s, pageLine);
   }
@@ -406,9 +407,9 @@ void cmCursesMainForm::UpdateStatusBar(cm::optional<std::string> message)
     // Get the help string of the current entry
     // and add it to the help string
     auto* cmakeState = this->CMakeInstance->GetState();
-    cmProp existingValue = cmakeState->GetCacheEntryValue(labelValue);
+    cmValue existingValue = cmakeState->GetCacheEntryValue(labelValue);
     if (existingValue) {
-      cmProp help =
+      cmValue help =
         cmakeState->GetCacheEntryProperty(labelValue, "HELPSTRING");
       if (help) {
         bar += *help;
@@ -618,7 +619,7 @@ void cmCursesMainForm::FillCacheManagerFromUI()
 {
   for (cmCursesCacheEntryComposite& entry : this->Entries) {
     const std::string& cacheKey = entry.Key;
-    cmProp existingValue =
+    cmValue existingValue =
       this->CMakeInstance->GetState()->GetCacheEntryValue(cacheKey);
     if (existingValue) {
       std::string oldValue = *existingValue;
@@ -739,7 +740,8 @@ void cmCursesMainForm::HandleInput()
     if ((!currentWidget || !widgetHandled) && !this->SearchMode) {
       // If the current widget does not want to handle input,
       // we handle it.
-      sprintf(debugMessage, "Main form handling input, key: %d", key);
+      snprintf(debugMessage, sizeof(debugMessage),
+               "Main form handling input, key: %d", key);
       cmCursesForm::LogMessage(debugMessage);
       // quit
       if (key == 'q') {
@@ -804,9 +806,9 @@ void cmCursesMainForm::HandleInput()
         cmCursesWidget* lbl = reinterpret_cast<cmCursesWidget*>(
           field_userptr(this->Fields[findex - 2]));
         const char* curField = lbl->GetValue();
-        cmProp helpString = nullptr;
+        cmValue helpString = nullptr;
 
-        cmProp existingValue =
+        cmValue existingValue =
           this->CMakeInstance->GetState()->GetCacheEntryValue(curField);
         if (existingValue) {
           helpString = this->CMakeInstance->GetState()->GetCacheEntryProperty(

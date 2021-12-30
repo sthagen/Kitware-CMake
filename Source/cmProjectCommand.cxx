@@ -15,10 +15,10 @@
 #include "cmMakefile.h"
 #include "cmMessageType.h"
 #include "cmPolicies.h"
-#include "cmProperty.h"
 #include "cmStateTypes.h"
 #include "cmStringAlgorithms.h"
 #include "cmSystemTools.h"
+#include "cmValue.h"
 
 static bool IncludeByVariable(cmExecutionStatus& status,
                               const std::string& variable);
@@ -235,14 +235,15 @@ bool cmProjectCommand(std::vector<std::string> const& args,
     std::array<std::string, MAX_VERSION_COMPONENTS> version_components;
 
     if (cmp0096 == cmPolicies::OLD || cmp0096 == cmPolicies::WARN) {
-      char vb[MAX_VERSION_COMPONENTS]
-             [std::numeric_limits<unsigned>::digits10 + 2];
+      constexpr size_t maxIntLength =
+        std::numeric_limits<unsigned>::digits10 + 2;
+      char vb[MAX_VERSION_COMPONENTS][maxIntLength];
       unsigned v[MAX_VERSION_COMPONENTS] = { 0, 0, 0, 0 };
       const int vc = std::sscanf(version.c_str(), "%u.%u.%u.%u", &v[0], &v[1],
                                  &v[2], &v[3]);
       for (auto i = 0u; i < MAX_VERSION_COMPONENTS; ++i) {
         if (int(i) < vc) {
-          std::sprintf(vb[i], "%u", v[i]);
+          std::snprintf(vb[i], maxIntLength, "%u", v[i]);
           version_string += &"."[std::size_t(i == 0)];
           version_string += vb[i];
           version_components[i] = vb[i];
@@ -308,7 +309,7 @@ bool cmProjectCommand(std::vector<std::string> const& args,
     }
     std::string vw;
     for (std::string const& i : vv) {
-      cmProp v = mf.GetDefinition(i);
+      cmValue v = mf.GetDefinition(i);
       if (cmNonempty(v)) {
         if (cmp0048 == cmPolicies::WARN) {
           if (!injectedProjectCommand) {
@@ -358,7 +359,7 @@ static bool IncludeByVariable(cmExecutionStatus& status,
                               const std::string& variable)
 {
   cmMakefile& mf = status.GetMakefile();
-  cmProp include = mf.GetDefinition(variable);
+  cmValue include = mf.GetDefinition(variable);
   if (!include) {
     return true;
   }

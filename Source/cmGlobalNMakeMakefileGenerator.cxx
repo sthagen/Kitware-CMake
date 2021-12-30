@@ -2,13 +2,20 @@
    file Copyright.txt or https://cmake.org/licensing for details.  */
 #include "cmGlobalNMakeMakefileGenerator.h"
 
+#include <ostream>
+
+#include <cmext/algorithm>
+
 #include "cmsys/RegularExpression.hxx"
 
 #include "cmDocumentationEntry.h"
 #include "cmDuration.h"
-#include "cmLocalUnixMakefileGenerator3.h"
+#include "cmGlobalGenerator.h"
 #include "cmMakefile.h"
+#include "cmMessageType.h"
 #include "cmState.h"
+#include "cmStringAlgorithms.h"
+#include "cmSystemTools.h"
 #include "cmake.h"
 
 cmGlobalNMakeMakefileGenerator::cmGlobalNMakeMakefileGenerator(cmake* cm)
@@ -42,7 +49,7 @@ bool cmGlobalNMakeMakefileGenerator::FindMakeProgram(cmMakefile* mf)
   if (!this->cmGlobalGenerator::FindMakeProgram(mf)) {
     return false;
   }
-  if (cmProp nmakeCommand = mf->GetDefinition("CMAKE_MAKE_PROGRAM")) {
+  if (cmValue nmakeCommand = mf->GetDefinition("CMAKE_MAKE_PROGRAM")) {
     std::vector<std::string> command{ *nmakeCommand, "-?" };
     std::string out;
     std::string err;
@@ -81,7 +88,7 @@ void cmGlobalNMakeMakefileGenerator::GetDocumentation(
 }
 
 void cmGlobalNMakeMakefileGenerator::PrintCompilerAdvice(
-  std::ostream& os, std::string const& lang, const char* envVar) const
+  std::ostream& os, std::string const& lang, cmValue envVar) const
 {
   if (lang == "CXX" || lang == "C") {
     /* clang-format off */

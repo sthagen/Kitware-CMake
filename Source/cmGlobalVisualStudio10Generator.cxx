@@ -3,24 +3,35 @@
 #include "cmGlobalVisualStudio10Generator.h"
 
 #include <algorithm>
+#include <cstring>
+#include <map>
+#include <sstream>
 #include <utility>
 
 #include <cm/memory>
 
 #include <cm3p/json/reader.h>
+#include <cm3p/json/value.h>
 
 #include "cmsys/FStream.hxx"
 #include "cmsys/Glob.hxx"
 #include "cmsys/RegularExpression.hxx"
 
-#include "cmAlgorithms.h"
 #include "cmDocumentationEntry.h"
 #include "cmGeneratorTarget.h"
+#include "cmGlobalGenerator.h"
+#include "cmGlobalGeneratorFactory.h"
+#include "cmGlobalVisualStudio71Generator.h"
+#include "cmGlobalVisualStudio7Generator.h"
+#include "cmGlobalVisualStudioGenerator.h"
+#include "cmIDEFlagTable.h"
+#include "cmLocalGenerator.h"
 #include "cmLocalVisualStudio10Generator.h"
 #include "cmMakefile.h"
 #include "cmMessageType.h"
 #include "cmSourceFile.h"
 #include "cmStringAlgorithms.h"
+#include "cmSystemTools.h"
 #include "cmVersion.h"
 #include "cmVisualStudioSlnData.h"
 #include "cmVisualStudioSlnParser.h"
@@ -139,7 +150,6 @@ cmGlobalVisualStudio10Generator::cmGlobalVisualStudio10Generator(
     "ProductDir",
     vc10Express, cmSystemTools::KeyWOW64_32);
   this->CudaEnabled = false;
-  this->MSBuildCommandInitialized = false;
   {
     std::string envPlatformToolset;
     if (cmSystemTools::GetEnv("PlatformToolset", envPlatformToolset) &&
@@ -581,6 +591,13 @@ bool cmGlobalVisualStudio10Generator::InitializeWindowsCE(cmMakefile* mf)
 
   this->DefaultPlatformToolset = this->SelectWindowsCEToolset();
 
+  if (this->GetVersion() == cmGlobalVisualStudioGenerator::VS12) {
+    // VS 12 .NET CF defaults to .NET framework 3.9 for Windows CE.
+    this->DefaultTargetFrameworkVersion = "v3.9";
+    this->DefaultTargetFrameworkIdentifier = "WindowsEmbeddedCompact";
+    this->DefaultTargetFrameworkTargetsVersion = "v8.0";
+  }
+
   return true;
 }
 
@@ -855,6 +872,12 @@ std::string const& cmGlobalVisualStudio10Generator::GetMSBuildCommand()
     this->MSBuildCommand = this->FindMSBuildCommand();
   }
   return this->MSBuildCommand;
+}
+
+cm::optional<std::string>
+cmGlobalVisualStudio10Generator::FindMSBuildCommandEarly(cmMakefile*)
+{
+  return this->GetMSBuildCommand();
 }
 
 std::string cmGlobalVisualStudio10Generator::FindMSBuildCommand()

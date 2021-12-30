@@ -56,12 +56,23 @@ Basic Expressions
  ``NO``, ``FALSE``, ``N``, ``IGNORE``, ``NOTFOUND``, the empty string,
  or ends in the suffix ``-NOTFOUND``.  Named boolean constants are
  case-insensitive.  If the argument is not one of these specific
- constants, it is treated as a variable or string and the following
- signature is used.
+ constants, it is treated as a variable or string (see `Variable Expansion`_
+ further below) and one of the following two forms applies.
 
-``if(<variable|string>)``
+``if(<variable>)``
  True if given a variable that is defined to a value that is not a false
- constant.  False otherwise.  (Note macro arguments are not variables.)
+ constant.  False otherwise, including if the variable is undefined.
+ Note that macro arguments are not variables.
+ Environment variables also cannot be tested this way, e.g.
+ ``if(ENV{some_var})`` will always evaluate to false.
+
+``if(<string>)``
+ A quoted string always evaluates to false unless:
+
+ * The string's value is one of the true constants, or
+ * Policy :policy:`CMP0054` is not set to ``NEW`` and the string's value
+   happens to be a variable name that is affected by :policy:`CMP0054`'s
+   behavior.
 
 Logic Operators
 """""""""""""""
@@ -115,7 +126,16 @@ Existence Checks
 ``if(DEFINED <name>|CACHE{<name>}|ENV{<name>})``
  True if a variable, cache variable or environment variable
  with given ``<name>`` is defined. The value of the variable
- does not matter. Note that macro arguments are not variables.
+ does not matter. Note the following caveats:
+
+ * Macro arguments are not variables.
+ * It is not possible to test directly whether a `<name>` is a non-cache
+   variable.  The expression ``if(DEFINED someName)`` will evaluate to true
+   if either a cache or non-cache variable ``someName`` exists.  In
+   comparison, the expression ``if(DEFINED CACHE{someName})`` will only
+   evaluate to true if a cache variable ``someName`` exists.  Both expressions
+   need to be tested if you need to know whether a non-cache variable exists:
+   ``if(DEFINED someName AND NOT DEFINED CACHE{someName})``.
 
  .. versionadded:: 3.14
   Added support for ``CACHE{<name>}`` variables.

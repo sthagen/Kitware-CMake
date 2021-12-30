@@ -63,7 +63,7 @@ static char* lowercase(const char* string)
   return new_string;
 }
 
-int isTestSkipped(const char *name, int n_skipped_tests, char *skipped_tests[]) {
+static int isTestSkipped(const char *name, int n_skipped_tests, char *skipped_tests[]) {
   int i;
   for (i = 0; i < n_skipped_tests; i++) {
     if (strcmp(name, skipped_tests[i]) == 0) {
@@ -138,7 +138,7 @@ int main(int ac, char* av[])
       t = clock() - t;
       status_message = (status == -1) ? "not ok" : "ok";
       {
-        double time_taken = ((double)t) / CLOCKS_PER_SEC;
+        double time_taken = CM_CAST(double, t) / CLOCKS_PER_SEC;
         printf("%s %d %s # %f\n", status_message, i + 1, name, time_taken);
       }
     }

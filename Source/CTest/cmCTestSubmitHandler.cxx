@@ -7,6 +7,7 @@
 #include <cstdlib>
 #include <sstream>
 
+#include <cm/iomanip>
 #include <cmext/algorithm>
 
 #include <cm3p/curl/curl.h>
@@ -21,10 +22,10 @@
 #include "cmCurl.h"
 #include "cmDuration.h"
 #include "cmGeneratedFileStream.h"
-#include "cmProperty.h"
 #include "cmState.h"
 #include "cmStringAlgorithms.h"
 #include "cmSystemTools.h"
+#include "cmValue.h"
 #include "cmXMLParser.h"
 #include "cmake.h"
 
@@ -216,8 +217,11 @@ bool cmCTestSubmitHandler::SubmitUsingHTTP(
 
       // if there is little to no activity for too long stop submitting
       ::curl_easy_setopt(curl, CURLOPT_LOW_SPEED_LIMIT, 1);
-      ::curl_easy_setopt(curl, CURLOPT_LOW_SPEED_TIME,
-                         SUBMIT_TIMEOUT_IN_SECONDS_DEFAULT);
+      auto submitInactivityTimeout = this->GetSubmitInactivityTimeout();
+      if (submitInactivityTimeout != 0) {
+        ::curl_easy_setopt(curl, CURLOPT_LOW_SPEED_TIME,
+                           submitInactivityTimeout);
+      }
 
       /* HTTP PUT please */
       ::curl_easy_setopt(curl, CURLOPT_PUT, 1);
@@ -261,7 +265,7 @@ bool cmCTestSubmitHandler::SubmitUsingHTTP(
         cmCTestScriptHandler* ch = this->CTest->GetScriptHandler();
         cmake* cm = ch->GetCMake();
         if (cm) {
-          cmProp subproject = cm->GetState()->GetGlobalProperty("SubProject");
+          cmValue subproject = cm->GetState()->GetGlobalProperty("SubProject");
           if (subproject) {
             upload_as += "&subproject=";
             upload_as += ctest_curl.Escape(*subproject);
@@ -499,7 +503,10 @@ int cmCTestSubmitHandler::HandleCDashUploadFile(std::string const& file,
   std::string curlopt(this->CTest->GetCTestConfiguration("CurlOptions"));
   std::vector<std::string> args = cmExpandedList(curlopt);
   curl.SetCurlOptions(args);
-  curl.SetTimeOutSeconds(SUBMIT_TIMEOUT_IN_SECONDS_DEFAULT);
+  auto submitInactivityTimeout = this->GetSubmitInactivityTimeout();
+  if (submitInactivityTimeout != 0) {
+    curl.SetTimeOutSeconds(submitInactivityTimeout);
+  }
   curl.SetHttpHeaders(this->HttpHeaders);
   std::string url = this->CTest->GetSubmitURL();
   if (!cmHasLiteralPrefix(url, "http://") &&
@@ -548,7 +555,7 @@ int cmCTestSubmitHandler::HandleCDashUploadFile(std::string const& file,
   // a "&subproject=subprojectname" to the first POST.
   cmCTestScriptHandler* ch = this->CTest->GetScriptHandler();
   cmake* cm = ch->GetCMake();
-  cmProp subproject = cm->GetState()->GetGlobalProperty("SubProject");
+  cmValue subproject = cm->GetState()->GetGlobalProperty("SubProject");
   // TODO: Encode values for a URL instead of trusting caller.
   std::ostringstream str;
   if (subproject) {
@@ -708,8 +715,8 @@ int cmCTestSubmitHandler::HandleCDashUploadFile(std::string const& file,
 
 int cmCTestSubmitHandler::ProcessHandler()
 {
-  cmProp cdashUploadFile = this->GetOption("CDashUploadFile");
-  cmProp cdashUploadType = this->GetOption("CDashUploadType");
+  cmValue cdashUploadFile = this->GetOption("CDashUploadFile");
+  cmValue cdashUploadType = this->GetOption("CDashUploadType");
   if (cdashUploadFile && cdashUploadType) {
     return this->HandleCDashUploadFile(cdashUploadFile, cdashUploadType);
   }
@@ -891,6 +898,26 @@ void cmCTestSubmitHandler::SelectParts(std::set<cmCTest::Part> const& parts)
     this->SubmitPart[p] =
       (std::set<cmCTest::Part>::const_iterator(parts.find(p)) != parts.end());
   }
+}
+
+int cmCTestSubmitHandler::GetSubmitInactivityTimeout()
+{
+  int submitInactivityTimeout = SUBMIT_TIMEOUT_IN_SECONDS_DEFAULT;
+  std::string const& timeoutStr =
+    this->CTest->GetCTestConfiguration("SubmitInactivityTimeout");
+  if (!timeoutStr.empty()) {
+    unsigned long timeout;
+    if (cmStrToULong(timeoutStr, &timeout)) {
+      submitInactivityTimeout = static_cast<int>(timeout);
+    } else {
+      cmCTestLog(this->CTest, ERROR_MESSAGE,
+                 "SubmitInactivityTimeout is invalid: "
+                   << cm::quoted(timeoutStr) << "."
+                   << " Using a default value of "
+                   << SUBMIT_TIMEOUT_IN_SECONDS_DEFAULT << "." << std::endl);
+    }
+  }
+  return submitInactivityTimeout;
 }
 
 void cmCTestSubmitHandler::SelectFiles(std::set<std::string> const& files)

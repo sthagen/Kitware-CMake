@@ -144,20 +144,20 @@ std::vector<std::string> cmState::GetCacheEntryKeys() const
   return this->CacheManager->GetCacheEntryKeys();
 }
 
-cmProp cmState::GetCacheEntryValue(std::string const& key) const
+cmValue cmState::GetCacheEntryValue(std::string const& key) const
 {
   return this->CacheManager->GetCacheEntryValue(key);
 }
 
 std::string cmState::GetSafeCacheEntryValue(std::string const& key) const
 {
-  if (cmProp val = this->GetCacheEntryValue(key)) {
+  if (cmValue val = this->GetCacheEntryValue(key)) {
     return *val;
   }
   return std::string();
 }
 
-cmProp cmState::GetInitializedCacheValue(std::string const& key) const
+cmValue cmState::GetInitializedCacheValue(std::string const& key) const
 {
   return this->CacheManager->GetInitializedCacheValue(key);
 }
@@ -194,8 +194,8 @@ std::vector<std::string> cmState::GetCacheEntryPropertyList(
   return this->CacheManager->GetCacheEntryPropertyList(key);
 }
 
-cmProp cmState::GetCacheEntryProperty(std::string const& key,
-                                      std::string const& propertyName)
+cmValue cmState::GetCacheEntryProperty(std::string const& key,
+                                       std::string const& propertyName)
 {
   return this->CacheManager->GetCacheEntryProperty(key, propertyName);
 }
@@ -206,7 +206,7 @@ bool cmState::GetCacheEntryPropertyAsBool(std::string const& key,
   return this->CacheManager->GetCacheEntryPropertyAsBool(key, propertyName);
 }
 
-void cmState::AddCacheEntry(const std::string& key, cmProp value,
+void cmState::AddCacheEntry(const std::string& key, cmValue value,
                             const char* helpString,
                             cmStateEnums::CacheEntryType type)
 {
@@ -228,22 +228,22 @@ std::string const& cmState::GetGlobVerifyStamp() const
   return this->GlobVerificationManager->GetVerifyStamp();
 }
 
-bool cmState::SaveVerificationScript(const std::string& path)
+bool cmState::SaveVerificationScript(const std::string& path,
+                                     cmMessenger* messenger)
 {
-  return this->GlobVerificationManager->SaveVerificationScript(path);
+  return this->GlobVerificationManager->SaveVerificationScript(path,
+                                                               messenger);
 }
 
-void cmState::AddGlobCacheEntry(bool recurse, bool listDirectories,
-                                bool followSymlinks,
-                                const std::string& relative,
-                                const std::string& expression,
-                                const std::vector<std::string>& files,
-                                const std::string& variable,
-                                cmListFileBacktrace const& backtrace)
+void cmState::AddGlobCacheEntry(
+  bool recurse, bool listDirectories, bool followSymlinks,
+  const std::string& relative, const std::string& expression,
+  const std::vector<std::string>& files, const std::string& variable,
+  cmListFileBacktrace const& backtrace, cmMessenger* messenger)
 {
   this->GlobVerificationManager->AddCacheEntry(
     recurse, listDirectories, followSymlinks, relative, expression, files,
-    variable, backtrace);
+    variable, backtrace, messenger);
 }
 
 void cmState::RemoveCacheEntry(std::string const& key)
@@ -453,7 +453,7 @@ void cmState::AddDisallowedCommand(std::string const& name,
         case cmPolicies::WARN:
           mf.IssueMessage(MessageType::AUTHOR_WARNING,
                           cmPolicies::GetPolicyWarning(policy));
-          break;
+          CM_FALLTHROUGH;
         case cmPolicies::OLD:
           break;
         case cmPolicies::REQUIRED_IF_USED:
@@ -472,7 +472,7 @@ void cmState::AddUnexpectedCommand(std::string const& name, const char* error)
     name,
     [name, error](std::vector<cmListFileArgument> const&,
                   cmExecutionStatus& status) -> bool {
-      cmProp versionValue =
+      cmValue versionValue =
         status.GetMakefile().GetDefinition("CMAKE_MINIMUM_REQUIRED_VERSION");
       if (name == "endif" &&
           (!versionValue || atof(versionValue->c_str()) <= 1.4)) {
@@ -564,7 +564,7 @@ void cmState::SetGlobalProperty(const std::string& prop, const char* value)
 {
   this->GlobalProperties.SetProperty(prop, value);
 }
-void cmState::SetGlobalProperty(const std::string& prop, cmProp value)
+void cmState::SetGlobalProperty(const std::string& prop, cmValue value)
 {
   this->GlobalProperties.SetProperty(prop, value);
 }
@@ -575,7 +575,7 @@ void cmState::AppendGlobalProperty(const std::string& prop,
   this->GlobalProperties.AppendProperty(prop, value, asString);
 }
 
-cmProp cmState::GetGlobalProperty(const std::string& prop)
+cmValue cmState::GetGlobalProperty(const std::string& prop)
 {
   if (prop == "CACHE_VARIABLES") {
     std::vector<std::string> cacheKeys = this->GetCacheEntryKeys();
@@ -602,47 +602,47 @@ cmProp cmState::GetGlobalProperty(const std::string& prop)
   if (prop == "CMAKE_C_KNOWN_FEATURES") {
     static const std::string s_out(
       &FOR_EACH_C_FEATURE(STRING_LIST_ELEMENT)[1]);
-    return cmProp(s_out);
+    return cmValue(s_out);
   }
   if (prop == "CMAKE_C90_KNOWN_FEATURES") {
     static const std::string s_out(
       &FOR_EACH_C90_FEATURE(STRING_LIST_ELEMENT)[1]);
-    return cmProp(s_out);
+    return cmValue(s_out);
   }
   if (prop == "CMAKE_C99_KNOWN_FEATURES") {
     static const std::string s_out(
       &FOR_EACH_C99_FEATURE(STRING_LIST_ELEMENT)[1]);
-    return cmProp(s_out);
+    return cmValue(s_out);
   }
   if (prop == "CMAKE_C11_KNOWN_FEATURES") {
     static const std::string s_out(
       &FOR_EACH_C11_FEATURE(STRING_LIST_ELEMENT)[1]);
-    return cmProp(s_out);
+    return cmValue(s_out);
   }
   if (prop == "CMAKE_CXX_KNOWN_FEATURES") {
     static const std::string s_out(
       &FOR_EACH_CXX_FEATURE(STRING_LIST_ELEMENT)[1]);
-    return cmProp(s_out);
+    return cmValue(s_out);
   }
   if (prop == "CMAKE_CXX98_KNOWN_FEATURES") {
     static const std::string s_out(
       &FOR_EACH_CXX98_FEATURE(STRING_LIST_ELEMENT)[1]);
-    return cmProp(s_out);
+    return cmValue(s_out);
   }
   if (prop == "CMAKE_CXX11_KNOWN_FEATURES") {
     static const std::string s_out(
       &FOR_EACH_CXX11_FEATURE(STRING_LIST_ELEMENT)[1]);
-    return cmProp(s_out);
+    return cmValue(s_out);
   }
   if (prop == "CMAKE_CXX14_KNOWN_FEATURES") {
     static const std::string s_out(
       &FOR_EACH_CXX14_FEATURE(STRING_LIST_ELEMENT)[1]);
-    return cmProp(s_out);
+    return cmValue(s_out);
   }
   if (prop == "CMAKE_CUDA_KNOWN_FEATURES") {
     static const std::string s_out(
       &FOR_EACH_CUDA_FEATURE(STRING_LIST_ELEMENT)[1]);
-    return cmProp(s_out);
+    return cmValue(s_out);
   }
 
 #undef STRING_LIST_ELEMENT

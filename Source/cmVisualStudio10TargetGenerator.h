@@ -4,12 +4,13 @@
 
 #include "cmConfigure.h" // IWYU pragma: keep
 
-#include <iosfwd>
+#include <cstddef>
 #include <map>
 #include <memory>
 #include <set>
 #include <string>
 #include <unordered_map>
+#include <utility>
 #include <vector>
 
 #include "cmGeneratorTarget.h"
@@ -209,7 +210,8 @@ private:
   OptionsMap NasmOptions;
   OptionsMap LinkOptions;
   std::string LangForClCompile;
-  enum VsProjectType
+
+  enum class VsProjectType
   {
     vcxproj,
     csproj
@@ -258,6 +260,15 @@ private:
   std::vector<cmSourceFile const*> XamlObjs;
   void ClassifyAllConfigSources();
   void ClassifyAllConfigSource(cmGeneratorTarget::AllConfigSource const& acs);
+
+  // .Net SDK-stype project variable and helper functions
+  void WriteClassicMsBuildProjectFile(cmGeneratedFileStream& BuildFileStream);
+  void WriteSdkStyleProjectFile(cmGeneratedFileStream& BuildFileStream);
+
+  void WriteCommonPropertyGroupGlobals(
+    cmVisualStudio10TargetGenerator::Elem& e1);
+
+  bool HasCustomCommands() const;
 
   std::unordered_map<std::string, ConfigToSettings> ParsedToolTargetSettings;
   bool PropertyIsSameInAllConfigs(const ConfigToSettings& toolSettings,

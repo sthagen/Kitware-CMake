@@ -34,12 +34,12 @@
 #include "cmGeneratedFileStream.h"
 #include "cmGlobalGenerator.h"
 #include "cmMakefile.h"
-#include "cmProperty.h"
 #include "cmState.h"
 #include "cmStateDirectory.h"
 #include "cmStateSnapshot.h"
 #include "cmStringAlgorithms.h"
 #include "cmSystemTools.h"
+#include "cmValue.h"
 #include "cmake.h"
 
 #ifdef _WIN32
@@ -47,8 +47,6 @@
 #else
 #  include <unistd.h>
 #endif
-
-#define CTEST_INITIAL_CMAKE_OUTPUT_FILE_NAME "CTestInitialCMakeOutput.log"
 
 cmCTestScriptHandler::cmCTestScriptHandler() = default;
 
@@ -372,8 +370,8 @@ int cmCTestScriptHandler::ReadInScript(const std::string& total_script_arg)
 int cmCTestScriptHandler::ExtractVariables()
 {
   // Temporary variables
-  cmProp minInterval;
-  cmProp contDuration;
+  cmValue minInterval;
+  cmValue contDuration;
 
   this->SourceDir =
     this->Makefile->GetSafeDefinition("CTEST_SOURCE_DIRECTORY");
@@ -411,8 +409,8 @@ int cmCTestScriptHandler::ExtractVariables()
   char updateVar[40];
   int i;
   for (i = 1; i < 10; ++i) {
-    sprintf(updateVar, "CTEST_EXTRA_UPDATES_%i", i);
-    cmProp updateVal = this->Makefile->GetDefinition(updateVar);
+    snprintf(updateVar, sizeof(updateVar), "CTEST_EXTRA_UPDATES_%i", i);
+    cmValue updateVal = this->Makefile->GetDefinition(updateVar);
     if (updateVal) {
       if (this->UpdateCmd.empty()) {
         cmSystemTools::Error(
@@ -930,7 +928,7 @@ cmDuration cmCTestScriptHandler::GetRemainingTimeAllowed()
     return cmCTest::MaxDuration();
   }
 
-  cmProp timelimitS = this->Makefile->GetDefinition("CTEST_TIME_LIMIT");
+  cmValue timelimitS = this->Makefile->GetDefinition("CTEST_TIME_LIMIT");
 
   if (!timelimitS) {
     return cmCTest::MaxDuration();

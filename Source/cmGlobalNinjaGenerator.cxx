@@ -35,7 +35,6 @@
 #include "cmMessageType.h"
 #include "cmNinjaLinkLineComputer.h"
 #include "cmOutputConverter.h"
-#include "cmProperty.h"
 #include "cmRange.h"
 #include "cmScanDepFormat.h"
 #include "cmState.h"
@@ -46,6 +45,7 @@
 #include "cmSystemTools.h"
 #include "cmTarget.h"
 #include "cmTargetDepend.h"
+#include "cmValue.h"
 #include "cmVersion.h"
 #include "cmake.h"
 
@@ -156,7 +156,7 @@ std::string cmGlobalNinjaGenerator::EncodeRuleName(std::string const& name)
       encoded += i;
     } else {
       char buf[16];
-      sprintf(buf, ".%02x", static_cast<unsigned int>(i));
+      snprintf(buf, sizeof(buf), ".%02x", static_cast<unsigned int>(i));
       encoded += buf;
     }
   }
@@ -568,9 +568,6 @@ void cmGlobalNinjaGenerator::Generate()
                                            msg.str());
     return;
   }
-  if (!this->InspectConfigTypeVariables()) {
-    return;
-  }
   if (!this->OpenBuildFileStreams()) {
     return;
   }
@@ -694,7 +691,7 @@ bool cmGlobalNinjaGenerator::FindMakeProgram(cmMakefile* mf)
   if (!this->cmGlobalGenerator::FindMakeProgram(mf)) {
     return false;
   }
-  if (cmProp ninjaCommand = mf->GetDefinition("CMAKE_MAKE_PROGRAM")) {
+  if (cmValue ninjaCommand = mf->GetDefinition("CMAKE_MAKE_PROGRAM")) {
     this->NinjaCommand = *ninjaCommand;
     std::vector<std::string> command;
     command.push_back(this->NinjaCommand);
@@ -928,29 +925,21 @@ void cmGlobalNinjaGenerator::EnableLanguage(
       continue;
     }
     this->ResolveLanguageCompiler(l, mf, optional);
-  }
 #ifdef _WIN32
-  const bool clangGnuMode =
-    ((mf->GetSafeDefinition("CMAKE_C_COMPILER_ID") == "Clang") &&
-     (mf->GetSafeDefinition("CMAKE_C_COMPILER_FRONTEND_VARIANT") == "GNU")) ||
-    ((mf->GetSafeDefinition("CMAKE_CXX_COMPILER_ID") == "Clang") &&
-     (mf->GetSafeDefinition("CMAKE_CXX_COMPILER_FRONTEND_VARIANT") == "GNU"));
-
-  if (clangGnuMode ||
-      ((mf->GetSafeDefinition("CMAKE_C_SIMULATE_ID") != "MSVC") &&
-       (mf->GetSafeDefinition("CMAKE_CXX_SIMULATE_ID") != "MSVC") &&
-       (mf->IsOn("CMAKE_COMPILER_IS_MINGW") ||
-        (mf->GetSafeDefinition("CMAKE_C_COMPILER_ID") == "GNU") ||
-        (mf->GetSafeDefinition("CMAKE_CXX_COMPILER_ID") == "GNU") ||
-        (mf->GetSafeDefinition("CMAKE_C_COMPILER_ID") == "Clang") ||
-        (mf->GetSafeDefinition("CMAKE_CXX_COMPILER_ID") == "Clang") ||
-        (mf->GetSafeDefinition("CMAKE_C_COMPILER_ID") == "ARMClang") ||
-        (mf->GetSafeDefinition("CMAKE_CXX_COMPILER_ID") == "ARMClang") ||
-        (mf->GetSafeDefinition("CMAKE_C_COMPILER_ID") == "QCC") ||
-        (mf->GetSafeDefinition("CMAKE_CXX_COMPILER_ID") == "QCC")))) {
-    this->UsingGCCOnWindows = true;
-  }
+    std::string const& compilerId =
+      mf->GetSafeDefinition(cmStrCat("CMAKE_", l, "_COMPILER_ID"));
+    std::string const& simulateId =
+      mf->GetSafeDefinition(cmStrCat("CMAKE_", l, "_SIMULATE_ID"));
+    std::string const& compilerFrontendVariant = mf->GetSafeDefinition(
+      cmStrCat("CMAKE_", l, "_COMPILER_FRONTEND_VARIANT"));
+    if ((compilerId == "Clang" && compilerFrontendVariant == "GNU") ||
+        (simulateId != "MSVC" &&
+         (compilerId == "GNU" || compilerId == "QCC" ||
+          cmHasLiteralSuffix(compilerId, "Clang")))) {
+      this->UsingGCCOnWindows = true;
+    }
 #endif
+  }
 }
 
 // Implemented by:
@@ -1271,7 +1260,7 @@ void cmGlobalNinjaGenerator::AppendTargetOutputs(
         break;
       }
     }
-    // FALLTHROUGH
+      CM_FALLTHROUGH;
     case cmStateEnums::EXECUTABLE: {
       outputs.push_back(this->ConvertToNinjaPath(target->GetFullPath(
         config, cmStateEnums::RuntimeBinaryArtifact, realname)));
@@ -1283,7 +1272,7 @@ void cmGlobalNinjaGenerator::AppendTargetOutputs(
         break;
       }
     }
-    // FALLTHROUGH
+      CM_FALLTHROUGH;
     case cmStateEnums::GLOBAL_TARGET:
     case cmStateEnums::INTERFACE_LIBRARY:
     case cmStateEnums::UTILITY: {

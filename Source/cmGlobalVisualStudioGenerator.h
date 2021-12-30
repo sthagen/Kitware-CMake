@@ -10,8 +10,11 @@
 #include <string>
 #include <vector>
 
+#include "cm_codecvt.hxx"
+
 #include "cmGlobalGenerator.h"
 #include "cmTargetDepend.h"
+#include "cmValue.h"
 
 class cmCustomCommand;
 class cmGeneratorTarget;
@@ -167,11 +170,6 @@ protected:
 
   void WriteSLNHeader(std::ostream& fout);
 
-  FindMakeProgramStage GetFindMakeProgramStage() const override
-  {
-    return FindMakeProgramStage::Early;
-  }
-
   bool ComputeTargetDepends() override;
   class VSDependSet : public std::set<std::string>
   {
@@ -201,7 +199,7 @@ protected:
 private:
   virtual std::string GetVSMakeProgram() = 0;
   void PrintCompilerAdvice(std::ostream&, std::string const&,
-                           const char*) const override
+                           cmValue) const override
   {
   }
 

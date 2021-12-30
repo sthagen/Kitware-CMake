@@ -12,9 +12,9 @@
 #include "cmCPackComponentGroup.h"
 #include "cmCPackGenerator.h"
 #include "cmCPackLog.h"
-#include "cmProperty.h"
 #include "cmStringAlgorithms.h"
 #include "cmSystemTools.h"
+#include "cmValue.h"
 
 cmCPackRPMGenerator::cmCPackRPMGenerator() = default;
 
@@ -102,7 +102,7 @@ int cmCPackRPMGenerator::PackageComponents(bool ignoreGroup)
   this->packageFileNames.clear();
   std::string initialTopLevel(this->GetOption("CPACK_TEMPORARY_DIRECTORY"));
 
-  cmProp mainComponent = this->GetOption("CPACK_RPM_MAIN_COMPONENT");
+  cmValue mainComponent = this->GetOption("CPACK_RPM_MAIN_COMPONENT");
 
   if (this->IsOn("CPACK_RPM_DEBUGINFO_SINGLE_PACKAGE") &&
       !this->IsOn("CPACK_RPM_DEBUGINFO_PACKAGE")) {
@@ -329,9 +329,10 @@ int cmCPackRPMGenerator::PackageComponents(bool ignoreGroup)
 
   if (retval) {
     this->AddGeneratedPackageNames();
+    return retval;
   }
 
-  return retval;
+  return 0;
 }
 
 int cmCPackRPMGenerator::PackageComponentsAllInOne(
@@ -424,7 +425,7 @@ std::string cmCPackRPMGenerator::GetComponentInstallDirNameSuffix(
   }
 
   if (this->componentPackageMethod == ONE_PACKAGE) {
-    return std::string("ALL_COMPONENTS_IN_ONE");
+    return { "ALL_COMPONENTS_IN_ONE" };
   }
   // We have to find the name of the COMPONENT GROUP
   // the current COMPONENT belongs to.

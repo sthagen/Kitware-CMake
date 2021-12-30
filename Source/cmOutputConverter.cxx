@@ -12,13 +12,14 @@
 #include "cmStateDirectory.h"
 #include "cmStringAlgorithms.h"
 #include "cmSystemTools.h"
+#include "cmValue.h"
 
 namespace {
 bool PathEqOrSubDir(std::string const& a, std::string const& b)
 {
   return (cmSystemTools::ComparePath(a, b) ||
           cmSystemTools::IsSubDirectory(a, b));
-};
+}
 }
 
 cmOutputConverter::cmOutputConverter(cmStateSnapshot const& snapshot)
@@ -142,7 +143,7 @@ std::string cmOutputConverter::ConvertToOutputFormat(cm::string_view source,
     result = this->EscapeForShell(result, true, false, output == WATCOMQUOTE,
                                   output == NINJAMULTI);
   } else if (output == RESPONSE) {
-    result = this->EscapeForShell(result, false, false, false);
+    result = this->EscapeForShell(result, false, false, false, false, true);
   }
   return result;
 }
@@ -174,9 +175,11 @@ static bool cmOutputConverterIsShellOperator(cm::string_view str)
   return (shellOperators.count(str) != 0);
 }
 
-std::string cmOutputConverter::EscapeForShell(
-  cm::string_view str, bool makeVars, bool forEcho, bool useWatcomQuote,
-  bool unescapeNinjaConfiguration) const
+std::string cmOutputConverter::EscapeForShell(cm::string_view str,
+                                              bool makeVars, bool forEcho,
+                                              bool useWatcomQuote,
+                                              bool unescapeNinjaConfiguration,
+                                              bool forResponse) const
 {
   // Do not escape shell operators.
   if (cmOutputConverterIsShellOperator(str)) {
@@ -202,6 +205,9 @@ std::string cmOutputConverter::EscapeForShell(
   if (useWatcomQuote) {
     flags |= Shell_Flag_WatcomQuote;
   }
+  if (forResponse) {
+    flags |= Shell_Flag_IsResponse;
+  }
   if (this->GetState()->UseWatcomWMake()) {
     flags |= Shell_Flag_WatcomWMake;
   }
@@ -218,10 +224,11 @@ std::string cmOutputConverter::EscapeForShell(
   return Shell_GetArgument(str, flags);
 }
 
-std::string cmOutputConverter::EscapeForCMake(cm::string_view str)
+std::string cmOutputConverter::EscapeForCMake(cm::string_view str,
+                                              WrapQuotes wrapQuotes)
 {
   // Always double-quote the argument to take care of most escapes.
-  std::string result = "\"";
+  std::string result = (wrapQuotes == WrapQuotes::Wrap) ? "\"" : "";
   for (const char c : str) {
     if (c == '"') {
       // Escape the double quote to avoid ending the argument.
@@ -237,7 +244,9 @@ std::string cmOutputConverter::EscapeForCMake(cm::string_view str)
       result += c;
     }
   }
-  result += "\"";
+  if (wrapQuotes == WrapQuotes::Wrap) {
+    result += "\"";
+  }
   return result;
 }
 
@@ -354,6 +363,13 @@ bool cmOutputConverter::Shell_CharNeedsQuotes(char c, int flags)
   /* On all platforms quotes are needed to preserve whitespace.  */
   if (Shell_CharIsWhitespace(c)) {
     return true;
+  }
+
+  /* Quote hyphens in response files */
+  if (flags & Shell_Flag_IsResponse) {
+    if (c == '-') {
+      return true;
+    }
   }
 
   if (flags & Shell_Flag_IsUnix) {

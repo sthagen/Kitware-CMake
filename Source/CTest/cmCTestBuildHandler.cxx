@@ -19,10 +19,10 @@
 #include "cmGeneratedFileStream.h"
 #include "cmMakefile.h"
 #include "cmProcessOutput.h"
-#include "cmProperty.h"
 #include "cmStringAlgorithms.h"
 #include "cmStringReplaceHelper.h"
 #include "cmSystemTools.h"
+#include "cmValue.h"
 #include "cmXMLWriter.h"
 
 static const char* cmCTestErrorMatches[] = {
@@ -81,6 +81,7 @@ static const char* cmCTestErrorMatches[] = {
   "^The project cannot be built\\.",
   "^\\[ERROR\\]",
   "^Command .* failed with exit code",
+  "lcc: \"([^\"]+)\", (line|строка) ([0-9]+): (error|ошибка)",
   nullptr
 };
 
@@ -122,6 +123,7 @@ static const char* cmCTestWarningMatches[] = {
   "cc-[0-9]* CC: REMARK File = .*, Line = [0-9]*",
   "^CMake Warning.*:",
   "^\\[WARNING\\]",
+  "lcc: \"([^\"]+)\", (line|строка) ([0-9]+): (warning|предупреждение)",
   nullptr
 };
 
@@ -160,6 +162,9 @@ static cmCTestBuildCompileErrorWarningRex cmCTestWarningErrorFileLine[] = {
   { "^([a-zA-Z./0-9_+ ~-]+)\\(([0-9]+)\\)", 1, 2 },
   { "\"([a-zA-Z./0-9_+ ~-]+)\", line ([0-9]+)", 1, 2 },
   { "File = ([a-zA-Z./0-9_+ ~-]+), Line = ([0-9]+)", 1, 2 },
+  { "lcc: \"([^\"]+)\", (line|строка) ([0-9]+): "
+    "(error|ошибка|warning|предупреждение)",
+    1, 3 },
   { nullptr, 0, 0 }
 };
 
@@ -249,11 +254,11 @@ void cmCTestBuildHandler::PopulateCustomVectors(cmMakefile* mf)
   }
 
   // Record the user-specified custom warning rules.
-  if (cmProp customWarningMatchers =
+  if (cmValue customWarningMatchers =
         mf->GetDefinition("CTEST_CUSTOM_WARNING_MATCH")) {
     cmExpandList(*customWarningMatchers, this->ReallyCustomWarningMatches);
   }
-  if (cmProp customWarningExceptions =
+  if (cmValue customWarningExceptions =
         mf->GetDefinition("CTEST_CUSTOM_WARNING_EXCEPTION")) {
     cmExpandList(*customWarningExceptions,
                  this->ReallyCustomWarningExceptions);

@@ -14,7 +14,7 @@
 #include "cmsys/RegularExpression.hxx"
 
 #include "cmListFileCache.h"
-#include "cmProperty.h"
+#include "cmValue.h"
 
 class cmGeneratorTarget;
 class cmGlobalGenerator;
@@ -138,7 +138,7 @@ private:
     SharedDepModeLink    // List file on link line
   };
 
-  cmProp LoaderFlag;
+  cmValue LoaderFlag;
   std::string LibLinkFlag;
   std::string LibLinkFileFlag;
   std::string ObjLinkFileFlag;
@@ -187,7 +187,7 @@ private:
   bool CheckImplicitDirItem(std::string const& item);
   void AddUserItem(BT<std::string> const& item, bool pathNotKnown);
   void AddFrameworkItem(std::string const& item);
-  void DropDirectoryItem(std::string const& item);
+  void DropDirectoryItem(BT<std::string> const& item);
   bool CheckSharedLibNoSOName(std::string const& item);
   void AddSharedLibNoSOName(std::string const& item);
   void HandleBadFullItem(std::string const& item, std::string const& file);

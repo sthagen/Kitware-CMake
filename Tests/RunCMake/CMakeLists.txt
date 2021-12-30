@@ -94,7 +94,6 @@ add_RunCMake_test(CMP0019)
 add_RunCMake_test(CMP0022)
 add_RunCMake_test(CMP0026)
 add_RunCMake_test(CMP0027)
-add_RunCMake_test(CMP0028)
 add_RunCMake_test(CMP0037)
 add_RunCMake_test(CMP0038)
 add_RunCMake_test(CMP0039)
@@ -151,8 +150,23 @@ endif()
 if(CMAKE_GENERATOR MATCHES "Make")
   add_RunCMake_test(Make -DMAKE_IS_GNU=${MAKE_IS_GNU})
 endif()
-if(CMake_TEST_Qt5)
+unset(ninja_test_with_qt_version)
+unset(ninja_qt_args)
+if(CMake_TEST_Qt6)
+  find_package(Qt6Widgets QUIET NO_MODULE)
+  if(Qt6Widgets_FOUND)
+    set(ninja_test_with_qt_version 6)
+    # Work around Qt6 not finding sibling dependencies without CMAKE_PREFIX_PATH
+    cmake_path(GET Qt6_DIR  PARENT_PATH base_dir)  # <base>/lib/cmake
+    cmake_path(GET base_dir PARENT_PATH base_dir)  # <base>/lib
+    cmake_path(GET base_dir PARENT_PATH base_dir)  # <base>
+    set(ninja_qt_args -DCMAKE_PREFIX_PATH=${base_dir})
+  endif()
+elseif(CMake_TEST_Qt5)
   find_package(Qt5Widgets QUIET NO_MODULE)
+  if(Qt5Widgets_FOUND)
+    set(ninja_test_with_qt_version 5)
+  endif()
 endif()
 if(CMAKE_GENERATOR MATCHES "Ninja")
   set(Ninja_ARGS
@@ -162,18 +176,27 @@ if(CMAKE_GENERATOR MATCHES "Ninja")
   if(CMAKE_Fortran_COMPILER)
     list(APPEND Ninja_ARGS -DTEST_Fortran=1)
   endif()
-  if(CMake_TEST_Qt5 AND Qt5Core_FOUND)
-    list(APPEND Ninja_ARGS -DCMake_TEST_Qt5=1 -DQt5Core_DIR=${Qt5Core_DIR} -DCMAKE_TEST_Qt5Core_Version=${Qt5Core_VERSION})
-    if(Qt5Widgets_FOUND)
-      list(APPEND Ninja_ARGS -DQt5Widgets_DIR=${Qt5Widgets_DIR})
-    endif()
+  if(ninja_test_with_qt_version)
+    list(APPEND Ninja_ARGS
+      -DCMake_TEST_Qt_version=${ninja_test_with_qt_version}
+      -DQt${ninja_test_with_qt_version}_DIR=${Qt${ninja_test_with_qt_version}_DIR}
+      -DQt${ninja_test_with_qt_version}Core_DIR=${Qt${ninja_test_with_qt_version}Core_DIR}
+      -DCMake_TEST_Qt${ninja_test_with_qt_version}Core_Version=${Qt${ninja_test_with_qt_version}Core_VERSION}
+      -DQt${ninja_test_with_qt_version}Widgets_DIR=${Qt${ninja_test_with_qt_version}Widgets_DIR}
+      ${ninja_qt_args}
+    )
   endif()
   add_RunCMake_test(Ninja)
   set(NinjaMultiConfig_ARGS
     -DCYGWIN=${CYGWIN} -DMSYS=${MSYS}
     )
-  if(CMake_TEST_Qt5 AND Qt5Core_FOUND)
-    list(APPEND NinjaMultiConfig_ARGS -DCMake_TEST_Qt5=1 -DQt5Core_DIR=${Qt5Core_DIR} -DCMAKE_TEST_Qt5Core_Version=${Qt5Core_VERSION})
+  if(ninja_test_with_qt_version)
+    list(APPEND NinjaMultiConfig_ARGS
+      -DCMake_TEST_Qt_version=${ninja_test_with_qt_version}
+      -DQt${ninja_test_with_qt_version}Core_DIR=${Qt${ninja_test_with_qt_version}Core_DIR}
+      -DCMake_TEST_Qt${ninja_test_with_qt_version}Core_Version=${Qt${ninja_test_with_qt_version}Core_VERSION}
+      ${ninja_qt_args}
+    )
   endif()
   if(DEFINED CMake_TEST_CUDA)
     list(APPEND NinjaMultiConfig_ARGS -DCMake_TEST_CUDA=${CMake_TEST_CUDA})
@@ -205,16 +228,34 @@ add_RunCMake_test(AndroidTestUtilities)
 if(CMake_TEST_APPLE_SILICON)
   add_RunCMake_test(AppleSilicon)
 endif()
-set(autogen_with_qt5 FALSE)
-if(CMake_TEST_Qt5 AND Qt5Widgets_FOUND)
-  set(autogen_with_qt5 TRUE)
+set(want_NoQt_test TRUE)
+if(CMake_TEST_Qt6 AND Qt6Widgets_FOUND)
+  # Work around Qt6 not finding sibling dependencies without CMAKE_PREFIX_PATH
+  cmake_path(GET Qt6_DIR  PARENT_PATH base_dir)  # <base>/lib/cmake
+  cmake_path(GET base_dir PARENT_PATH base_dir)  # <base>/lib
+  cmake_path(GET base_dir PARENT_PATH base_dir)  # <base>
+  add_RunCMake_test(AutogenQt6 TEST_DIR Autogen
+    -Dwith_qt_version=6
+    "-DQt6_DIR:PATH=${Qt6_DIR}"
+    "-DCMAKE_PREFIX_PATH:STRING=${base_dir}"
+  )
+  set(want_NoQt_test FALSE)
 endif ()
-add_RunCMake_test(Autogen -Dwith_qt5=${autogen_with_qt5})
+if(CMake_TEST_Qt5 AND Qt5Widgets_FOUND)
+  add_RunCMake_test(AutogenQt5 TEST_DIR Autogen
+    -Dwith_qt_version=5
+    "-DQt5_DIR:PATH=${Qt5_DIR}"
+  )
+  set(want_NoQt_test FALSE)
+endif ()
+if(want_NoQt_test)
+  add_RunCMake_test(AutogenNoQt TEST_DIR Autogen)
+endif()
 
 add_RunCMake_test(ArtifactOutputDirs)
 
 if(NOT DEFINED CMake_TEST_BuildDepends_GNU_AS
-    AND CMAKE_C_COMPILER_ID STREQUAL "GNU"
+    AND (CMAKE_C_COMPILER_ID STREQUAL "GNU" OR CMAKE_C_COMPILER_ID STREQUAL "LCC")
     AND CMAKE_GENERATOR MATCHES "^Ninja"
     )
   execute_process(COMMAND "${CMAKE_C_COMPILER}" -print-prog-name=as
@@ -287,6 +328,7 @@ add_RunCMake_test(GoogleTest) # Note: does not actually depend on Google Test
 add_RunCMake_test(Graphviz)
 add_RunCMake_test(TargetPropertyGeneratorExpressions)
 add_RunCMake_test(Languages)
+add_RunCMake_test(LinkItemValidation)
 add_RunCMake_test(LinkStatic)
 if(CMAKE_CXX_COMPILER_ID MATCHES "^(Cray|PGI|NVHPC|XL|XLClang|Fujitsu|FujitsuClang)$")
   add_RunCMake_test(MetaCompileFeatures)
@@ -303,14 +345,13 @@ if(UNIX AND CMAKE_SHARED_LIBRARY_RUNTIME_C_FLAG AND CMAKE_EXECUTABLE_FORMAT STRE
   add_RunCMake_test(RuntimePath)
 endif()
 add_RunCMake_test(ScriptMode)
-add_RunCMake_test(Swift -DCMAKE_Swift_COMPILER=${CMAKE_Swift_COMPILER})
+add_RunCMake_test(Swift -DCMAKE_Swift_COMPILER=${CMAKE_Swift_COMPILER} -DCMAKE_SYSTEM_NAME=${CMAKE_SYSTEM_NAME})
 add_RunCMake_test(TargetObjects)
-add_RunCMake_test(TargetSources)
 add_RunCMake_test(TargetProperties)
 add_RunCMake_test(ToolchainFile)
 add_RunCMake_test(find_dependency)
 add_RunCMake_test(CompileDefinitions)
-add_RunCMake_test(CompileFeatures)
+add_RunCMake_test(CompileFeatures -DCMake_NO_C_STANDARD=${CMake_NO_C_STANDARD} -DCMake_NO_CXX_STANDARD=${CMake_NO_CXX_STANDARD})
 add_RunCMake_test(Policy)
 add_RunCMake_test(PolicyScope)
 add_RunCMake_test(WriteBasicConfigVersionFile)
@@ -377,7 +418,7 @@ add_RunCMake_test(ctest_update)
 add_RunCMake_test(ctest_upload)
 add_RunCMake_test(ctest_environment)
 add_RunCMake_test(ctest_fixtures)
-add_RunCMake_test(file -DMSYS=${MSYS})
+add_RunCMake_test(file -DCYGWIN=${CYGWIN} -DMSYS=${MSYS})
 add_RunCMake_test(file-CHMOD -DMSYS=${MSYS})
 add_RunCMake_test(file-RPATH -DCMAKE_SYSTEM_NAME=${CMAKE_SYSTEM_NAME})
 add_RunCMake_test(find_file)
@@ -575,6 +616,10 @@ if("${CMAKE_GENERATOR}" MATCHES "Visual Studio ([^9]|9[0-9])")
   endif()
 endif()
 
+if(CMAKE_GENERATOR MATCHES "^Visual Studio (1[6-9]|[2-9][0-9])")
+  add_RunCMake_test(VsDotnetSdk)
+endif()
+
 if(XCODE_VERSION)
   add_RunCMake_test(XcodeProject -DXCODE_VERSION=${XCODE_VERSION})
   add_RunCMake_test(XcodeProject-Embed -DXCODE_VERSION=${XCODE_VERSION})
@@ -640,7 +685,7 @@ set_property(TEST RunCMake.CheckCompilerFlag
 add_RunCMake_test(CheckModules)
 add_RunCMake_test(CheckIPOSupported)
 if (CMAKE_SYSTEM_NAME MATCHES "(Linux|Darwin)"
-    AND (CMAKE_C_COMPILER_ID MATCHES "Clang|GNU" OR CMAKE_Fortran_COMPILER_ID MATCHES "GNU"))
+    AND (CMAKE_C_COMPILER_ID MATCHES "Clang|GNU|LCC" OR CMAKE_Fortran_COMPILER_ID MATCHES "GNU|LCC"))
   add_RunCMake_test(CheckLinkerFlag -DCMAKE_C_COMPILER_ID=${CMAKE_C_COMPILER_ID}
                                     -DCMAKE_Fortran_COMPILER_ID=${CMAKE_Fortran_COMPILER_ID}
                                     -DCMake_TEST_CUDA=${CMake_TEST_CUDA}
@@ -885,4 +930,8 @@ endif()
 
 if(WIN32)
   add_RunCMake_test(Win32GenEx)
+endif()
+
+if("${CMAKE_C_COMPILER_ID}" STREQUAL "LCC" OR "${CMAKE_CXX_COMPILER_ID}" STREQUAL "LCC" OR "${CMAKE_Fortran_COMPILER_ID}" STREQUAL "LCC")
+  add_RunCMake_test("CMP0129")
 endif()

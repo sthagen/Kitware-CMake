@@ -24,15 +24,16 @@
 #include "cm_sys_stat.h"
 
 #include "cmAlgorithms.h"
+#include "cmCustomCommand.h"
 #include "cmCustomCommandTypes.h"
 #include "cmListFileCache.h"
 #include "cmMessageType.h"
 #include "cmNewLineStyle.h"
 #include "cmPolicies.h"
-#include "cmProperty.h"
 #include "cmSourceFileLocationKind.h"
 #include "cmStateSnapshot.h"
 #include "cmStateTypes.h"
+#include "cmValue.h"
 
 // IWYU does not see that 'std::unordered_map<std::string, cmTarget>'
 // will not compile without the complete type.
@@ -50,7 +51,6 @@ class cmExportBuildFileGenerator;
 class cmFunctionBlocker;
 class cmGeneratorExpressionEvaluationFile;
 class cmGlobalGenerator;
-class cmImplicitDependsList;
 class cmInstallGenerator;
 class cmLocalGenerator;
 class cmMessenger;
@@ -140,13 +140,47 @@ public:
   bool EnforceUniqueName(std::string const& name, std::string& msg,
                          bool isCustom = false) const;
 
-  using GeneratorAction =
-    std::function<void(cmLocalGenerator&, const cmListFileBacktrace&)>;
+  class GeneratorAction
+  {
+    using ActionT =
+      std::function<void(cmLocalGenerator&, const cmListFileBacktrace&)>;
+    using CCActionT =
+      std::function<void(cmLocalGenerator&, const cmListFileBacktrace&,
+                         std::unique_ptr<cmCustomCommand> cc)>;
+
+  public:
+    GeneratorAction(ActionT&& action)
+      : Action(std::move(action))
+    {
+    }
+
+    GeneratorAction(std::unique_ptr<cmCustomCommand> tcc, CCActionT&& action)
+      : CCAction(std::move(action))
+      , cc(std::move(tcc))
+    {
+    }
+
+    void operator()(cmLocalGenerator& lg, const cmListFileBacktrace& lfbt);
+
+  private:
+    ActionT Action;
+
+    // FIXME: Use std::variant
+    CCActionT CCAction;
+    std::unique_ptr<cmCustomCommand> cc;
+  };
 
   /**
    * Register an action that is executed during Generate
    */
-  void AddGeneratorAction(GeneratorAction action);
+  void AddGeneratorAction(GeneratorAction&& action);
+
+  /// Helper to insert the constructor GeneratorAction(args...)
+  template <class... Args>
+  void AddGeneratorAction(Args&&... args)
+  {
+    AddGeneratorAction(GeneratorAction(std::move(args)...));
+  }
 
   /**
    * Perform generate actions, Library dependency analysis etc before output of
@@ -165,15 +199,9 @@ public:
    * Dispatch adding a custom PRE_BUILD, PRE_LINK, or POST_BUILD command to a
    * target.
    */
-  cmTarget* AddCustomCommandToTarget(
-    const std::string& target, const std::vector<std::string>& byproducts,
-    const std::vector<std::string>& depends,
-    const cmCustomCommandLines& commandLines, cmCustomCommandType type,
-    const char* comment, const char* workingDir,
-    cmPolicies::PolicyStatus cmp0116, bool escapeOldStyle = true,
-    bool uses_terminal = false, const std::string& depfile = "",
-    const std::string& job_pool = "", bool command_expand_lists = false,
-    bool stdPipesUTF8 = false);
+  cmTarget* AddCustomCommandToTarget(const std::string& target,
+                                     cmCustomCommandType type,
+                                     std::unique_ptr<cmCustomCommand> cc);
 
   /**
    * Called for each file with custom command.
@@ -184,33 +212,14 @@ public:
    * Dispatch adding a custom command to a source file.
    */
   void AddCustomCommandToOutput(
-    const std::string& output, const std::vector<std::string>& depends,
-    const std::string& main_dependency,
-    const cmCustomCommandLines& commandLines, const char* comment,
-    const char* workingDir, cmPolicies::PolicyStatus cmp0116,
-    const CommandSourceCallback& callback = nullptr, bool replace = false,
-    bool escapeOldStyle = true, bool uses_terminal = false,
-    bool command_expand_lists = false, const std::string& depfile = "",
-    const std::string& job_pool = "", bool stdPipesUTF8 = false);
-  void AddCustomCommandToOutput(
-    const std::vector<std::string>& outputs,
-    const std::vector<std::string>& byproducts,
-    const std::vector<std::string>& depends,
-    const std::string& main_dependency,
-    const cmImplicitDependsList& implicit_depends,
-    const cmCustomCommandLines& commandLines, const char* comment,
-    const char* workingDir, cmPolicies::PolicyStatus cmp0116,
-    const CommandSourceCallback& callback = nullptr, bool replace = false,
-    bool escapeOldStyle = true, bool uses_terminal = false,
-    bool command_expand_lists = false, const std::string& depfile = "",
-    const std::string& job_pool = "", bool stdPipesUTF8 = false);
+    std::unique_ptr<cmCustomCommand> cc,
+    const CommandSourceCallback& callback = nullptr, bool replace = false);
   void AddCustomCommandOldStyle(const std::string& target,
                                 const std::vector<std::string>& outputs,
                                 const std::vector<std::string>& depends,
                                 const std::string& source,
                                 const cmCustomCommandLines& commandLines,
-                                const char* comment,
-                                cmPolicies::PolicyStatus cmp0116);
+                                const char* comment);
   void AppendCustomCommandToOutput(
     const std::string& output, const std::vector<std::string>& depends,
     const cmImplicitDependsList& implicit_depends,
@@ -252,14 +261,9 @@ public:
    * Dispatch adding a utility to the build.  A utility target is a command
    * that is run every time the target is built.
    */
-  cmTarget* AddUtilityCommand(
-    const std::string& utilityName, bool excludeFromAll,
-    const char* workingDir, const std::vector<std::string>& byproducts,
-    const std::vector<std::string>& depends,
-    const cmCustomCommandLines& commandLines, cmPolicies::PolicyStatus cmp0116,
-    bool escapeOldStyle = true, const char* comment = nullptr,
-    bool uses_terminal = false, bool command_expand_lists = false,
-    const std::string& job_pool = "", bool stdPipesUTF8 = false);
+  cmTarget* AddUtilityCommand(const std::string& utilityName,
+                              bool excludeFromAll,
+                              std::unique_ptr<cmCustomCommand> cc);
 
   /**
    * Add a subdirectory to the build.
@@ -286,7 +290,7 @@ public:
    * can be used in CMake to refer to lists, directories, etc.
    */
   void AddDefinition(const std::string& name, cm::string_view value);
-  void AddDefinition(const std::string& name, cmProp value)
+  void AddDefinition(const std::string& name, cmValue value)
   {
     this->AddDefinition(name, *value);
   }
@@ -492,7 +496,7 @@ public:
    * If the variable is not found in this makefile instance, the
    * cache is then queried.
    */
-  cmProp GetDefinition(const std::string&) const;
+  cmValue GetDefinition(const std::string&) const;
   const std::string& GetSafeDefinition(const std::string&) const;
   const std::string& GetRequiredDefinition(const std::string& name) const;
   bool IsDefinitionSet(const std::string&) const;
@@ -772,15 +776,15 @@ public:
 
   //! Set/Get a property of this directory
   void SetProperty(const std::string& prop, const char* value);
-  void SetProperty(const std::string& prop, cmProp value);
+  void SetProperty(const std::string& prop, cmValue value);
   void SetProperty(const std::string& prop, const std::string& value)
   {
-    this->SetProperty(prop, cmProp(value));
+    this->SetProperty(prop, cmValue(value));
   }
   void AppendProperty(const std::string& prop, const std::string& value,
                       bool asString = false);
-  cmProp GetProperty(const std::string& prop) const;
-  cmProp GetProperty(const std::string& prop, bool chain) const;
+  cmValue GetProperty(const std::string& prop) const;
+  cmValue GetProperty(const std::string& prop, bool chain) const;
   bool GetPropertyAsBool(const std::string& prop) const;
   std::vector<std::string> GetPropertyKeys() const;
 

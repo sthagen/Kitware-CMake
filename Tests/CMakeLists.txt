@@ -257,6 +257,13 @@ if(BUILD_TESTING)
   #---------------------------------------------------------------------------
   # Add tests below here.
 
+  if(NOT DEFINED CMake_TEST_Qt6)
+    set(CMake_TEST_Qt6 1)
+  endif()
+  if(CMake_TEST_Qt6)
+    find_package(Qt6 COMPONENTS Core Widgets QUIET NO_MODULE)
+  endif()
+
   if(NOT DEFINED CMake_TEST_Qt5)
     set(CMake_TEST_Qt5 1)
   endif()
@@ -524,8 +531,8 @@ if(BUILD_TESTING)
   if (NOT CMAKE_GENERATOR STREQUAL "Xcode")
     ADD_TEST_MACRO(SourceFileIncludeDirProperty SourceFileIncludeDirProperty)
   endif()
-  if(CMAKE_CXX_COMPILER_ID STREQUAL GNU
-      AND NOT CMAKE_CXX_COMPILER_VERSION VERSION_LESS 4.7)
+  if(CMAKE_CXX_COMPILER_ID STREQUAL "LCC" OR (CMAKE_CXX_COMPILER_ID STREQUAL "GNU"
+      AND NOT CMAKE_CXX_COMPILER_VERSION VERSION_LESS 4.7))
     set(runCxxDialectTest 1)
   endif()
   if(CMAKE_CXX_COMPILER_ID STREQUAL Clang
@@ -663,7 +670,7 @@ if(BUILD_TESTING)
 
   ADD_TEST_MACRO(Module.WriteCompilerDetectionHeader WriteCompilerDetectionHeader)
 
-  if (APPLE OR CMAKE_CXX_COMPILER_ID MATCHES "GNU")
+  if (APPLE OR CMAKE_CXX_COMPILER_ID MATCHES "GNU" OR CMAKE_CXX_COMPILER_ID MATCHES "LCC")
     include(CheckCXXCompilerFlag)
     check_cxx_compiler_flag(-fPIE run_pic_test)
   else()
@@ -680,9 +687,10 @@ if(BUILD_TESTING)
     ADD_TEST_MACRO(PositionIndependentTargets PositionIndependentTargets)
   endif()
 
-  if((CMAKE_CXX_COMPILER_ID MATCHES "GNU") AND
+  if(CMAKE_CXX_COMPILER_ID MATCHES "LCC" OR
+    ((CMAKE_CXX_COMPILER_ID MATCHES "GNU") AND
     (NOT "${CMAKE_CXX_COMPILER_VERSION}" VERSION_LESS 4.2) AND
-    (CMAKE_SYSTEM_NAME MATCHES "Linux"))
+    (CMAKE_SYSTEM_NAME MATCHES "Linux")))
 
     include(CheckCXXCompilerFlag)
     check_cxx_compiler_flag(
@@ -1372,6 +1380,13 @@ if(BUILD_TESTING)
     --test-command ${CMAKE_CTEST_COMMAND} -V
     )
   list(APPEND TEST_BUILD_DIRS "${CMake_BINARY_DIR}/Tests/Environment")
+  set_property(TEST Environment APPEND
+    PROPERTY ENVIRONMENT
+      "SET_FROM_AMBIENT_unset=base"
+      "SET_FROM_AMBIENT_replace=base"
+      "SET_FROM_AMBIENT_string=base"
+      "SET_FROM_AMBIENT_path=base"
+      "SET_FROM_AMBIENT_list=base")
 
   add_test(QtAutomocNoQt  ${CMAKE_CTEST_COMMAND}
     --build-and-test
@@ -1384,6 +1399,9 @@ if(BUILD_TESTING)
     )
   list(APPEND TEST_BUILD_DIRS "${CMake_BINARY_DIR}/Tests/QtAutomocNoQt")
 
+  if(CMake_TEST_Qt6 AND Qt6Widgets_FOUND)
+    add_subdirectory(Qt6Autogen)
+  endif()
   if(CMake_TEST_Qt5 AND Qt5Widgets_FOUND)
     add_subdirectory(Qt5Autogen)
   endif()
@@ -1456,6 +1474,7 @@ if(BUILD_TESTING)
             Iconv
             ICU
             Intl
+            Jasper
             JPEG
             JsonCpp
             LAPACK
@@ -1656,6 +1675,8 @@ if(BUILD_TESTING)
     "${CMake_SOURCE_DIR}/Tests/CMakeLists.txt"        # random source file that exists
     "${CMake_BINARY_DIR}/Tests/try_to_create_symlink" # random target file in existing directory
     RESULT_VARIABLE _symlink_result
+    OUTPUT_VARIABLE _symlink_stdout
+    ERROR_VARIABLE _symlink_stderr
     )
   if(_symlink_result EQUAL 0)
     file(REMOVE "${CMake_BINARY_DIR}/Tests/try_to_create_symlink")
@@ -1991,7 +2012,7 @@ if(BUILD_TESTING)
   set_tests_properties ( linkorder2 PROPERTIES DEPENDS linkorder1)
 
   # Test static linking on toolchains known to support it.
-  if(CMAKE_C_COMPILER_ID STREQUAL "GNU"
+  if((CMAKE_C_COMPILER_ID STREQUAL "GNU" OR CMAKE_C_COMPILER_ID STREQUAL "LCC")
       AND NOT APPLE AND NOT WIN32 AND NOT CYGWIN
       AND EXISTS "/usr/lib/libm.a")
     add_test(LinkStatic  ${CMAKE_CTEST_COMMAND}
@@ -2006,7 +2027,7 @@ if(BUILD_TESTING)
       )
   endif()
 
-  if(MAKE_SUPPORTS_SPACES AND NOT CMAKE_GENERATOR STREQUAL "Xcode")
+  if(MAKE_SUPPORTS_SPACES AND NOT CMAKE_GENERATOR STREQUAL "Xcode" AND NOT CMAKE_GENERATOR STREQUAL "Watcom WMake")
     add_test(SubDirSpaces ${CMAKE_CTEST_COMMAND}
       --build-and-test
       "${CMake_SOURCE_DIR}/Tests/SubDirSpaces"
@@ -2214,8 +2235,9 @@ if(BUILD_TESTING)
     endif()
 
     if(NOT "${CMAKE_GENERATOR}" MATCHES "Visual Studio 9 "
-        AND NOT CMAKE_GENERATOR_TOOLSET)
+        AND NOT CMAKE_GENERATOR_TOOLSET STREQUAL "v90")
       ADD_TEST_MACRO(VSWindowsFormsResx VSWindowsFormsResx)
+      ADD_TEST_MACRO(VSManagedCustomCommand)
     endif()
 
     add_test(VSExternalInclude ${CMAKE_CTEST_COMMAND}
@@ -3644,6 +3666,7 @@ if(BUILD_TESTING)
   if(CMAKE_GENERATOR MATCHES "^((Unix|MSYS) Makefiles|Ninja)$" AND
      ((CMAKE_CXX_COMPILER_ID STREQUAL "GNU" AND CMAKE_CXX_COMPILER_VERSION VERSION_GREATER 4.4)
       OR (CMAKE_CXX_COMPILER_ID STREQUAL "Clang" AND NOT "x${CMAKE_CXX_SIMULATE_ID}" STREQUAL "xMSVC")
+      OR (CMAKE_CXX_COMPILER_ID STREQUAL "LCC")
       OR (CMAKE_CXX_COMPILER_ID STREQUAL "AppleClang")))
     add_test(IncludeDirectoriesCPATH ${CMAKE_CTEST_COMMAND}
       --build-and-test

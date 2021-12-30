@@ -4,14 +4,18 @@
 
 #include "cmConfigure.h" // IWYU pragma: keep
 
-#include <iosfwd>
 #include <memory>
 #include <string>
 
+#include <cm/optional>
+
+#include "cmGlobalVisualStudio10Generator.h"
 #include "cmGlobalVisualStudio14Generator.h"
+#include "cmGlobalVisualStudioGenerator.h"
 #include "cmVSSetupHelper.h"
 
 class cmGlobalGeneratorFactory;
+class cmMakefile;
 class cmake;
 
 /** \class cmGlobalVisualStudioVersionedGenerator  */
@@ -28,6 +32,8 @@ public:
   bool SetGeneratorInstance(std::string const& i, cmMakefile* mf) override;
 
   bool GetVSInstance(std::string& dir) const;
+
+  cm::optional<std::string> FindMSBuildCommandEarly(cmMakefile* mf) override;
 
   cm::optional<std::string> GetVSInstanceVersion() const override;
 
@@ -61,6 +67,9 @@ protected:
 
   std::string GetWindows10SDKMaxVersionDefault(cmMakefile*) const override;
 
+  virtual bool ProcessGeneratorInstanceField(std::string const& key,
+                                             std::string const& value);
+
   std::string FindMSBuildCommand() override;
   std::string FindDevEnvCommand() override;
 
@@ -72,4 +81,10 @@ private:
   class Factory17;
   friend class Factory17;
   mutable cmVSSetupAPIHelper vsSetupAPIHelper;
+
+  bool ParseGeneratorInstance(std::string const& is, cmMakefile* mf);
+
+  std::string GeneratorInstance;
+  std::string GeneratorInstanceVersion;
+  cm::optional<std::string> LastGeneratorInstanceString;
 };

@@ -5,11 +5,6 @@ Visual Studio 17 2022
 
 Generates Visual Studio 17 (VS 2022) project files.
 
-.. warning::
-
-  This is experimental and based on "Visual Studio 2022 Preview 4".
-  As of this version of CMake, VS 2022 has not been released.
-
 Project Types
 ^^^^^^^^^^^^^
 
@@ -20,18 +15,8 @@ Powershell, Python, etc.) are not supported.
 Instance Selection
 ^^^^^^^^^^^^^^^^^^
 
-VS 2022 supports multiple installations on the same machine.
-The :variable:`CMAKE_GENERATOR_INSTANCE` variable may be set as a
-cache entry containing the absolute path to a Visual Studio instance.
-If the value is not specified explicitly by the user or a toolchain file,
-CMake queries the Visual Studio Installer to locate VS instances, chooses
-one, and sets the variable as a cache entry to hold the value persistently.
-
-When CMake first chooses an instance, if the ``VS170COMNTOOLS`` environment
-variable is set and points to the ``Common7/Tools`` directory within
-one of the instances, that instance will be used.  Otherwise, if more
-than one instance is installed we do not define which one is chosen
-by default.
+VS 2022 supports multiple installations on the same machine.  The
+:variable:`CMAKE_GENERATOR_INSTANCE` variable may be used to select one.
 
 Platform Selection
 ^^^^^^^^^^^^^^^^^^
@@ -51,8 +36,8 @@ name (architecture).  For example:
 Toolset Selection
 ^^^^^^^^^^^^^^^^^
 
-The ``v143`` toolset that comes with VS 17 2022 Preview 4 is selected by
-default.  The :variable:`CMAKE_GENERATOR_TOOLSET` option may be set, perhaps
+The ``v143`` toolset that comes with VS 17 2022 is selected by default.
+The :variable:`CMAKE_GENERATOR_TOOLSET` option may be set, perhaps
 via the :manual:`cmake(1)` ``-T`` option, to specify another toolset.
 
 .. |VS_TOOLSET_HOST_ARCH_DEFAULT| replace::

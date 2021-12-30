@@ -47,7 +47,6 @@
 #include "cmMessageType.h"
 #include "cmNewLineStyle.h"
 #include "cmPolicies.h"
-#include "cmProperty.h"
 #include "cmRange.h"
 #include "cmRuntimeDependencyArchive.h"
 #include "cmState.h"
@@ -55,6 +54,7 @@
 #include "cmSubcommandTable.h"
 #include "cmSystemTools.h"
 #include "cmTimestamp.h"
+#include "cmValue.h"
 #include "cmWorkingDirectory.h"
 #include "cmake.h"
 
@@ -217,7 +217,7 @@ bool HandleReadCommand(std::vector<std::string> const& args,
     char c;
     while ((sizeLimit != 0) && (file.get(c))) {
       char hex[4];
-      sprintf(hex, "%.2x", c & 0xff);
+      snprintf(hex, sizeof(hex), "%.2x", c & 0xff);
       output += hex;
       if (sizeLimit > 0) {
         sizeLimit--;
@@ -640,8 +640,9 @@ bool HandleGlobImpl(std::vector<std::string> const& args, bool recurse,
       case cmPolicies::NEW:
         g.RecurseThroughSymlinksOff();
         break;
-      case cmPolicies::OLD:
       case cmPolicies::WARN:
+        CM_FALLTHROUGH;
+      case cmPolicies::OLD:
         g.RecurseThroughSymlinksOn();
         break;
     }
@@ -1626,8 +1627,9 @@ size_t cmFileCommandCurlDebugCallback(CURL*, curl_infotype type, char* chPtr,
     case CURLINFO_SSL_DATA_IN:
     case CURLINFO_SSL_DATA_OUT: {
       char buf[128];
-      int n = sprintf(buf, "[%" KWIML_INT_PRIu64 " bytes data]\n",
-                      static_cast<KWIML_INT_uint64_t>(size));
+      int n =
+        snprintf(buf, sizeof(buf), "[%" KWIML_INT_PRIu64 " bytes data]\n",
+                 static_cast<KWIML_INT_uint64_t>(size));
       if (n > 0) {
         cm::append(vec, buf, buf + n);
       }
@@ -1766,7 +1768,7 @@ bool HandleDownloadCommand(std::vector<std::string> const& args,
   std::string logVar;
   std::string statusVar;
   bool tls_verify = status.GetMakefile().IsOn("CMAKE_TLS_VERIFY");
-  cmProp cainfo = status.GetMakefile().GetDefinition("CMAKE_TLS_CAINFO");
+  cmValue cainfo = status.GetMakefile().GetDefinition("CMAKE_TLS_CAINFO");
   std::string netrc_level =
     status.GetMakefile().GetSafeDefinition("CMAKE_NETRC");
   std::string netrc_file =
@@ -1821,7 +1823,7 @@ bool HandleDownloadCommand(std::vector<std::string> const& args,
     } else if (*i == "TLS_CAINFO") {
       ++i;
       if (i != args.end()) {
-        cainfo = cmProp(*i);
+        cainfo = cmValue(*i);
       } else {
         status.SetError("DOWNLOAD missing file value for TLS_CAINFO.");
         return false;
@@ -1986,7 +1988,7 @@ bool HandleDownloadCommand(std::vector<std::string> const& args,
 
   // check to see if a CAINFO file has been specified
   // command arg comes first
-  std::string const& cainfo_err = cmCurlSetCAInfo(curl, cmToCStr(cainfo));
+  std::string const& cainfo_err = cmCurlSetCAInfo(curl, cainfo);
   if (!cainfo_err.empty()) {
     status.SetError(cainfo_err);
     return false;
@@ -2152,7 +2154,7 @@ bool HandleUploadCommand(std::vector<std::string> const& args,
   std::string statusVar;
   bool showProgress = false;
   bool tls_verify = status.GetMakefile().IsOn("CMAKE_TLS_VERIFY");
-  cmProp cainfo = status.GetMakefile().GetDefinition("CMAKE_TLS_CAINFO");
+  cmValue cainfo = status.GetMakefile().GetDefinition("CMAKE_TLS_CAINFO");
   std::string userpwd;
   std::string netrc_level =
     status.GetMakefile().GetSafeDefinition("CMAKE_NETRC");
@@ -2205,7 +2207,7 @@ bool HandleUploadCommand(std::vector<std::string> const& args,
     } else if (*i == "TLS_CAINFO") {
       ++i;
       if (i != args.end()) {
-        cainfo = cmProp(*i);
+        cainfo = cmValue(*i);
       } else {
         status.SetError("UPLOAD missing file value for TLS_CAINFO.");
         return false;
@@ -2304,7 +2306,7 @@ bool HandleUploadCommand(std::vector<std::string> const& args,
 
   // check to see if a CAINFO file has been specified
   // command arg comes first
-  std::string const& cainfo_err = cmCurlSetCAInfo(curl, cmToCStr(cainfo));
+  std::string const& cainfo_err = cmCurlSetCAInfo(curl, cainfo);
   if (!cainfo_err.empty()) {
     status.SetError(cainfo_err);
     return false;
@@ -3169,9 +3171,12 @@ bool HandleGetRuntimeDependenciesCommand(std::vector<std::string> const& args,
                             archive.GetUnresolvedPaths().begin(),
                             archive.GetUnresolvedPaths().end());
     } else {
-      auto it = archive.GetUnresolvedPaths().begin();
-      assert(it != archive.GetUnresolvedPaths().end());
-      status.SetError(cmStrCat("Could not resolve file ", *it));
+      std::ostringstream e;
+      e << "Could not resolve runtime dependencies:";
+      for (auto const& path : archive.GetUnresolvedPaths()) {
+        e << "\n  " << path;
+      }
+      status.SetError(e.str());
       cmSystemTools::SetFatalErrorOccured();
       return false;
     }

@@ -261,6 +261,8 @@ set(SRCS
   cmFileLockResult.h
   cmFilePathChecksum.cxx
   cmFilePathChecksum.h
+  cmFileSet.cxx
+  cmFileSet.h
   cmFileTime.cxx
   cmFileTime.h
   cmFileTimeCache.cxx
@@ -316,6 +318,8 @@ set(SRCS
   cmInstallExportGenerator.cxx
   cmInstalledFile.h
   cmInstalledFile.cxx
+  cmInstallFileSetGenerator.h
+  cmInstallFileSetGenerator.cxx
   cmInstallFilesGenerator.h
   cmInstallFilesGenerator.cxx
   cmInstallImportedRuntimeArtifactsGenerator.h
@@ -381,7 +385,8 @@ set(SRCS
   cmProcessOutput.h
   cmProcessTools.cxx
   cmProcessTools.h
-  cmProperty.cxx
+  cmValue.cxx
+  cmValue.h
   cmProperty.h
   cmPropertyDefinition.cxx
   cmPropertyDefinition.h
@@ -1104,7 +1109,6 @@ if(APPLE)
   set(CPACK_SRCS ${CPACK_SRCS}
     CPack/cmCPackBundleGenerator.cxx
     CPack/cmCPackDragNDropGenerator.cxx
-    CPack/cmCPackOSXX11Generator.cxx
     CPack/cmCPackPKGGenerator.cxx
     CPack/cmCPackPackageMakerGenerator.cxx
     CPack/cmCPackProductBuildGenerator.cxx
@@ -1139,13 +1143,6 @@ if(CPACK_ENABLE_FREEBSD_PKG AND FREEBSD_PKG_INCLUDE_DIRS AND FREEBSD_PKG_LIBRARI
   target_link_libraries(CPackLib ${FREEBSD_PKG_LIBRARIES})
   include_directories(${FREEBSD_PKG_INCLUDE_DIRS})
   add_definitions(-DHAVE_FREEBSD_PKG)
-endif()
-
-if(APPLE)
-  add_executable(OSXScriptLauncher
-    CPack/OSXScriptLauncher.cxx)
-  target_link_libraries(OSXScriptLauncher cmsys)
-  target_link_libraries(OSXScriptLauncher "-framework CoreFoundation")
 endif()
 
 # Build CMake executable
