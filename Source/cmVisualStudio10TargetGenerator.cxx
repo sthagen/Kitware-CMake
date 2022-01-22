@@ -235,14 +235,27 @@ static bool cmVS10IsTargetsFile(std::string const& path)
   return cmSystemTools::Strucmp(ext.c_str(), ".targets") == 0;
 }
 
+static VsProjectType computeProjectType(cmGeneratorTarget const* t)
+{
+  if (t->IsCSharpOnly()) {
+    return VsProjectType::csproj;
+  }
+  return VsProjectType::vcxproj;
+}
+
+static std::string computeProjectFileExtension(VsProjectType projectType)
+{
+  switch (projectType) {
+    case VsProjectType::csproj:
+      return ".csproj";
+    default:
+      return ".vcxproj";
+  }
+}
+
 static std::string computeProjectFileExtension(cmGeneratorTarget const* t)
 {
-  std::string res;
-  res = ".vcxproj";
-  if (t->IsCSharpOnly()) {
-    res = ".csproj";
-  }
-  return res;
+  return computeProjectFileExtension(computeProjectType(t));
 }
 
 cmVisualStudio10TargetGenerator::cmVisualStudio10TargetGenerator(
@@ -339,21 +352,18 @@ std::ostream& cmVisualStudio10TargetGenerator::Elem::WriteString(
 
 void cmVisualStudio10TargetGenerator::Generate()
 {
+  this->ProjectType = computeProjectType(this->GeneratorTarget);
+  this->Managed = this->ProjectType == VsProjectType::csproj;
   const std::string ProjectFileExtension =
-    computeProjectFileExtension(this->GeneratorTarget);
-  if (ProjectFileExtension == ".vcxproj") {
-    this->ProjectType = VsProjectType::vcxproj;
-    this->Managed = false;
-  } else if (ProjectFileExtension == ".csproj") {
-    if (this->GeneratorTarget->GetType() == cmStateEnums::STATIC_LIBRARY) {
-      std::string message = "The C# target \"" +
-        this->GeneratorTarget->GetName() +
-        "\" is of type STATIC_LIBRARY. This is discouraged (and may be "
-        "disabled in future). Make it a SHARED library instead.";
-      this->Makefile->IssueMessage(MessageType::DEPRECATION_WARNING, message);
-    }
-    this->ProjectType = VsProjectType::csproj;
-    this->Managed = true;
+    computeProjectFileExtension(this->ProjectType);
+
+  if (this->ProjectType == VsProjectType::csproj &&
+      this->GeneratorTarget->GetType() == cmStateEnums::STATIC_LIBRARY) {
+    std::string message = "The C# target \"" +
+      this->GeneratorTarget->GetName() +
+      "\" is of type STATIC_LIBRARY. This is discouraged (and may be "
+      "disabled in future). Make it a SHARED library instead.";
+    this->Makefile->IssueMessage(MessageType::DEPRECATION_WARNING, message);
   }
 
   if (this->Android &&
@@ -406,7 +416,7 @@ void cmVisualStudio10TargetGenerator::Generate()
   char magic[] = { char(0xEF), char(0xBB), char(0xBF) };
   BuildFileStream.write(magic, 3);
 
-  if (this->Managed && this->ProjectType == VsProjectType::csproj &&
+  if (this->ProjectType == VsProjectType::csproj &&
       this->GeneratorTarget->IsDotNetSdkTarget() &&
       this->GlobalGenerator->GetVersion() >=
         cmGlobalVisualStudioGenerator::VS16) {
@@ -832,7 +842,7 @@ void cmVisualStudio10TargetGenerator::WriteClassicMsBuildProjectFile(
 void cmVisualStudio10TargetGenerator::WriteSdkStyleProjectFile(
   cmGeneratedFileStream& BuildFileStream)
 {
-  if (!this->Managed || this->ProjectType != VsProjectType::csproj ||
+  if (this->ProjectType != VsProjectType::csproj ||
       !this->GeneratorTarget->IsDotNetSdkTarget()) {
     std::string message = "The target \"" + this->GeneratorTarget->GetName() +
       "\" is not eligible for .Net SDK style project.";
@@ -1458,6 +1468,10 @@ void cmVisualStudio10TargetGenerator::WriteMSToolConfigurationValues(
   if (this->IPOEnabledConfigurations.count(config) > 0) {
     e1.Element("WholeProgramOptimization", "true");
   }
+  if (this->ASanEnabledConfigurations.find(config) !=
+      this->ASanEnabledConfigurations.end()) {
+    e1.Element("EnableAsan", "true");
+  }
   {
     auto s = this->SpectreMitigation.find(config);
     if (s != this->SpectreMitigation.end()) {
@@ -1711,11 +1725,7 @@ void cmVisualStudio10TargetGenerator::WriteCustomRule(
         }
       }
     }
-    cmLocalVisualStudioGenerator::IsCSharp isCSharp =
-      (this->ProjectType == VsProjectType::csproj)
-      ? cmLocalVisualStudioGenerator::IsCSharp::Yes
-      : cmLocalVisualStudioGenerator::IsCSharp::No;
-    script += lg->FinishConstructScript(isCSharp);
+    script += lg->FinishConstructScript(this->ProjectType);
     if (this->ProjectType == VsProjectType::csproj) {
       std::string name = "CustomCommand_" + c + "_" +
         cmSystemTools::ComputeStringMD5(sourcePath);
@@ -3067,6 +3077,11 @@ bool cmVisualStudio10TargetGenerator::ComputeClOptions(
   // Put the IPO enabled configurations into a set.
   if (this->GeneratorTarget->IsIPOEnabled(linkLanguage, configName)) {
     this->IPOEnabledConfigurations.insert(configName);
+  }
+
+  // Check if ASan is enabled.
+  if (flags.find("/fsanitize=address") != std::string::npos) {
+    this->ASanEnabledConfigurations.insert(configName);
   }
 
   // Precompile Headers
@@ -4449,11 +4464,7 @@ void cmVisualStudio10TargetGenerator::WriteEvent(
     }
   }
   if (!script.empty()) {
-    cmLocalVisualStudioGenerator::IsCSharp isCSharp =
-      (this->ProjectType == VsProjectType::csproj)
-      ? cmLocalVisualStudioGenerator::IsCSharp::Yes
-      : cmLocalVisualStudioGenerator::IsCSharp::No;
-    script += lg->FinishConstructScript(isCSharp);
+    script += lg->FinishConstructScript(this->ProjectType);
   }
   comment = cmVS10EscapeComment(comment);
   if (this->ProjectType != VsProjectType::csproj) {

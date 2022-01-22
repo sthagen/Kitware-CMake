@@ -29,7 +29,7 @@
 #include "cm_sys_stat.h"
 
 #include "cmCMakePath.h"
-#include "cmCMakePresetsFile.h"
+#include "cmCMakePresetsGraph.h"
 #include "cmCommandLineArgument.h"
 #include "cmCommands.h"
 #include "cmDocumentation.h"
@@ -790,6 +790,7 @@ void cmake::SetArgs(const std::vector<std::string>& args)
   bool haveBArg = false;
   bool scriptMode = false;
   std::string possibleUnknownArg;
+  std::string extraProvidedPath;
 #if !defined(CMAKE_BOOTSTRAP)
   std::string profilingFormat;
   std::string profilingOutput;
@@ -1168,10 +1169,18 @@ void cmake::SetArgs(const std::vector<std::string>& args)
     } else if (!matched && cmHasLiteralPrefix(arg, "-")) {
       possibleUnknownArg = arg;
     } else if (!matched) {
-      this->SetDirectoriesFromFile(arg);
+      bool parsedDirectory = this->SetDirectoriesFromFile(arg);
+      if (!parsedDirectory) {
+        extraProvidedPath = arg;
+      }
     }
   }
 
+  if (!extraProvidedPath.empty() && !scriptMode) {
+    this->IssueMessage(MessageType::WARNING,
+                       cmStrCat("Ignoring extra path from command line:\n ",
+                                extraProvidedPath));
+  }
   if (!possibleUnknownArg.empty() && !scriptMode) {
     cmSystemTools::Error(cmStrCat("Unknown argument ", possibleUnknownArg));
     cmSystemTools::Error("Run 'cmake --help' for all supported options.");
@@ -1239,43 +1248,43 @@ void cmake::SetArgs(const std::vector<std::string>& args)
 
 #if !defined(CMAKE_BOOTSTRAP)
   if (listPresets != ListPresets::None || !presetName.empty()) {
-    cmCMakePresetsFile settingsFile;
-    auto result = settingsFile.ReadProjectPresets(this->GetHomeDirectory());
-    if (result != cmCMakePresetsFile::ReadFileResult::READ_OK) {
+    cmCMakePresetsGraph presetsGraph;
+    auto result = presetsGraph.ReadProjectPresets(this->GetHomeDirectory());
+    if (result != cmCMakePresetsGraph::ReadFileResult::READ_OK) {
       cmSystemTools::Error(
         cmStrCat("Could not read presets from ", this->GetHomeDirectory(),
-                 ": ", cmCMakePresetsFile::ResultToString(result)));
+                 ": ", cmCMakePresetsGraph::ResultToString(result)));
       return;
     }
 
     if (listPresets != ListPresets::None) {
       if (listPresets == ListPresets::Configure) {
-        this->PrintPresetList(settingsFile);
+        this->PrintPresetList(presetsGraph);
       } else if (listPresets == ListPresets::Build) {
-        settingsFile.PrintBuildPresetList();
+        presetsGraph.PrintBuildPresetList();
       } else if (listPresets == ListPresets::Test) {
-        settingsFile.PrintTestPresetList();
+        presetsGraph.PrintTestPresetList();
       } else if (listPresets == ListPresets::All) {
-        settingsFile.PrintAllPresets();
+        presetsGraph.PrintAllPresets();
       }
 
       this->SetWorkingMode(WorkingMode::HELP_MODE);
       return;
     }
 
-    auto preset = settingsFile.ConfigurePresets.find(presetName);
-    if (preset == settingsFile.ConfigurePresets.end()) {
+    auto preset = presetsGraph.ConfigurePresets.find(presetName);
+    if (preset == presetsGraph.ConfigurePresets.end()) {
       cmSystemTools::Error(cmStrCat("No such preset in ",
                                     this->GetHomeDirectory(), ": \"",
                                     presetName, '"'));
-      this->PrintPresetList(settingsFile);
+      this->PrintPresetList(presetsGraph);
       return;
     }
     if (preset->second.Unexpanded.Hidden) {
       cmSystemTools::Error(cmStrCat("Cannot use hidden preset in ",
                                     this->GetHomeDirectory(), ": \"",
                                     presetName, '"'));
-      this->PrintPresetList(settingsFile);
+      this->PrintPresetList(presetsGraph);
       return;
     }
     auto const& expandedPreset = preset->second.Expanded;
@@ -1319,14 +1328,14 @@ void cmake::SetArgs(const std::vector<std::string>& args)
 
     if (!expandedPreset->ArchitectureStrategy ||
         expandedPreset->ArchitectureStrategy ==
-          cmCMakePresetsFile::ArchToolsetStrategy::Set) {
+          cmCMakePresetsGraph::ArchToolsetStrategy::Set) {
       if (!this->GeneratorPlatformSet) {
         this->SetGeneratorPlatform(expandedPreset->Architecture);
       }
     }
     if (!expandedPreset->ToolsetStrategy ||
         expandedPreset->ToolsetStrategy ==
-          cmCMakePresetsFile::ArchToolsetStrategy::Set) {
+          cmCMakePresetsGraph::ArchToolsetStrategy::Set) {
       if (!this->GeneratorToolsetSet) {
         this->SetGeneratorToolset(expandedPreset->Toolset);
       }
@@ -1450,26 +1459,29 @@ void cmake::PrintTraceFormatVersion()
   }
 }
 
-void cmake::SetDirectoriesFromFile(const std::string& arg)
+bool cmake::SetDirectoriesFromFile(const std::string& arg)
 {
   // Check if the argument refers to a CMakeCache.txt or
   // CMakeLists.txt file.
   std::string listPath;
   std::string cachePath;
-  bool argIsFile = false;
+  bool is_empty_directory = false;
   if (cmSystemTools::FileIsDirectory(arg)) {
     std::string path = cmSystemTools::CollapseFullPath(arg);
     cmSystemTools::ConvertToUnixSlashes(path);
     std::string cacheFile = cmStrCat(path, "/CMakeCache.txt");
     std::string listFile = cmStrCat(path, "/CMakeLists.txt");
+
+    is_empty_directory = true;
     if (cmSystemTools::FileExists(cacheFile)) {
       cachePath = path;
+      is_empty_directory = false;
     }
     if (cmSystemTools::FileExists(listFile)) {
       listPath = path;
+      is_empty_directory = false;
     }
   } else if (cmSystemTools::FileExists(arg)) {
-    argIsFile = true;
     std::string fullPath = cmSystemTools::CollapseFullPath(arg);
     std::string name = cmSystemTools::GetFilenameName(fullPath);
     name = cmSystemTools::LowerCase(name);
@@ -1485,7 +1497,6 @@ void cmake::SetDirectoriesFromFile(const std::string& arg)
     std::string name = cmSystemTools::GetFilenameName(fullPath);
     name = cmSystemTools::LowerCase(name);
     if (name == "cmakecache.txt"_s || name == "cmakelists.txt"_s) {
-      argIsFile = true;
       listPath = cmSystemTools::GetFilenamePath(fullPath);
     } else {
       listPath = fullPath;
@@ -1500,42 +1511,56 @@ void cmake::SetDirectoriesFromFile(const std::string& arg)
       if (existingValue) {
         this->SetHomeOutputDirectory(cachePath);
         this->SetHomeDirectory(*existingValue);
-        return;
+        return true;
       }
     }
   }
+
+  bool no_source_tree = this->GetHomeDirectory().empty();
+  bool no_build_tree = this->GetHomeOutputDirectory().empty();
+
+  // When invoked with a path that points to an existing CMakeCache
+  // This function is called multiple times with the same path
+  const bool passed_same_path = (listPath == this->GetHomeDirectory()) ||
+    (listPath == this->GetHomeOutputDirectory());
+  bool used_provided_path =
+    (passed_same_path || no_source_tree || no_build_tree);
 
   // If there is a CMakeLists.txt file, use it as the source tree.
   if (!listPath.empty()) {
-    this->SetHomeDirectory(listPath);
+    // When invoked with a path that points to an existing CMakeCache
+    // This function is called multiple times with the same path
+    if (no_source_tree && no_build_tree) {
+      this->SetHomeDirectory(listPath);
 
-    if (argIsFile) {
-      // Source CMakeLists.txt file given.  It was probably dropped
-      // onto the executable in a GUI.  Default to an in-source build.
+      std::string cwd = cmSystemTools::GetCurrentWorkingDirectory();
+      this->SetHomeOutputDirectory(cwd);
+    } else if (no_source_tree) {
+      this->SetHomeDirectory(listPath);
+    } else if (no_build_tree) {
       this->SetHomeOutputDirectory(listPath);
-    } else {
-      // Source directory given on command line.  Use current working
-      // directory as build tree if -B hasn't been given already
-      if (this->GetHomeOutputDirectory().empty()) {
-        std::string cwd = cmSystemTools::GetCurrentWorkingDirectory();
-        this->SetHomeOutputDirectory(cwd);
-      }
     }
-    return;
+  } else {
+    if (no_source_tree) {
+      // We didn't find a CMakeLists.txt and it wasn't specified
+      // with -S. Assume it is the path to the source tree
+      std::string full = cmSystemTools::CollapseFullPath(arg);
+      this->SetHomeDirectory(full);
+    }
+    if (no_build_tree && !no_source_tree && is_empty_directory) {
+      // passed `-S <path> <build_dir> when build_dir is an empty directory
+      std::string full = cmSystemTools::CollapseFullPath(arg);
+      this->SetHomeOutputDirectory(full);
+    } else if (no_build_tree) {
+      // We didn't find a CMakeCache.txt and it wasn't specified
+      // with -B. Assume the current working directory as the build tree.
+      std::string cwd = cmSystemTools::GetCurrentWorkingDirectory();
+      this->SetHomeOutputDirectory(cwd);
+      used_provided_path = false;
+    }
   }
 
-  if (this->GetHomeDirectory().empty()) {
-    // We didn't find a CMakeLists.txt and it wasn't specified
-    // with -S. Assume it is the path to the source tree
-    std::string full = cmSystemTools::CollapseFullPath(arg);
-    this->SetHomeDirectory(full);
-  }
-  if (this->GetHomeOutputDirectory().empty()) {
-    // We didn't find a CMakeCache.txt and it wasn't specified
-    // with -B. Assume the current working directory as the build tree.
-    std::string cwd = cmSystemTools::GetCurrentWorkingDirectory();
-    this->SetHomeOutputDirectory(cwd);
-  }
+  return used_provided_path;
 }
 
 // at the end of this CMAKE_ROOT and CMAKE_COMMAND should be added to the
@@ -1707,12 +1732,12 @@ bool cmake::CreateAndSetGlobalGenerator(const std::string& name,
 }
 
 #ifndef CMAKE_BOOTSTRAP
-void cmake::PrintPresetList(const cmCMakePresetsFile& file) const
+void cmake::PrintPresetList(const cmCMakePresetsGraph& graph) const
 {
   std::vector<GeneratorInfo> generators;
   this->GetRegisteredGenerators(generators, false);
   auto filter =
-    [&generators](const cmCMakePresetsFile::ConfigurePreset& preset) -> bool {
+    [&generators](const cmCMakePresetsGraph::ConfigurePreset& preset) -> bool {
     if (preset.Generator.empty()) {
       return true;
     }
@@ -1723,7 +1748,7 @@ void cmake::PrintPresetList(const cmCMakePresetsFile& file) const
     return it != generators.end();
   };
 
-  file.PrintConfigurePresetList(filter);
+  graph.PrintConfigurePresetList(filter);
 }
 #endif
 
@@ -3230,12 +3255,12 @@ int cmake::Build(int jobs, std::string dir, std::vector<std::string> targets,
     this->SetHomeDirectory(cmSystemTools::GetCurrentWorkingDirectory());
     this->SetHomeOutputDirectory(cmSystemTools::GetCurrentWorkingDirectory());
 
-    cmCMakePresetsFile settingsFile;
+    cmCMakePresetsGraph settingsFile;
     auto result = settingsFile.ReadProjectPresets(this->GetHomeDirectory());
-    if (result != cmCMakePresetsFile::ReadFileResult::READ_OK) {
+    if (result != cmCMakePresetsGraph::ReadFileResult::READ_OK) {
       cmSystemTools::Error(
         cmStrCat("Could not read presets from ", this->GetHomeDirectory(),
-                 ": ", cmCMakePresetsFile::ResultToString(result)));
+                 ": ", cmCMakePresetsGraph::ResultToString(result)));
       return 1;
     }
 

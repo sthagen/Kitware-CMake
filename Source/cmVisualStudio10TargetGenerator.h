@@ -14,6 +14,7 @@
 #include <vector>
 
 #include "cmGeneratorTarget.h"
+#include "cmVsProjectType.h"
 
 class cmComputeLinkInformation;
 class cmCustomCommand;
@@ -211,11 +212,7 @@ private:
   OptionsMap LinkOptions;
   std::string LangForClCompile;
 
-  enum class VsProjectType
-  {
-    vcxproj,
-    csproj
-  } ProjectType;
+  VsProjectType ProjectType;
   bool InSourceBuild;
   std::vector<std::string> Configurations;
   std::vector<TargetsFileAndConfigs> TargetsFileAndConfigsVec;
@@ -232,6 +229,7 @@ private:
   unsigned int NsightTegraVersion[4];
   bool TargetCompileAsWinRT;
   std::set<std::string> IPOEnabledConfigurations;
+  std::set<std::string> ASanEnabledConfigurations;
   std::map<std::string, std::string> SpectreMitigation;
   cmGlobalVisualStudio10Generator* const GlobalGenerator;
   cmLocalVisualStudio10Generator* const LocalGenerator;
