@@ -78,6 +78,7 @@ public:
 
   static std::string EncodeRuleName(std::string const& name);
   std::string EncodeLiteral(const std::string& lit);
+  void EncodeLiteralInplace(std::string& lit);
   std::string EncodePath(const std::string& path);
 
   std::unique_ptr<cmLinkLineComputer> CreateLinkLineComputer(
@@ -528,6 +529,7 @@ private:
   /// The file containing the build statement. (the relationship of the
   /// compilation DAG).
   std::unique_ptr<cmGeneratedFileStream> BuildFileStream;
+  std::unique_ptr<char[]> BuildFileStreamBuffer;
   /// The file containing the rule statements. (The action attached to each
   /// edge of the compilation DAG).
   std::unique_ptr<cmGeneratedFileStream> RulesFileStream;
