@@ -703,7 +703,8 @@ endif()
 
 add_executable(pseudo_llvm-rc pseudo_llvm-rc.c)
 add_RunCMake_test(CommandLine -DLLVM_RC=$<TARGET_FILE:pseudo_llvm-rc> -DCMAKE_SYSTEM_NAME=${CMAKE_SYSTEM_NAME}
-                  -DCYGWIN=${CYGWIN} -DMSYS=${MSYS} -DPYTHON_EXECUTABLE=${PYTHON_EXECUTABLE})
+                  -DCYGWIN=${CYGWIN} -DMSYS=${MSYS} -DPYTHON_EXECUTABLE=${PYTHON_EXECUTABLE}
+                  -DEXIT_CODE_EXE=$<TARGET_FILE:exit_code>)
 add_RunCMake_test(CommandLineTar)
 
 if(CMAKE_PLATFORM_NO_VERSIONED_SONAME OR (NOT CMAKE_SHARED_LIBRARY_SONAME_FLAG AND NOT CMAKE_SHARED_LIBRARY_SONAME_C_FLAG))
@@ -732,6 +733,9 @@ add_RunCMake_test(CPackConfig)
 add_RunCMake_test(CPackInstallProperties)
 if(XCODE_VERSION)
   set(ExternalProject_ARGS -DXCODE_VERSION=${XCODE_VERSION})
+endif()
+if(CMake_TEST_RunCMake_ExternalProject_DOWNLOAD_SERVER_TIMEOUT)
+  list(APPEND ExternalProject_ARGS -DDOWNLOAD_SERVER_TIMEOUT=${CMake_TEST_RunCMake_ExternalProject_DOWNLOAD_SERVER_TIMEOUT})
 endif()
 add_RunCMake_test(ExternalProject)
 add_RunCMake_test(FetchContent)
@@ -913,6 +917,7 @@ endif()
 add_RunCMake_test("CTestCommandExpandLists")
 
 add_RunCMake_test(PrecompileHeaders -DCMAKE_C_COMPILER_ID=${CMAKE_C_COMPILER_ID}
+  -DCMAKE_C_SIMULATE_ID=${CMAKE_C_SIMULATE_ID}
   -DCMAKE_C_COMPILER_VERSION=${CMAKE_C_COMPILER_VERSION})
 
 add_RunCMake_test("UnityBuild")

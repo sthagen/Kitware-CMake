@@ -61,6 +61,23 @@ if(NOT XCODE_VERSION OR XCODE_VERSION VERSION_LESS 12)
 endif()
 run_steps_CMP0114(NEW)
 
+function(__ep_test_source_dir_change)
+  set(RunCMake_TEST_BINARY_DIR ${RunCMake_BINARY_DIR}/SourceDirChange-build)
+  set(RunCMake_TEST_NO_CLEAN 1)
+  file(REMOVE_RECURSE "${RunCMake_TEST_BINARY_DIR}")
+  file(MAKE_DIRECTORY "${RunCMake_TEST_BINARY_DIR}")
+  run_cmake(SourceDirChange)
+  run_cmake_command(SourceDirChange-build1 ${CMAKE_COMMAND} --build .)
+  # Because some file systems have timestamps with only one second resolution,
+  # we have to ensure we don't re-run the configure stage too quickly after the
+  # first build. Otherwise, the modified RepositoryInfo.txt files the next
+  # configure writes might still have the same timestamp as the previous one.
+  execute_process(COMMAND ${CMAKE_COMMAND} -E sleep 1.125)
+  run_cmake_command(SourceDirChange-change ${CMAKE_COMMAND} -DSOURCE_DIR_CHANGE=YES .)
+  run_cmake_command(SourceDirChange-build2 ${CMAKE_COMMAND} --build .)
+endfunction()
+__ep_test_source_dir_change()
+
 # Run both cmake and build steps. We always do a clean before the
 # build to ensure that the download step re-runs each time.
 function(__ep_test_with_build testName)
@@ -88,12 +105,15 @@ function(__ep_test_with_build_with_server testName)
   if(EXISTS "${URL_FILE}")
     file(REMOVE "${URL_FILE}")
   endif()
+  if(NOT DOWNLOAD_SERVER_TIMEOUT)
+    set(DOWNLOAD_SERVER_TIMEOUT 30)
+  endif()
   execute_process(
     COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_LIST_DIR}/DownloadServer.py --file "${URL_FILE}" ${ARGN}
     OUTPUT_FILE ${RunCMake_BINARY_DIR}/${testName}-python.txt
     ERROR_FILE ${RunCMake_BINARY_DIR}/${testName}-python.txt
     RESULT_VARIABLE result
-    TIMEOUT 30
+    TIMEOUT "${DOWNLOAD_SERVER_TIMEOUT}"
     )
   if(NOT result EQUAL 0)
     message(FATAL_ERROR "Failed to start download server:\n  ${result}")
