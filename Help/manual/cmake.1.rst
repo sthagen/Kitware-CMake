@@ -250,16 +250,17 @@ Options
  See also the :variable:`CMAKE_FIND_DEBUG_MODE` variable for debugging
  a more local part of the project.
 
-``--debug-find=<pkg>[,...]``
+``--debug-find-pkg=<pkg>[,...]``
  Put cmake find commands in a debug mode when running under calls
- to ``find_package(<pkg>)``, where ``<pkg>`` is an entry in the given
- comma-separated list of case-sensitive package names.
+ to :command:`find_package(\<pkg\>) <find_package>`, where ``<pkg>``
+ is an entry in the given comma-separated list of case-sensitive package
+ names.
 
  Like ``--debug-find``, but limiting scope to the specified packages.
 
 ``--debug-find-var=<var>[,...]``
  Put cmake find commands in a debug mode when called with ``<var>``
- as the return variable, where ``<var>`` is an entry in the given
+ as the result variable, where ``<var>`` is an entry in the given
  comma-separated list.
 
  Like ``--debug-find``, but limiting scope to the specified variable names.
@@ -298,7 +299,8 @@ Options
          "cmd": "add_executable",
          "args": ["foo", "bar"],
          "time": 1579512535.9687231,
-         "frame": 2
+         "frame": 2,
+         "global_frame": 4
        }
 
      The members are:
@@ -308,7 +310,13 @@ Options
        was called.
 
      ``line``
-       The line in ``file`` of the function call.
+       The line in ``file`` where the function call begins.
+
+     ``line_end``
+       If the function call spans multiple lines, this field will
+       be set to the line where the function call ends. If the function
+       calls spans a single line, this field will be unset. This field
+       was added in minor version 2 of the ``json-v1`` format.
 
      ``defer``
        Optional member that is present when the function call was deferred
@@ -325,7 +333,13 @@ Options
        Timestamp (seconds since epoch) of the function call.
 
      ``frame``
-       Stack frame depth of the function that was called.
+       Stack frame depth of the function that was called, within the
+       context of the  ``CMakeLists.txt`` being processed currently.
+
+     ``global_frame``
+       Stack frame depth of the function that was called, tracked globally
+       across all ``CMakeLists.txt`` files involved in the trace. This field
+       was added in minor version 2 of the ``json-v1`` format.
 
      Additionally, the first JSON document outputted contains the
      ``version`` key for the current major and minor version of the
@@ -337,7 +351,7 @@ Options
        {
          "version": {
            "major": 1,
-           "minor": 1
+           "minor": 2
          }
        }
 
@@ -466,21 +480,20 @@ following options:
 ``--resolve-package-references=<on|off|only>``
   .. versionadded:: 3.23
 
-  Resolve remote package references (e.g. NuGet packages) before build.
-  When set to ``on`` (default), packages will be restored before building a
-  target. When set to ``only``, the packages will be restored, but no build
-  will be performed. When set to ``off``, no packages will be restored.
+  Resolve remote package references from external package managers (e.g. NuGet)
+  before build. When set to ``on`` (default), packages will be restored before
+  building a target. When set to ``only``, the packages will be restored, but no
+  build will be performed. When set to ``off``, no packages will be restored.
 
-  If the target does not define any package references, this option does
-  nothing.
+  If the target does not define any package references, this option does nothing.
 
   This setting can be specified in a build preset (using
-  ``resolvePackageReferences``). In this case, the command line option will
-  be ignored.
+  ``resolvePackageReferences``). The preset setting will be ignored, if this
+  command line option is specified.
 
-  If the no command line parameter or preset option is not provided, an
-  environment-specific cache variable will be evaluated to decide, if package
-  restoration should be performed.
+  If no command line parameter or preset option are provided, an environment-
+  specific cache variable will be evaluated to decide, if package restoration
+  should be performed.
 
   When using the Visual Studio generator, package references are defined
   using the :prop_tgt:`VS_PACKAGE_REFERENCES` property. Package references

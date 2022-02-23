@@ -308,6 +308,8 @@ Properties on Targets
    /prop_tgt/LINK_INTERFACE_MULTIPLICITY_CONFIG
    /prop_tgt/LINK_LIBRARIES
    /prop_tgt/LINK_LIBRARIES_ONLY_TARGETS
+   /prop_tgt/LINK_LIBRARY_OVERRIDE
+   /prop_tgt/LINK_LIBRARY_OVERRIDE_LIBRARY
    /prop_tgt/LINK_OPTIONS
    /prop_tgt/LINK_SEARCH_END_STATIC
    /prop_tgt/LINK_SEARCH_START_STATIC
@@ -402,6 +404,7 @@ Properties on Targets
    /prop_tgt/VS_JUST_MY_CODE_DEBUGGING
    /prop_tgt/VS_KEYWORD
    /prop_tgt/VS_MOBILE_EXTENSIONS_VERSION
+   /prop_tgt/VS_NO_COMPILE_BATCHING
    /prop_tgt/VS_NO_SOLUTION_DEPLOY
    /prop_tgt/VS_PACKAGE_REFERENCES
    /prop_tgt/VS_PLATFORM_TOOLSET

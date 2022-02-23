@@ -84,7 +84,8 @@ endif()
 
 # Test MSVC for older host CMake versions, and test
 # WIN32/CMAKE_C_COMPILER_ID to fix check on Intel for Windows.
-if(MSVC OR (WIN32 AND CMAKE_C_COMPILER_ID MATCHES "MSVC|Intel"))
+if(MSVC OR (WIN32 AND CMAKE_C_COMPILER_ID MATCHES "MSVC|Intel")
+   OR (WIN32 AND CMAKE_C_COMPILER_ID MATCHES "Clang" AND CMAKE_C_SIMULATE_ID MATCHES "MSVC"))
   set(LINKER_SUPPORTS_PDB 1)
 else()
   set(LINKER_SUPPORTS_PDB 0)
@@ -312,6 +313,7 @@ add_RunCMake_test(GenEx-LINK_LANGUAGE)
 add_RunCMake_test(GenEx-LINK_LANG_AND_ID)
 add_RunCMake_test(GenEx-HOST_LINK)
 add_RunCMake_test(GenEx-DEVICE_LINK)
+add_RunCMake_test(GenEx-LINK_LIBRARY)
 add_RunCMake_test(GenEx-TARGET_FILE -DLINKER_SUPPORTS_PDB=${LINKER_SUPPORTS_PDB})
 add_RunCMake_test(GenEx-GENEX_EVAL)
 add_RunCMake_test(GenEx-TARGET_RUNTIME_DLLS)
@@ -584,12 +586,16 @@ if(NOT WIN32
   add_RunCMake_test(SymlinkTrees)
 endif ()
 
-find_package(Qt4 QUIET)
-find_package(Qt5Core QUIET)
-if (QT4_FOUND AND Qt5Core_FOUND AND NOT Qt5Core_VERSION VERSION_LESS 5.1.0)
+if(CMake_TEST_Qt4)
+  find_package(Qt4 QUIET)
+endif()
+if(CMake_TEST_Qt5)
+  find_package(Qt5Core QUIET)
+endif()
+if (CMake_TEST_Qt4 AND CMake_TEST_Qt5 AND QT4_FOUND AND Qt5Core_FOUND AND NOT Qt5Core_VERSION VERSION_LESS 5.1.0)
   add_RunCMake_test(IncompatibleQt)
 endif()
-if (QT4_FOUND)
+if (CMake_TEST_Qt4 AND QT4_FOUND)
   add_RunCMake_test(ObsoleteQtMacros -DQT_QMAKE_EXECUTABLE:FILEPATH=${QT_QMAKE_EXECUTABLE})
 endif()
 
@@ -652,6 +658,18 @@ add_RunCMake_test(target_link_libraries)
 add_RunCMake_test(target_link_libraries-ALIAS)
 add_RunCMake_test(target_link_libraries-LINK_LANGUAGE)
 add_RunCMake_test(target_link_libraries-LINK_LANG_AND_ID)
+add_RunCMake_test(target_link_libraries-LINK_LIBRARY -DCMAKE_SYSTEM_NAME=${CMAKE_SYSTEM_NAME}
+                                                     -DMINGW=${MINGW}
+                                                     -DMSYS=${MSYS}
+                                                     -DCYGWIN=${CYGWIN}
+                                                     -DCMAKE_C_COMPILER_ID=${CMAKE_C_COMPILER_ID}
+                                                     -DCMAKE_C_COMPILER_VERSION=${CMAKE_C_COMPILER_VERSION}
+                                                     -DMSVC_VERSION=${MSVC_VERSION}
+                                                     -DCMAKE_SHARED_LIBRARY_PREFIX=${CMAKE_SHARED_LIBRARY_PREFIX}
+                                                     -DCMAKE_SHARED_LIBRARY_SUFFIX=${CMAKE_SHARED_LIBRARY_SUFFIX}
+                                                     -DCMAKE_IMPORT_LIBRARY_PREFIX=${CMAKE_IMPORT_LIBRARY_PREFIX}
+                                                     -DCMAKE_IMPORT_LIBRARY_SUFFIX=${CMAKE_IMPORT_LIBRARY_SUFFIX}
+                                                     -DCMAKE_LINK_LIBRARY_FLAG=${CMAKE_LINK_LIBRARY_FLAG})
 add_RunCMake_test(add_link_options -DCMAKE_C_COMPILER_ID=${CMAKE_C_COMPILER_ID})
 add_RunCMake_test(target_link_options -DCMAKE_C_COMPILER_ID=${CMAKE_C_COMPILER_ID}
                                       -DCMake_TEST_CUDA=${CMake_TEST_CUDA})

@@ -3456,12 +3456,10 @@ void cmGeneratorTarget::AddCUDAArchitectureFlags(std::string& flags) const
         cmSystemTools::OP_GREATER_EQUAL,
         this->Makefile->GetDefinition("CMAKE_CUDA_COMPILER_VERSION"),
         "11.5")) {
-    if (property == "all") {
-      flags += " -arch=all";
-    } else if (property == "all-major") {
-      flags += " -arch=all-major";
+    if (property == "all" || property == "all-major") {
+      flags = cmStrCat(flags, " -arch=", property);
+      return;
     }
-    return;
   }
 
   if (property == "all") {
@@ -4629,7 +4627,8 @@ std::vector<BT<std::string>> cmGeneratorTarget::GetLinkOptions(
 }
 
 std::vector<BT<std::string>>& cmGeneratorTarget::ResolveLinkerWrapper(
-  std::vector<BT<std::string>>& result, const std::string& language) const
+  std::vector<BT<std::string>>& result, const std::string& language,
+  bool joinItems) const
 {
   // replace "LINKER:" prefixed elements by actual linker wrapper
   const std::string wrapper(this->Makefile->GetSafeDefinition(
@@ -4688,7 +4687,14 @@ std::vector<BT<std::string>>& cmGeneratorTarget::ResolveLinkerWrapper(
 
     std::vector<BT<std::string>> options = wrapOptions(
       linkerOptions, bt, wrapperFlag, wrapperSep, concatFlagAndArgs);
-    result.insert(entry, options.begin(), options.end());
+    if (joinItems) {
+      result.insert(entry,
+                    cmJoin(cmRange<decltype(options.cbegin())>(
+                             options.cbegin(), options.cend()),
+                           " "_s));
+    } else {
+      result.insert(entry, options.begin(), options.end());
+    }
   }
   return result;
 }
@@ -6381,7 +6387,8 @@ bool cmGeneratorTarget::VerifyLinkItemIsTarget(LinkItemRole role,
   std::string const& str = item.AsStr();
   if (!str.empty() &&
       (str[0] == '-' || str[0] == '$' || str[0] == '`' ||
-       str.find_first_of("/\\") != std::string::npos)) {
+       str.find_first_of("/\\") != std::string::npos ||
+       cmHasPrefix(str, "<LINK_LIBRARY:"_s))) {
     return true;
   }
 

@@ -787,6 +787,7 @@ public:
   cmValue GetProperty(const std::string& prop, bool chain) const;
   bool GetPropertyAsBool(const std::string& prop) const;
   std::vector<std::string> GetPropertyKeys() const;
+  void CheckProperty(const std::string& prop) const;
 
   //! Initialize a makefile from its parent
   void InitializeFromParent(cmMakefile* parent);
@@ -930,6 +931,18 @@ public:
   // Maintain a stack of package roots to allow nested PACKAGE_ROOT_PATH
   // searches
   std::deque<std::vector<std::string>> FindPackageRootPathStack;
+
+  class DebugFindPkgRAII
+  {
+    cmMakefile* Makefile;
+    bool OldValue;
+
+  public:
+    DebugFindPkgRAII(cmMakefile* mf, std::string const& pkg);
+    ~DebugFindPkgRAII();
+  };
+
+  bool GetDebugFindPkgMode() const;
 
   void MaybeWarnCMP0074(std::string const& pkg);
   void MaybeWarnUninitialized(std::string const& variable,
@@ -1103,6 +1116,8 @@ private:
 
   std::vector<BT<GeneratorAction>> GeneratorActions;
   bool GeneratorActionsInvoked = false;
+
+  bool DebugFindPkg = false;
 
   bool CheckSystemVars;
   bool CheckCMP0000;

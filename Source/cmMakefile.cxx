@@ -291,6 +291,9 @@ void cmMakefile::PrintCommandTrace(
       builder["indentation"] = "";
       val["file"] = full_path;
       val["line"] = static_cast<Json::Value::Int64>(lff.Line());
+      if (lff.Line() != lff.LineEnd()) {
+        val["line_end"] = static_cast<Json::Value::Int64>(lff.LineEnd());
+      }
       if (deferId) {
         val["defer"] = *deferId;
       }
@@ -302,6 +305,8 @@ void cmMakefile::PrintCommandTrace(
       val["time"] = cmSystemTools::GetTime();
       val["frame"] =
         static_cast<Json::Value::UInt64>(this->ExecutionStatusStack.size());
+      val["global_frame"] =
+        static_cast<Json::Value::UInt64>(this->RecursionDepth);
       msg << Json::writeString(builder, val);
 #endif
       break;
@@ -1662,6 +1667,7 @@ void cmMakefile::Configure()
         "the first line.",
         this->Backtrace);
       cmListFileFunction project{ "project",
+                                  0,
                                   0,
                                   { { "Project", cmListFileArgument::Unquoted,
                                       0 },
@@ -3976,6 +3982,31 @@ std::vector<std::string> cmMakefile::GetPropertyKeys() const
   return this->StateSnapshot.GetDirectory().GetPropertyKeys();
 }
 
+void cmMakefile::CheckProperty(const std::string& prop) const
+{
+  // Certain properties need checking.
+  if (prop == "LINK_LIBRARIES") {
+    if (cmValue value = this->GetProperty(prop)) {
+      // Look for <LINK_LIBRARY:> internal pattern
+      static cmsys::RegularExpression linkLibrary(
+        "(^|;)(</?LINK_LIBRARY:[^;>]*>)(;|$)");
+      if (!linkLibrary.find(value)) {
+        return;
+      }
+
+      // Report an error.
+      this->IssueMessage(
+        MessageType::FATAL_ERROR,
+        cmStrCat(
+          "Property ", prop, " contains the invalid item \"",
+          linkLibrary.match(2), "\". The ", prop,
+          " property may contain the generator-expression "
+          "\"$<LINK_LIBRARY:...>\" "
+          "which may be used to specify how the libraries are linked."));
+    }
+  }
+}
+
 cmTarget* cmMakefile::FindLocalNonAliasTarget(const std::string& name) const
 {
   auto i = this->Targets.find(name);
@@ -4520,4 +4551,23 @@ cmMakefile::MacroPushPop::MacroPushPop(cmMakefile* mf,
 cmMakefile::MacroPushPop::~MacroPushPop()
 {
   this->Makefile->PopMacroScope(this->ReportError);
+}
+
+cmMakefile::DebugFindPkgRAII::DebugFindPkgRAII(cmMakefile* mf,
+                                               std::string const& pkg)
+  : Makefile(mf)
+  , OldValue(this->Makefile->DebugFindPkg)
+{
+  this->Makefile->DebugFindPkg =
+    this->Makefile->GetCMakeInstance()->GetDebugFindPkgOutput(pkg);
+}
+
+cmMakefile::DebugFindPkgRAII::~DebugFindPkgRAII()
+{
+  this->Makefile->DebugFindPkg = this->OldValue;
+}
+
+bool cmMakefile::GetDebugFindPkgMode() const
+{
+  return this->DebugFindPkg;
 }

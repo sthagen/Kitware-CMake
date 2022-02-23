@@ -248,6 +248,8 @@ static std::string computeProjectFileExtension(VsProjectType projectType)
   switch (projectType) {
     case VsProjectType::csproj:
       return ".csproj";
+    case VsProjectType::proj:
+      return ".proj";
     default:
       return ".vcxproj";
   }
@@ -681,6 +683,8 @@ void cmVisualStudio10TargetGenerator::WriteClassicMsBuildProjectFile(
           .Attribute("Project", VS10_CSharp_DEFAULT_PROPS)
           .Attribute("Condition", "Exists('" VS10_CSharp_DEFAULT_PROPS "')");
         break;
+      default:
+        break;
     }
 
     this->WriteProjectConfigurationValues(e0);
@@ -737,6 +741,8 @@ void cmVisualStudio10TargetGenerator::WriteClassicMsBuildProjectFile(
         case VsProjectType::csproj:
           props = VS10_CSharp_USER_PROPS;
           break;
+        default:
+          break;
       }
       if (cmValue p = this->GeneratorTarget->GetProperty("VS_USER_PROPS")) {
         props = *p;
@@ -778,6 +784,8 @@ void cmVisualStudio10TargetGenerator::WriteClassicMsBuildProjectFile(
         } else {
           Elem(e0, "Import").Attribute("Project", VS10_CSharp_TARGETS);
         }
+        break;
+      default:
         break;
     }
 
@@ -3057,6 +3065,8 @@ bool cmVisualStudio10TargetGenerator::ComputeClOptions(
         cm::make_unique<Options>(this->LocalGenerator, Options::CSharpCompiler,
                                  gg->GetCSharpFlagTable());
       break;
+    default:
+      break;
   }
   Options& clOptions = *pOptions;
 
@@ -3181,6 +3191,8 @@ bool cmVisualStudio10TargetGenerator::ComputeClOptions(
       cm::erase_if(targetDefines, [](std::string const& def) {
         return def.find('=') != std::string::npos;
       });
+      break;
+    default:
       break;
   }
   clOptions.AddDefines(targetDefines);
@@ -3309,7 +3321,9 @@ void cmVisualStudio10TargetGenerator::WriteClOptions(
   } else if (this->MSTools) {
     cmsys::RegularExpression clangToolset("v[0-9]+_clang_.*");
     const char* toolset = this->GlobalGenerator->GetPlatformToolset();
-    if (toolset && clangToolset.find(toolset)) {
+    cmValue noCompileBatching =
+      this->GeneratorTarget->GetProperty("VS_NO_COMPILE_BATCHING");
+    if (noCompileBatching.IsOn() || (toolset && clangToolset.find(toolset))) {
       e2.Element("ObjectFileName", "$(IntDir)%(filename).obj");
     } else {
       e2.Element("ObjectFileName", "$(IntDir)");
@@ -3688,7 +3702,8 @@ bool cmVisualStudio10TargetGenerator::ComputeCudaLinkOptions(
           this->LocalGenerator->MaybeRelativeToCurBinDir(l.Value.Value);
         ConvertToWindowsSlash(path);
         if (!cmVS10IsTargetsFile(l.Value.Value)) {
-          libVec.push_back(path);
+          libVec.push_back(l.HasFeature() ? l.GetFormattedItem(path).Value
+                                          : path);
         }
       } else {
         libVec.push_back(l.Value.Value);
@@ -4305,6 +4320,9 @@ void cmVisualStudio10TargetGenerator::AddLibraries(
               this->AdditionalUsingDirectories[config].insert(
                 cmSystemTools::GetFilenamePath(location));
               break;
+            default:
+              // In .proj files, we wouldn't be referencing libraries.
+              break;
           }
         }
       }
@@ -4326,7 +4344,8 @@ void cmVisualStudio10TargetGenerator::AddLibraries(
       if (cmVS10IsTargetsFile(l.Value.Value)) {
         vsTargetVec.push_back(path);
       } else {
-        libVec.push_back(path);
+        libVec.push_back(l.HasFeature() ? l.GetFormattedItem(path).Value
+                                        : path);
       }
     } else if (!l.Target ||
                l.Target->GetType() != cmStateEnums::INTERFACE_LIBRARY) {
