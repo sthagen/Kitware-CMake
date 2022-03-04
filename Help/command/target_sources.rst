@@ -68,14 +68,16 @@ File Sets
 .. code-block:: cmake
 
   target_sources(<target>
-    <INTERFACE|PUBLIC|PRIVATE> FILE_SET set1 [TYPE type1] [BASE_DIRS dirs1...] [FILES files1...]
-    [<INTERFACE|PUBLIC|PRIVATE> FILE_SET set2 [TYPE type2] [BASE_DIRS dirs2...] [FILES files2...])
+    [<INTERFACE|PUBLIC|PRIVATE>
+     [FILE_SET <set> [TYPE <type>] [BASE_DIRS <dirs>...] [FILES <files>...]]...
+    ]...)
 
 Adds a file set to a target, or adds files to an existing file set. Targets
 have zero or more named file sets. Each file set has a name, a type, a scope of
 ``INTERFACE``, ``PUBLIC``, or ``PRIVATE``, one or more base directories, and
 files within those directories. The only acceptable type is ``HEADERS``. The
-optional default file sets are named after their type.
+optional default file sets are named after their type. The target may not be a
+custom target.
 
 Files in a ``PRIVATE`` or ``PUBLIC`` file set are marked as source files for
 the purposes of IDE integration. Additionally, files in ``HEADERS`` file sets
@@ -90,7 +92,8 @@ Each ``target_sources(FILE_SET)`` entry starts with ``INTERFACE``, ``PUBLIC``, o
 ``FILE_SET <set>``
 
   A string representing the name of the file set to create or add to. This must
-  not start with a capital letter, unless its name is ``HEADERS``.
+  contain only numbers, letters, and underscores, and must not start with a
+  capital letter or underscore, unless its name is ``HEADERS``.
 
 ``TYPE <type>``
 

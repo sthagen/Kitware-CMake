@@ -3451,22 +3451,22 @@ void cmGeneratorTarget::AddCUDAArchitectureFlags(std::string& flags) const
     this->Makefile->GetSafeDefinition("CMAKE_CUDA_COMPILER_ID");
 
   // Check for special modes: `all`, `all-major`.
-  if (compiler == "NVIDIA" &&
-      cmSystemTools::VersionCompare(
-        cmSystemTools::OP_GREATER_EQUAL,
-        this->Makefile->GetDefinition("CMAKE_CUDA_COMPILER_VERSION"),
-        "11.5")) {
-    if (property == "all" || property == "all-major") {
+  if (property == "all" || property == "all-major") {
+    if (compiler == "NVIDIA" &&
+        cmSystemTools::VersionCompare(
+          cmSystemTools::OP_GREATER_EQUAL,
+          this->Makefile->GetDefinition("CMAKE_CUDA_COMPILER_VERSION"),
+          "11.5")) {
       flags = cmStrCat(flags, " -arch=", property);
       return;
     }
-  }
-
-  if (property == "all") {
-    property = *this->Makefile->GetDefinition("CMAKE_CUDA_ARCHITECTURES_ALL");
-  } else if (property == "all-major") {
-    property =
-      *this->Makefile->GetDefinition("CMAKE_CUDA_ARCHITECTURES_ALL_MAJOR");
+    if (property == "all") {
+      property =
+        *this->Makefile->GetDefinition("CMAKE_CUDA_ARCHITECTURES_ALL");
+    } else if (property == "all-major") {
+      property =
+        *this->Makefile->GetDefinition("CMAKE_CUDA_ARCHITECTURES_ALL_MAJOR");
+    }
   }
 
   struct CudaArchitecture
@@ -6341,7 +6341,8 @@ cm::string_view missingTargetPossibleReasons =
 bool cmGeneratorTarget::VerifyLinkItemColons(LinkItemRole role,
                                              cmLinkItem const& item) const
 {
-  if (item.Target || item.AsStr().find("::") == std::string::npos) {
+  if (item.Target || cmHasPrefix(item.AsStr(), "<LINK_GROUP:"_s) ||
+      item.AsStr().find("::") == std::string::npos) {
     return true;
   }
   MessageType messageType = MessageType::FATAL_ERROR;
@@ -6388,7 +6389,8 @@ bool cmGeneratorTarget::VerifyLinkItemIsTarget(LinkItemRole role,
   if (!str.empty() &&
       (str[0] == '-' || str[0] == '$' || str[0] == '`' ||
        str.find_first_of("/\\") != std::string::npos ||
-       cmHasPrefix(str, "<LINK_LIBRARY:"_s))) {
+       cmHasPrefix(str, "<LINK_LIBRARY:"_s) ||
+       cmHasPrefix(str, "<LINK_GROUP:"_s))) {
     return true;
   }
 

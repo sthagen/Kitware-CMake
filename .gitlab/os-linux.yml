@@ -45,7 +45,7 @@
 ### Debian
 
 .debian10:
-    image: "kitware/cmake:ci-debian10-x86_64-2022-02-21"
+    image: "kitware/cmake:ci-debian10-x86_64-2022-02-25"
 
     variables:
         GIT_CLONE_PATH: "$CI_BUILDS_DIR/cmake ci"
@@ -57,7 +57,7 @@
     variables:
         CMAKE_CONFIGURATION: debian10_iwyu
         CTEST_NO_WARNINGS_ALLOWED: 1
-        CMake_SKIP_INSTALL: 1
+        CMAKE_CI_NO_INSTALL: 1
 
 .debian10_aarch64:
     image: "kitware/cmake:ci-debian10-aarch64-2022-02-21"
@@ -83,7 +83,7 @@
     variables:
         CMAKE_CONFIGURATION: fedora35_tidy
         CTEST_NO_WARNINGS_ALLOWED: 1
-        CMake_SKIP_INSTALL: 1
+        CMAKE_CI_NO_INSTALL: 1
 
 .fedora35_clang_analyzer:
     extends: .fedora35
@@ -92,7 +92,7 @@
         CMAKE_CONFIGURATION: fedora35_clang_analyzer
         CMAKE_CI_BUILD_TYPE: Debug
         CTEST_NO_WARNINGS_ALLOWED: 1
-        CMake_SKIP_INSTALL: 1
+        CMAKE_CI_NO_INSTALL: 1
 
 .fedora35_sphinx:
     extends: .fedora35
@@ -101,7 +101,7 @@
         CMAKE_CONFIGURATION: fedora35_sphinx
         CTEST_NO_WARNINGS_ALLOWED: 1
         CTEST_SOURCE_SUBDIRECTORY: "Utilities/Sphinx"
-        CMake_SKIP_INSTALL: 1
+        CMAKE_CI_NO_INSTALL: 1
 
 .fedora35_sphinx_package:
     extends: .fedora35
@@ -124,6 +124,17 @@
 
     variables:
         CMAKE_CONFIGURATION: debian10_aarch64_ninja
+        CTEST_NO_WARNINGS_ALLOWED: 1
+
+.debian10_makefiles_inplace:
+    extends: .debian10
+
+    variables:
+        CMAKE_CONFIGURATION: debian10_makefiles_inplace
+        CMAKE_GENERATOR: "Unix Makefiles"
+        CMAKE_CI_BOOTSTRAP: 1
+        CMAKE_CI_INPLACE: 1
+        CMAKE_CI_NO_INSTALL: 1
         CTEST_NO_WARNINGS_ALLOWED: 1
 
 .fedora35_ninja:
@@ -244,6 +255,28 @@
 
     variables:
         CMAKE_CONFIGURATION: cuda10.2_clang
+        CTEST_NO_WARNINGS_ALLOWED: 1
+
+.cuda11.6:
+    image: "kitware/cmake:ci-cuda11.6-x86_64-2022-02-28"
+
+    variables:
+        GIT_CLONE_PATH: "$CI_BUILDS_DIR/cmake ci"
+        CMAKE_ARCH: x86_64
+        CTEST_LABELS: "CUDA"
+
+.cuda11.6_nvidia:
+    extends: .cuda11.6
+
+    variables:
+        CMAKE_CONFIGURATION: cuda11.6_nvidia
+        CTEST_NO_WARNINGS_ALLOWED: 1
+
+.cuda11.6_clang:
+    extends: .cuda11.6
+
+    variables:
+        CMAKE_CONFIGURATION: cuda11.6_clang
         CTEST_NO_WARNINGS_ALLOWED: 1
 
 ### HIP builds
@@ -429,6 +462,19 @@
 
     interruptible: true
 
+.cmake_build_linux_standalone:
+    stage: build
+
+    script:
+        - *before_script_linux
+        - .gitlab/ci/sccache.sh
+        - sccache --start-server
+        - sccache --show-stats
+        - "$LAUNCHER ctest --output-on-failure -V -S .gitlab/ci/ctest_standalone.cmake"
+        - sccache --show-stats
+
+    interruptible: true
+
 .cmake_test_linux_release:
     stage: test-ext
 
@@ -440,7 +486,7 @@
         - .gitlab/ci/sccache.sh
         - sccache --start-server
         - sccache --show-stats
-        - "$LAUNCHER build/install/bin/ctest --output-on-failure -V -S .gitlab/ci/ctest_test_external.cmake"
+        - "$LAUNCHER build/install/bin/ctest --output-on-failure -V -S .gitlab/ci/ctest_standalone.cmake"
         - sccache --show-stats
 
     interruptible: true
@@ -453,7 +499,7 @@
         - .gitlab/ci/sccache.sh
         - sccache --start-server
         - sccache --show-stats
-        - "$LAUNCHER build/install/bin/ctest --output-on-failure -V -S .gitlab/ci/ctest_test_external.cmake"
+        - "$LAUNCHER build/install/bin/ctest --output-on-failure -V -S .gitlab/ci/ctest_standalone.cmake"
         - sccache --show-stats
 
     interruptible: true
