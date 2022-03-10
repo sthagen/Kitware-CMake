@@ -42,7 +42,7 @@ The root object recognizes the following fields:
 ``version``
 
   A required integer representing the version of the JSON schema.
-  The supported versions are ``1``, ``2``, ``3``, and ``4``.
+  The supported versions are ``1``, ``2``, ``3``, ``4``, and ``5``.
 
 ``cmakeMinimumRequired``
 
@@ -715,6 +715,12 @@ that may contain the following fields:
     bytes. Equivalent to passing ``--test-output-size-failed`` on the
     command line.
 
+  ``testOutputTruncation``
+
+    An optional string specifying the test output truncation mode. Equivalent
+    to passing ``--test-output-truncation`` on the command line."
+    This is allowed in preset files specifying version ``5`` or above.
+
   ``maxTestNameWidth``
 
     An optional integer specifying the maximum width of a test name to
@@ -1052,6 +1058,11 @@ Recognized macros include:
   The name of the host operating system. Contains the same value as
   :variable:`CMAKE_HOST_SYSTEM_NAME`. This is allowed in preset files
   specifying version ``3`` or above.
+
+``${fileDir}``
+
+  Path to the directory containing the preset file which contains the macro.
+  This is allowed in preset files specifying version ``4`` or above.
 
 ``${dollar}``
 
