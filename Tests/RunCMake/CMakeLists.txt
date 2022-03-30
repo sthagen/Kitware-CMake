@@ -142,6 +142,14 @@ if (CMAKE_SYSTEM_NAME MATCHES "(Linux|Darwin)")
 endif()
 add_RunCMake_test(CMP0126)
 
+if("${CMAKE_C_COMPILER_ID}" STREQUAL "LCC" OR
+   "${CMAKE_CXX_COMPILER_ID}" STREQUAL "LCC" OR
+   "${CMAKE_Fortran_COMPILER_ID}" STREQUAL "LCC")
+  add_RunCMake_test("CMP0129")
+endif()
+
+add_RunCMake_test(CMP0132)
+
 # The test for Policy 65 requires the use of the
 # CMAKE_SHARED_LIBRARY_LINK_CXX_FLAGS variable, which both the VS and Xcode
 # generators ignore.  The policy will have no effect on those generators.
@@ -803,6 +811,7 @@ if(CMake_TEST_FindMatlab OR CMake_TEST_FindMatlab_MCR OR (NOT "${CMake_TEST_Find
     endif()
 
   add_RunCMake_test(FindMatlab ${FindMatlab_additional_test_options})
+  set_property(TEST RunCMake.FindMatlab APPEND PROPERTY LABELS "Matlab")
 endif()
 
 add_executable(pseudo_emulator pseudo_emulator.c)
@@ -969,14 +978,12 @@ add_RunCMake_test(CMakePresetsTest
   -DCMake_TEST_JSON_SCHEMA=${CMake_TEST_JSON_SCHEMA}
   )
 
+add_RunCMake_test(VerifyHeaderSets)
+
 if(${CMAKE_GENERATOR} MATCHES "Make|Ninja")
   add_RunCMake_test(TransformDepfile)
 endif()
 
 if(WIN32)
   add_RunCMake_test(Win32GenEx)
-endif()
-
-if("${CMAKE_C_COMPILER_ID}" STREQUAL "LCC" OR "${CMAKE_CXX_COMPILER_ID}" STREQUAL "LCC" OR "${CMAKE_Fortran_COMPILER_ID}" STREQUAL "LCC")
-  add_RunCMake_test("CMP0129")
 endif()

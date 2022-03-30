@@ -197,6 +197,13 @@ Options
 
 .. include:: OPTIONS_BUILD.txt
 
+``--fresh``
+ .. versionadded:: 3.24
+
+ Perform a fresh configuration of the build tree.
+ This removes any existing ``CMakeCache.txt`` file and associated
+ ``CMakeFiles/`` directory, and recreates them from scratch.
+
 ``-L[A][H]``
  List non-advanced cached variables.
 
@@ -947,6 +954,12 @@ Available commands are:
     .. versionadded:: 3.1
 
     Specify modification time recorded in tarball entries.
+
+  ``--touch``
+    .. versionadded:: 3.24
+
+    Use current local timestamp instead of extracting file timestamps
+    from the archive.
 
   ``--``
     .. versionadded:: 3.1

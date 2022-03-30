@@ -759,7 +759,9 @@ void cmGlobalGenerator::EnableLanguage(
       needTestLanguage[lang] = true;
       // Some generators like visual studio should not use the env variables
       // So the global generator can specify that in this variable
-      if (!mf->GetDefinition("CMAKE_GENERATOR_NO_COMPILER_ENV")) {
+      if ((mf->GetPolicyStatus(cmPolicies::CMP0132) == cmPolicies::OLD ||
+           mf->GetPolicyStatus(cmPolicies::CMP0132) == cmPolicies::WARN) &&
+          !mf->GetDefinition("CMAKE_GENERATOR_NO_COMPILER_ENV")) {
         // put ${CMake_(LANG)_COMPILER_ENV_VAR}=${CMAKE_(LANG)_COMPILER
         // into the environment, in case user scripts want to run
         // configure, or sub cmakes
@@ -1499,6 +1501,11 @@ bool cmGlobalGenerator::Compute()
     return false;
   }
 
+  // Iterate through all targets and add verification targets for header sets
+  if (!this->AddHeaderSetVerification()) {
+    return false;
+  }
+
   // Iterate through all targets and set up AUTOMOC, AUTOUIC and AUTORCC
   if (!this->QtAutoGen()) {
     return false;
@@ -1718,6 +1725,27 @@ bool cmGlobalGenerator::QtAutoGen()
 #else
   return true;
 #endif
+}
+
+bool cmGlobalGenerator::AddHeaderSetVerification()
+{
+  for (auto const& gen : this->LocalGenerators) {
+    // Because AddHeaderSetVerification() adds generator targets, we need to
+    // cache the existing list of generator targets before starting.
+    std::vector<cmGeneratorTarget*> genTargets;
+    genTargets.reserve(gen->GetGeneratorTargets().size());
+    for (auto const& tgt : gen->GetGeneratorTargets()) {
+      genTargets.push_back(tgt.get());
+    }
+
+    for (auto* tgt : genTargets) {
+      if (!tgt->AddHeaderSetVerification()) {
+        return false;
+      }
+    }
+  }
+
+  return true;
 }
 
 bool cmGlobalGenerator::AddAutomaticSources()

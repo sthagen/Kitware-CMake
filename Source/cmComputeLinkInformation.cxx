@@ -803,7 +803,9 @@ bool cmComputeLinkInformation::AddLibraryFeature(std::string const& feature)
     cmStrCat("CMAKE_", this->LinkLanguage, "_LINK_LIBRARY_USING_", feature);
   cmValue featureSupported =
     this->Makefile->GetDefinition(cmStrCat(featureName, "_SUPPORTED"));
-  if (!featureSupported.IsOn()) {
+  if (!featureSupported) {
+    // language specific variable is not defined, fallback to the more generic
+    // one
     featureName = cmStrCat("CMAKE_LINK_LIBRARY_USING_", feature);
     featureSupported =
       this->Makefile->GetDefinition(cmStrCat(featureName, "_SUPPORTED"));
@@ -965,7 +967,9 @@ cmComputeLinkInformation::GetGroupFeature(std::string const& feature)
     cmStrCat("CMAKE_", this->LinkLanguage, "_LINK_GROUP_USING_", feature);
   cmValue featureSupported =
     this->Makefile->GetDefinition(cmStrCat(featureName, "_SUPPORTED"));
-  if (!featureSupported.IsOn()) {
+  if (!featureSupported) {
+    // language specific variable is not defined, fallback to the more generic
+    // one
     featureName = cmStrCat("CMAKE_LINK_GROUP_USING_", feature);
     featureSupported =
       this->Makefile->GetDefinition(cmStrCat(featureName, "_SUPPORTED"));
@@ -1551,8 +1555,7 @@ void cmComputeLinkInformation::AddTargetItem(LinkEntry const& entry)
     this->AddLibraryFeature("FRAMEWORK");
   }
 
-  if (cmHasSuffix(entry.Feature, "FRAMEWORK"_s) &&
-      target->IsFrameworkOnApple() && !this->GlobalGenerator->IsXcode()) {
+  if (target->IsFrameworkOnApple() && !this->GlobalGenerator->IsXcode()) {
     // Add the framework directory and the framework item itself
     auto fwItems = this->GlobalGenerator->SplitFrameworkPath(item.Value, true);
     if (!fwItems) {
@@ -1567,8 +1570,15 @@ void cmComputeLinkInformation::AddTargetItem(LinkEntry const& entry)
       // Add the directory portion to the framework search path.
       this->AddFrameworkPath(fwItems->first);
     }
-    this->Items.emplace_back(fwItems->second, ItemIsPath::Yes, target,
-                             this->FindLibraryFeature(entry.Feature));
+    if (cmHasSuffix(entry.Feature, "FRAMEWORK"_s)) {
+      this->Items.emplace_back(fwItems->second, ItemIsPath::Yes, target,
+                               this->FindLibraryFeature(entry.Feature));
+    } else {
+      this->Items.emplace_back(
+        item, ItemIsPath::Yes, target,
+        this->FindLibraryFeature(
+          entry.Feature == DEFAULT ? "__CMAKE_LINK_LIBRARY" : entry.Feature));
+    }
   } else {
     // Now add the full path to the library.
     this->Items.emplace_back(
