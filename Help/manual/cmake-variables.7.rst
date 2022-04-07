@@ -285,6 +285,7 @@ Variables that Change Behavior
    /variable/CMAKE_XCODE_SCHEME_UNDEFINED_BEHAVIOUR_SANITIZER_STOP
    /variable/CMAKE_XCODE_SCHEME_WORKING_DIRECTORY
    /variable/CMAKE_XCODE_SCHEME_ZOMBIE_OBJECTS
+   /variable/CMAKE_XCODE_XCCONFIG
    /variable/PackageName_ROOT
 
 Variables that Describe the System
@@ -346,6 +347,7 @@ Variables that Control the Build
 .. toctree::
    :maxdepth: 1
 
+   /variable/CMAKE_ADSP_ROOT
    /variable/CMAKE_AIX_EXPORT_ALL_SYMBOLS
    /variable/CMAKE_ANDROID_ANT_ADDITIONAL_OPTIONS
    /variable/CMAKE_ANDROID_API

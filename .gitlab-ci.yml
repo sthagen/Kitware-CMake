@@ -61,48 +61,30 @@ p:doc-package:
 
 u:source-package:
     extends:
-        - .rsync_upload_binary
+        - .rsync_upload_package
         - .run_only_for_package
     dependencies:
         - p:source-package
     needs:
         - p:source-package
-    variables:
-        RSYNC_DESTINATION: dev
 
 # Documentation builds
 
-b:help:master:
+b:cmake.org-help:
     extends:
         - .cmake_org_help
-        - .run_only_for_continuous_master
+        - .run_cmake_org_help
+    dependencies: []
+    needs: []
 
-u:help:master:
+u:cmake.org-help:
     extends:
         - .rsync_upload_help
-        - .run_only_for_continuous_master
-    variables:
-        RSYNC_DESTINATION: git-master
+        - .run_cmake_org_help
     dependencies:
-        - b:help:master
+        - b:cmake.org-help
     needs:
-        - b:help:master
-
-b:help:stage:
-    extends:
-        - .cmake_org_help
-        - .run_only_for_continuous_stage
-
-u:help:stage:
-    extends:
-        - .rsync_upload_help
-        - .run_only_for_continuous_stage
-    variables:
-        RSYNC_DESTINATION: git-stage
-    dependencies:
-        - b:help:stage
-    needs:
-        - b:help:stage
+        - b:cmake.org-help
 
 # Lint builds
 
@@ -605,14 +587,12 @@ b:linux-x86_64-package:
 
 u:linux-x86_64-package:
     extends:
-        - .rsync_upload_binary
+        - .rsync_upload_package
         - .run_only_for_package
     dependencies:
         - b:linux-x86_64-package
     needs:
         - b:linux-x86_64-package
-    variables:
-        RSYNC_DESTINATION: dev
 
 b:linux-aarch64-package:
     extends:
@@ -629,14 +609,12 @@ b:linux-aarch64-package:
 
 u:linux-aarch64-package:
     extends:
-        - .rsync_upload_binary
+        - .rsync_upload_package
         - .run_only_for_package
     dependencies:
         - b:linux-aarch64-package
     needs:
         - b:linux-aarch64-package
-    variables:
-        RSYNC_DESTINATION: dev
 
 ## Sanitizer builds
 
@@ -770,14 +748,12 @@ b:macos-package:
 
 u:macos-package:
     extends:
-        - .rsync_upload_binary
+        - .rsync_upload_package
         - .run_only_for_package
     dependencies:
         - b:macos-package
     needs:
         - b:macos-package
-    variables:
-        RSYNC_DESTINATION: dev
 
 b:macos10.10-package:
     extends:
@@ -793,14 +769,12 @@ b:macos10.10-package:
 
 u:macos10.10-package:
     extends:
-        - .rsync_upload_binary
+        - .rsync_upload_package
         - .run_only_for_package
     dependencies:
         - b:macos10.10-package
     needs:
         - b:macos10.10-package
-    variables:
-        RSYNC_DESTINATION: dev
 
 # Windows builds
 
