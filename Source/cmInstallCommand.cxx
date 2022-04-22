@@ -742,9 +742,9 @@ bool HandleTargetsMode(std::vector<std::string> const& args,
                   [=](const cmInstallCommandFileSetArguments& fileSetArg)
                     -> bool { return fileSetArg.GetFileSet() == name; });
               })) {
-          status.SetError(cmStrCat(
-            "TARGETS target ", target.GetName(),
-            " is exported but not all of its file sets are installed"));
+          status.SetError(cmStrCat("TARGETS target ", target.GetName(),
+                                   " is exported but not all of its interface "
+                                   "file sets are installed"));
           return false;
         }
 
@@ -919,8 +919,7 @@ bool HandleTargetsMode(std::vector<std::string> const& args,
         if (!objectArgs.GetDestination().empty()) {
           // Verify that we know where the objects are to install them.
           std::string reason;
-          if (!helper.Makefile->GetGlobalGenerator()
-                 ->HasKnownObjectFileLocation(&reason)) {
+          if (!target.HasKnownObjectFileLocation(&reason)) {
             status.SetError(
               cmStrCat("TARGETS given OBJECT library \"", target.GetName(),
                        "\" whose objects may not be installed", reason, "."));
