@@ -734,7 +734,7 @@ set(SRCS
   bindexplib.cxx
   )
 
-SET_PROPERTY(SOURCE cmProcessOutput.cxx APPEND PROPERTY COMPILE_DEFINITIONS
+SET_PROPERTY(SOURCE cmProcessOutput.cxx cmWindowsRegistry.cxx APPEND PROPERTY COMPILE_DEFINITIONS
   KWSYS_ENCODING_DEFAULT_CODEPAGE=${KWSYS_ENCODING_DEFAULT_CODEPAGE})
 
 # Xcode only works on Apple
@@ -1121,7 +1121,6 @@ if(APPLE)
     CPack/cmCPackBundleGenerator.cxx
     CPack/cmCPackDragNDropGenerator.cxx
     CPack/cmCPackPKGGenerator.cxx
-    CPack/cmCPackPackageMakerGenerator.cxx
     CPack/cmCPackProductBuildGenerator.cxx
     )
 endif()

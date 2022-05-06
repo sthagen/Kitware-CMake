@@ -619,6 +619,8 @@ in the set of :variable:`CMAKE_ARGV<n> <CMAKE_ARGV0>` variables passed to the
 script (including the ``--`` itself).
 
 
+.. _`Run a Command-Line Tool`:
+
 Run a Command-Line Tool
 =======================
 
@@ -1058,6 +1060,18 @@ To view the presets available for a project, use
 .. code-block:: shell
 
   cmake <source-dir> --list-presets
+
+
+.. _`CMake Exit Code`:
+
+Return Value (Exit Code)
+========================
+
+Upon regular termination, the ``cmake`` executable returns the exit code ``0``.
+
+If termination is caused by the command :command:`message(FATAL_ERROR)`,
+or another error condition, then a non-zero exit code is returned.
+
 
 See Also
 ========
