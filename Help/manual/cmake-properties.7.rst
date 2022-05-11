@@ -171,6 +171,7 @@ Properties on Targets
    /prop_tgt/COMPILE_PDB_NAME_CONFIG
    /prop_tgt/COMPILE_PDB_OUTPUT_DIRECTORY
    /prop_tgt/COMPILE_PDB_OUTPUT_DIRECTORY_CONFIG
+   /prop_tgt/COMPILE_WARNING_AS_ERROR
    /prop_tgt/CONFIG_OUTPUT_NAME
    /prop_tgt/CONFIG_POSTFIX
    /prop_tgt/CROSSCOMPILING_EMULATOR
@@ -423,6 +424,7 @@ Properties on Targets
    /prop_tgt/VS_WINRT_COMPONENT
    /prop_tgt/VS_WINRT_EXTENSIONS
    /prop_tgt/VS_WINRT_REFERENCES
+   /prop_tgt/WATCOM_RUNTIME_LIBRARY
    /prop_tgt/WIN32_EXECUTABLE
    /prop_tgt/WINDOWS_EXPORT_ALL_SYMBOLS
    /prop_tgt/XCODE_ATTRIBUTE_an-attribute
