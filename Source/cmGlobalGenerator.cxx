@@ -690,6 +690,7 @@ void cmGlobalGenerator::EnableLanguage(
     }
 
     // One-time includes of user-provided project setup files
+    mf->GetState()->SetInTopLevelIncludes(true);
     std::string includes =
       mf->GetSafeDefinition("CMAKE_PROJECT_TOP_LEVEL_INCLUDES");
     std::vector<std::string> includesList = cmExpandedList(includes);
@@ -700,22 +701,26 @@ void cmGlobalGenerator::EnableLanguage(
         cmSystemTools::Error(
           "CMAKE_PROJECT_TOP_LEVEL_INCLUDES file does not exist: " +
           setupFile);
+        mf->GetState()->SetInTopLevelIncludes(false);
         return;
       }
       if (cmSystemTools::FileIsDirectory(absSetupFile)) {
         cmSystemTools::Error(
           "CMAKE_PROJECT_TOP_LEVEL_INCLUDES file is a directory: " +
           setupFile);
+        mf->GetState()->SetInTopLevelIncludes(false);
         return;
       }
       if (!mf->ReadListFile(absSetupFile)) {
         cmSystemTools::Error(
           "Failed reading CMAKE_PROJECT_TOP_LEVEL_INCLUDES file: " +
           setupFile);
+        mf->GetState()->SetInTopLevelIncludes(false);
         return;
       }
     }
   }
+  mf->GetState()->SetInTopLevelIncludes(false);
 
   // Check that the languages are supported by the generator and its
   // native build tool found above.
@@ -1152,7 +1157,10 @@ std::string cmGlobalGenerator::GetLanguageFromExtension(const char* ext) const
 {
   // if there is an extension and it starts with . then move past the
   // . because the extensions are not stored with a .  in the map
-  if (ext && *ext == '.') {
+  if (!ext) {
+    return "";
+  }
+  if (*ext == '.') {
     ++ext;
   }
   auto const it = this->ExtensionToLanguage.find(ext);
