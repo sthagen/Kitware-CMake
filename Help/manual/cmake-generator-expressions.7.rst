@@ -99,6 +99,9 @@ String Comparisons
   ``1`` if ``string`` is member of the semicolon-separated ``list``, else ``0``.
   Uses case-sensitive comparisons.
 
+Version Comparisons
+-------------------
+
 .. genex:: $<VERSION_LESS:v1,v2>
 
   ``1`` if ``v1`` is a version less than ``v2``, else ``0``.
@@ -122,6 +125,19 @@ String Comparisons
   .. versionadded:: 3.7
 
   ``1`` if ``v1`` is a version greater than or equal to ``v2``, else ``0``.
+
+Path Comparisons
+----------------
+
+.. genex:: $<PATH_EQUAL:path1,path2>
+
+  .. versionadded:: 3.24
+
+  Compares the lexical representations of two paths. No normalization is
+  performed on either path. Returns ``1`` if the paths are equal, ``0``
+  otherwise.
+
+  See :ref:`cmake_path(COMPARE) <Path COMPARE>` for more details.
 
 .. _GenEx Path Queries:
 
@@ -543,25 +559,6 @@ Variable Queries
     target ``lib`` which is ``C++``. On the contrary, for ``myapp2``, the first
     evaluation will give ``C`` as link language, so the second pass will
     correctly add target ``libother`` as link dependency.
-
-.. genex:: $<DEVICE_LINK:list>
-
-  .. versionadded:: 3.18
-
-  Returns the list if it is the device link step, an empty list otherwise.
-  The device link step is controlled by :prop_tgt:`CUDA_SEPARABLE_COMPILATION`
-  and :prop_tgt:`CUDA_RESOLVE_DEVICE_SYMBOLS` properties and
-  policy :policy:`CMP0105`. This expression can only be used to specify link
-  options.
-
-.. genex:: $<HOST_LINK:list>
-
-  .. versionadded:: 3.18
-
-  Returns the list if it is the normal link step, an empty list otherwise.
-  This expression is mainly useful when a device link step is also involved
-  (see ``$<DEVICE_LINK:list>`` generator expression). This expression can only
-  be used to specify link options.
 
 String-Valued Generator Expressions
 ===================================
@@ -1349,6 +1346,25 @@ Output-Related Expressions
   .. versionadded:: 3.24
     ``LINK_ONLY`` may also be used in a :prop_tgt:`LINK_LIBRARIES` target
     property.  See policy :policy:`CMP0131`.
+
+.. genex:: $<DEVICE_LINK:list>
+
+  .. versionadded:: 3.18
+
+  Returns the list if it is the device link step, an empty list otherwise.
+  The device link step is controlled by :prop_tgt:`CUDA_SEPARABLE_COMPILATION`
+  and :prop_tgt:`CUDA_RESOLVE_DEVICE_SYMBOLS` properties and
+  policy :policy:`CMP0105`. This expression can only be used to specify link
+  options.
+
+.. genex:: $<HOST_LINK:list>
+
+  .. versionadded:: 3.18
+
+  Returns the list if it is the normal link step, an empty list otherwise.
+  This expression is mainly useful when a device link step is also involved
+  (see :genex:`$<DEVICE_LINK:list>` generator expression). This expression can
+  only be used to specify link options.
 
 .. genex:: $<LINK_LIBRARY:feature,library-list>
 
