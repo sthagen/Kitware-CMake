@@ -319,12 +319,14 @@ Deprecated and Removed Features
 Other Changes
 =============
 
-* With MSVC compilers, debug configurations now use ``-ZI`` by default
-  instead of ``/Zi``.  See policy :policy:`CMP0138`.
-
 * CMake no longer sets environment variables like :envvar:`CC`, :envvar:`CXX`,
   etc. when enabling the corresponding language during the first CMake run in
   a build directory.  See policy :policy:`CMP0132`.
+
+* The :module:`CheckIPOSupported` module :command:`check_ipo_supported`
+  command now uses the caller's :variable:`CMAKE_<LANG>_FLAGS`
+  and :variable:`CMAKE_<LANG>_FLAGS_<CONFIG>` values.
+  See policy :policy:`CMP0138`.
 
 * The :generator:`MSYS Makefiles` and :generator:`MinGW Makefiles`
   generators, when a compiler is not explicitly specified, now select

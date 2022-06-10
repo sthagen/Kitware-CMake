@@ -416,8 +416,8 @@ class cmMakefile;
          "try_compile() passes platform variables in project mode", 3, 24, 0, \
          cmPolicies::WARN)                                                    \
   SELECT(POLICY, CMP0138,                                                     \
-         "MSVC compilers use -ZI instead of /Zi for x86 and x64 by default.", \
-         3, 24, 0, cmPolicies::WARN)                                          \
+         "CheckIPOSupported uses flags from calling project.", 3, 24, 0,      \
+         cmPolicies::WARN)                                                    \
   SELECT(                                                                     \
     POLICY, CMP0139,                                                          \
     "The if() command supports path comparisons using PATH_EQUAL operator.",  \
