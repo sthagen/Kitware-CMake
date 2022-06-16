@@ -610,6 +610,7 @@ cmTarget::cmTarget(std::string const& name, cmStateEnums::TargetType type,
       initProp("XCODE_SCHEME_MALLOC_SCRIBBLE");
       initProp("XCODE_SCHEME_MALLOC_GUARD_EDGES");
       initProp("XCODE_SCHEME_GUARD_MALLOC");
+      initProp("XCODE_SCHEME_LAUNCH_MODE");
       initProp("XCODE_SCHEME_ZOMBIE_OBJECTS");
       initProp("XCODE_SCHEME_MALLOC_STACK");
       initProp("XCODE_SCHEME_DYNAMIC_LINKER_API_USAGE");
@@ -757,6 +758,10 @@ cmTarget::cmTarget(std::string const& name, cmStateEnums::TargetType type,
         }
       }
     }
+  }
+
+  if (this->IsImported()) {
+    this->SetProperty("SYSTEM", "ON");
   }
 
   for (auto const& prop : mf->GetState()->GetPropertyDefinitions().GetMap()) {

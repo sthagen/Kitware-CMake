@@ -375,6 +375,7 @@ Properties on Targets
    /prop_tgt/Swift_LANGUAGE_VERSION
    /prop_tgt/Swift_MODULE_DIRECTORY
    /prop_tgt/Swift_MODULE_NAME
+   /prop_tgt/SYSTEM
    /prop_tgt/TYPE
    /prop_tgt/UNITY_BUILD
    /prop_tgt/UNITY_BUILD_BATCH_SIZE
@@ -451,6 +452,7 @@ Properties on Targets
    /prop_tgt/XCODE_SCHEME_ENVIRONMENT
    /prop_tgt/XCODE_SCHEME_EXECUTABLE
    /prop_tgt/XCODE_SCHEME_GUARD_MALLOC
+   /prop_tgt/XCODE_SCHEME_LAUNCH_MODE
    /prop_tgt/XCODE_SCHEME_MAIN_THREAD_CHECKER_STOP
    /prop_tgt/XCODE_SCHEME_MALLOC_GUARD_EDGES
    /prop_tgt/XCODE_SCHEME_MALLOC_SCRIBBLE
