@@ -9,6 +9,7 @@
 #include <cmext/string_view>
 
 #include "cmArgumentParser.h"
+#include "cmArgumentParserTypes.h"
 #include "cmExperimental.h"
 #include "cmFileSet.h"
 #include "cmGeneratorExpression.h"
@@ -28,8 +29,8 @@ struct FileSetArgs
 {
   std::string Type;
   std::string FileSet;
-  std::vector<std::string> BaseDirs;
-  std::vector<std::string> Files;
+  ArgumentParser::MaybeEmpty<std::vector<std::string>> BaseDirs;
+  ArgumentParser::MaybeEmpty<std::vector<std::string>> Files;
 };
 
 auto const FileSetArgsParser = cmArgumentParser<FileSetArgs>()
@@ -269,7 +270,8 @@ bool TargetSourcesImpl::HandleOneFileSet(
       }
 
       if (cmFileSetVisibilityIsForInterface(visibility) &&
-          !cmFileSetVisibilityIsForSelf(visibility)) {
+          !cmFileSetVisibilityIsForSelf(visibility) &&
+          !this->Target->IsImported()) {
         if (type == "CXX_MODULES"_s || type == "CXX_MODULE_HEADER_UNITS"_s) {
           this->SetError(
             R"(File set TYPEs "CXX_MODULES" and "CXX_MODULE_HEADER_UNITS" may not have "INTERFACE" visibility)");
