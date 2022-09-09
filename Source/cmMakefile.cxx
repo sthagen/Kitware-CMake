@@ -789,6 +789,7 @@ void cmMakefile::RunListFile(cmListFile const& listFile,
       break;
     }
     if (status.GetReturnInvoked()) {
+      this->RaiseScope(status.GetReturnVariables());
       // Exit early due to return command.
       break;
     }
@@ -4034,31 +4035,6 @@ std::vector<std::string> cmMakefile::GetPropertyKeys() const
   return this->StateSnapshot.GetDirectory().GetPropertyKeys();
 }
 
-void cmMakefile::CheckProperty(const std::string& prop) const
-{
-  // Certain properties need checking.
-  if (prop == "LINK_LIBRARIES") {
-    if (cmValue value = this->GetProperty(prop)) {
-      // Look for <LINK_LIBRARY:> internal pattern
-      static cmsys::RegularExpression linkPattern(
-        "(^|;)(</?LINK_(LIBRARY|GROUP):[^;>]*>)(;|$)");
-      if (!linkPattern.find(value)) {
-        return;
-      }
-
-      // Report an error.
-      this->IssueMessage(
-        MessageType::FATAL_ERROR,
-        cmStrCat("Property ", prop, " contains the invalid item \"",
-                 linkPattern.match(2), "\". The ", prop,
-                 " property may contain the generator-expression \"$<LINK_",
-                 linkPattern.match(3),
-                 ":...>\" which may be used to specify how the libraries are "
-                 "linked."));
-    }
-  }
-}
-
 cmTarget* cmMakefile::FindLocalNonAliasTarget(const std::string& name) const
 {
   auto i = this->Targets.find(name);
@@ -4186,6 +4162,18 @@ void cmMakefile::RaiseScope(const std::string& var, const char* varDef)
                          varDef, this);
   }
 #endif
+}
+
+void cmMakefile::RaiseScope(const std::vector<std::string>& variables)
+{
+  for (auto const& varName : variables) {
+    if (this->IsNormalDefinitionSet(varName)) {
+      this->RaiseScope(varName, this->GetDefinition(varName));
+    } else {
+      // unset variable in parent scope
+      this->RaiseScope(varName, nullptr);
+    }
+  }
 }
 
 cmTarget* cmMakefile::AddImportedTarget(const std::string& name,

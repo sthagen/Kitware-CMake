@@ -772,7 +772,7 @@ to the declared details and leaving
     googletest
     GIT_REPOSITORY https://github.com/google/googletest.git
     GIT_TAG        703bd9caab50b139428cea1aaff9974ebee5742e # release-1.10.0
-    FIND_PACKAGE_ARGS NAMES gtest
+    FIND_PACKAGE_ARGS NAMES GTest
   )
   FetchContent_Declare(
     Catch2
@@ -786,7 +786,7 @@ to the declared details and leaving
 
 For ``Catch2``, no additional arguments to :command:`find_package` are needed,
 so no additional arguments are provided after the ``FIND_PACKAGE_ARGS``
-keyword.  For ``googletest``, its package is more commonly called ``gtest``,
+keyword.  For ``googletest``, its package is more commonly called ``GTest``,
 so arguments are added to support it being found by that name.
 
 If the user wanted to disable :command:`FetchContent_MakeAvailable` from
@@ -822,7 +822,7 @@ details:
 
 CMake provides a FindGTest module which defines some variables that older
 projects may use instead of linking to the imported targets.  To support
-those cases, we can provide an extras file.  In keeping with the
+those cases, we can provide an extra file.  In keeping with the
 "first to define, wins" philosophy of ``FetchContent``, we only write out
 that file if something else hasn't already done so.
 
@@ -830,9 +830,9 @@ that file if something else hasn't already done so.
 
   FetchContent_MakeAvailable(googletest)
 
-  if(NOT EXISTS ${CMAKE_FIND_PACKAGE_REDIRECTS_DIR}/googletest-extras.cmake AND
-     NOT EXISTS ${CMAKE_FIND_PACKAGE_REDIRECTS_DIR}/googletestExtras.cmake)
-    file(WRITE ${CMAKE_FIND_PACKAGE_REDIRECTS_DIR}/googletest-extras.cmake
+  if(NOT EXISTS ${CMAKE_FIND_PACKAGE_REDIRECTS_DIR}/googletest-extra.cmake AND
+     NOT EXISTS ${CMAKE_FIND_PACKAGE_REDIRECTS_DIR}/googletestExtra.cmake)
+    file(WRITE ${CMAKE_FIND_PACKAGE_REDIRECTS_DIR}/googletest-extra.cmake
   [=[
   if("${GTEST_LIBRARIES}" STREQUAL "" AND TARGET GTest::gtest)
     set(GTEST_LIBRARIES GTest::gtest)

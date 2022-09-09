@@ -63,6 +63,7 @@
 #if !defined(CMAKE_BOOTSTRAP)
 #  include <unordered_map>
 
+#  include <cm3p/curl/curl.h>
 #  include <cm3p/json/writer.h>
 
 #  include "cmFileAPI.h"
@@ -252,6 +253,8 @@ Json::Value cmake::ReportCapabilitiesJson() const
   std::vector<cmake::GeneratorInfo> generatorInfoList;
   this->GetRegisteredGenerators(generatorInfoList);
 
+  auto* curlVersion = curl_version_info(CURLVERSION_FIRST);
+
   JsonValueMapType generatorMap;
   for (cmake::GeneratorInfo const& gi : generatorInfoList) {
     if (gi.isAlias) { // skip aliases, they are there for compatibility reasons
@@ -286,6 +289,7 @@ Json::Value cmake::ReportCapabilitiesJson() const
   obj["generators"] = generators;
   obj["fileApi"] = cmFileAPI::ReportCapabilities();
   obj["serverMode"] = false;
+  obj["tls"] = static_cast<bool>(curlVersion->features & CURL_VERSION_SSL);
 
   return obj;
 }
@@ -778,6 +782,7 @@ enum class ListPresets
   Configure,
   Build,
   Test,
+  Package,
   All,
 };
 }
@@ -1133,6 +1138,8 @@ void cmake::SetArgs(const std::vector<std::string>& args)
         listPresets = ListPresets::Build;
       } else if (value == "test") {
         listPresets = ListPresets::Test;
+      } else if (value == "package") {
+        listPresets = ListPresets::Package;
       } else if (value == "all") {
         listPresets = ListPresets::All;
       } else {
@@ -1300,6 +1307,8 @@ void cmake::SetArgs(const std::vector<std::string>& args)
         presetsGraph.PrintBuildPresetList();
       } else if (listPresets == ListPresets::Test) {
         presetsGraph.PrintTestPresetList();
+      } else if (listPresets == ListPresets::Package) {
+        presetsGraph.PrintPackagePresetList();
       } else if (listPresets == ListPresets::All) {
         presetsGraph.PrintAllPresets();
       }
@@ -2129,6 +2138,9 @@ int cmake::ActualConfigure()
   // Construct right now our path conversion table before it's too late:
   this->UpdateConversionPathTable();
   this->CleanupCommandsAndMacros();
+
+  cmSystemTools::RemoveADirectory(this->GetHomeOutputDirectory() +
+                                  "/CMakeFiles/CMakeScratch");
 
   int res = this->DoPreConfigureChecks();
   if (res < 0) {
