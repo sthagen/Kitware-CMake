@@ -13,6 +13,7 @@
 #include <cmext/string_view>
 
 #include "cmsys/Directory.hxx"
+#include "cmsys/FStream.hxx"
 
 #include "cmArgumentParser.h"
 #include "cmExportTryCompileFileGenerator.h"
@@ -94,6 +95,8 @@ std::string const kCMAKE_TRY_COMPILE_PLATFORM_VARIABLES =
 std::string const kCMAKE_WARN_DEPRECATED = "CMAKE_WARN_DEPRECATED";
 std::string const kCMAKE_WATCOM_RUNTIME_LIBRARY_DEFAULT =
   "CMAKE_WATCOM_RUNTIME_LIBRARY_DEFAULT";
+std::string const kCMAKE_MSVC_DEBUG_INFORMATION_FORMAT_DEFAULT =
+  "CMAKE_MSVC_DEBUG_INFORMATION_FORMAT_DEFAULT";
 
 /* GHS Multi platform variables */
 std::set<std::string> const ghs_platform_vars{
@@ -118,6 +121,26 @@ ArgumentParser::Continue TryCompileCompileDefs(Arguments& args,
   return ArgumentParser::Continue::Yes;
 }
 
+cmArgumentParser<Arguments> makeTryCompileParser(
+  const cmArgumentParser<Arguments>& base)
+{
+  return cmArgumentParser<Arguments>{ base }.Bind("OUTPUT_VARIABLE"_s,
+                                                  &Arguments::OutputVariable);
+}
+
+cmArgumentParser<Arguments> makeTryRunParser(
+  const cmArgumentParser<Arguments>& base)
+{
+  return cmArgumentParser<Arguments>{ base }
+    .Bind("COMPILE_OUTPUT_VARIABLE"_s, &Arguments::CompileOutputVariable)
+    .Bind("RUN_OUTPUT_VARIABLE"_s, &Arguments::RunOutputVariable)
+    .Bind("RUN_OUTPUT_STDOUT_VARIABLE"_s, &Arguments::RunOutputStdOutVariable)
+    .Bind("RUN_OUTPUT_STDERR_VARIABLE"_s, &Arguments::RunOutputStdErrVariable)
+    .Bind("WORKING_DIRECTORY"_s, &Arguments::RunWorkingDirectory)
+    .Bind("ARGS"_s, &Arguments::RunArgs)
+    /* keep semicolon on own line */;
+}
+
 #define BIND_LANG_PROPS(lang)                                                 \
   Bind(#lang "_STANDARD"_s, TryCompileLangProp)                               \
     .Bind(#lang "_STANDARD_REQUIRED"_s, TryCompileLangProp)                   \
@@ -126,13 +149,17 @@ ArgumentParser::Continue TryCompileCompileDefs(Arguments& args,
 auto const TryCompileBaseArgParser =
   cmArgumentParser<Arguments>{}
     .Bind(0, &Arguments::CompileResultVariable)
-    .Bind("SOURCES"_s, &Arguments::Sources)
     .Bind("CMAKE_FLAGS"_s, &Arguments::CMakeFlags)
+    .Bind("__CMAKE_INTERNAL"_s, &Arguments::CMakeInternal)
+  /* keep semicolon on own line */;
+
+auto const TryCompileBaseNonProjectArgParser =
+  cmArgumentParser<Arguments>{ TryCompileBaseArgParser }
+    .Bind("SOURCES"_s, &Arguments::Sources)
     .Bind("COMPILE_DEFINITIONS"_s, TryCompileCompileDefs,
           ArgumentParser::ExpectAtLeast{ 0 })
     .Bind("LINK_LIBRARIES"_s, &Arguments::LinkLibraries)
     .Bind("LINK_OPTIONS"_s, &Arguments::LinkOptions)
-    .Bind("__CMAKE_INTERNAL"_s, &Arguments::CMakeInternal)
     .Bind("COPY_FILE"_s, &Arguments::CopyFileTo)
     .Bind("COPY_FILE_ERROR"_s, &Arguments::CopyFileError)
     .BIND_LANG_PROPS(C)
@@ -143,38 +170,35 @@ auto const TryCompileBaseArgParser =
     .BIND_LANG_PROPS(OBJCXX)
   /* keep semicolon on own line */;
 
-auto const TryCompileArgParser =
-  cmArgumentParser<Arguments>{ TryCompileBaseArgParser }.Bind(
-    "OUTPUT_VARIABLE"_s, &Arguments::OutputVariable)
+auto const TryCompileBaseProjectArgParser =
+  cmArgumentParser<Arguments>{ TryCompileBaseArgParser }
+    .Bind("PROJECT"_s, &Arguments::ProjectName)
+    .Bind("SOURCE_DIR"_s, &Arguments::SourceDirectoryOrFile)
+    .Bind("BINARY_DIR"_s, &Arguments::BinaryDirectory)
+    .Bind("TARGET"_s, &Arguments::TargetName)
   /* keep semicolon on own line */;
 
+auto const TryCompileProjectArgParser =
+  makeTryCompileParser(TryCompileBaseProjectArgParser);
+
+auto const TryCompileSourcesArgParser =
+  makeTryCompileParser(TryCompileBaseNonProjectArgParser);
+
 auto const TryCompileOldArgParser =
-  cmArgumentParser<Arguments>{ TryCompileArgParser }
+  makeTryCompileParser(TryCompileBaseNonProjectArgParser)
     .Bind(1, &Arguments::BinaryDirectory)
     .Bind(2, &Arguments::SourceDirectoryOrFile)
     .Bind(3, &Arguments::ProjectName)
     .Bind(4, &Arguments::TargetName)
   /* keep semicolon on own line */;
 
-auto const TryRunArgParser =
-  cmArgumentParser<Arguments>{ TryCompileBaseArgParser }
-    .Bind("COMPILE_OUTPUT_VARIABLE"_s, &Arguments::CompileOutputVariable)
-    .Bind("RUN_OUTPUT_VARIABLE"_s, &Arguments::RunOutputVariable)
-    .Bind("RUN_OUTPUT_STDOUT_VARIABLE"_s, &Arguments::RunOutputStdOutVariable)
-    .Bind("RUN_OUTPUT_STDERR_VARIABLE"_s, &Arguments::RunOutputStdErrVariable)
-    .Bind("WORKING_DIRECTORY"_s, &Arguments::RunWorkingDirectory)
-    .Bind("ARGS"_s, &Arguments::RunArgs)
-  /* keep semicolon on own line */;
+auto const TryRunProjectArgParser =
+  makeTryRunParser(TryCompileBaseProjectArgParser);
 
-auto const TryRunOldArgParser =
-  cmArgumentParser<Arguments>{ TryCompileOldArgParser }
-    .Bind("COMPILE_OUTPUT_VARIABLE"_s, &Arguments::CompileOutputVariable)
-    .Bind("RUN_OUTPUT_VARIABLE"_s, &Arguments::RunOutputVariable)
-    .Bind("RUN_OUTPUT_STDOUT_VARIABLE"_s, &Arguments::RunOutputStdOutVariable)
-    .Bind("RUN_OUTPUT_STDERR_VARIABLE"_s, &Arguments::RunOutputStdErrVariable)
-    .Bind("WORKING_DIRECTORY"_s, &Arguments::RunWorkingDirectory)
-    .Bind("ARGS"_s, &Arguments::RunArgs)
-  /* keep semicolon on own line */;
+auto const TryRunSourcesArgParser =
+  makeTryRunParser(TryCompileBaseNonProjectArgParser);
+
+auto const TryRunOldArgParser = makeTryRunParser(TryCompileOldArgParser);
 
 #undef BIND_LANG_PROPS
 }
@@ -200,11 +224,24 @@ Arguments cmCoreTryCompile::ParseArgs(
   cmRange<std::vector<std::string>::const_iterator> args, bool isTryRun)
 {
   std::vector<std::string> unparsedArguments;
-  if (cmHasLiteralPrefix(*(++args.begin()), "SOURCE")) {
-    // New signature.
-    auto arguments =
-      this->ParseArgs(args, isTryRun ? TryRunArgParser : TryCompileArgParser,
-                      unparsedArguments);
+  const auto& second = *(++args.begin());
+
+  if (second == "PROJECT") {
+    // New PROJECT signature.
+    auto arguments = this->ParseArgs(
+      args, isTryRun ? TryRunProjectArgParser : TryCompileProjectArgParser,
+      unparsedArguments);
+    if (!arguments.BinaryDirectory) {
+      arguments.BinaryDirectory = unique_binary_directory;
+    }
+    return arguments;
+  }
+
+  if (cmHasLiteralPrefix(second, "SOURCE")) {
+    // New SOURCES signature.
+    auto arguments = this->ParseArgs(
+      args, isTryRun ? TryRunSourcesArgParser : TryCompileSourcesArgParser,
+      unparsedArguments);
     arguments.BinaryDirectory = unique_binary_directory;
     return arguments;
   }
@@ -253,8 +290,14 @@ bool cmCoreTryCompile::TryCompileCode(Arguments& arguments,
   std::string sourceDirectory;
   std::string projectName;
   std::string targetName;
-  if (arguments.SourceDirectoryOrFile && arguments.ProjectName) {
+  if (arguments.ProjectName) {
     this->SrcFileSignature = false;
+    if (!arguments.SourceDirectoryOrFile ||
+        arguments.SourceDirectoryOrFile->empty()) {
+      this->Makefile->IssueMessage(MessageType::FATAL_ERROR,
+                                   "No <srcdir> specified.");
+      return false;
+    }
     sourceDirectory = *arguments.SourceDirectoryOrFile;
     projectName = *arguments.ProjectName;
     if (arguments.TargetName) {
@@ -497,6 +540,14 @@ bool cmCoreTryCompile::TryCompileCode(Arguments& arguments,
               *cmp0123 == "NEW"_s ? "NEW" : "OLD");
     }
 
+    /* Set MSVC debug information format policy to match our selection.  */
+    if (cmValue msvcDebugInformationFormatDefault =
+          this->Makefile->GetDefinition(
+            kCMAKE_MSVC_DEBUG_INFORMATION_FORMAT_DEFAULT)) {
+      fprintf(fout, "cmake_policy(SET CMP0141 %s)\n",
+              !msvcDebugInformationFormatDefault->empty() ? "NEW" : "OLD");
+    }
+
     /* Set cache/normal variable policy to match outer project.
        It may affect toolchain files.  */
     if (this->Makefile->GetPolicyStatus(cmPolicies::CMP0126) !=
@@ -694,6 +745,17 @@ bool cmCoreTryCompile::TryCompileCode(Arguments& arguments,
     }
     fprintf(fout, ")\n");
 
+    /* Write out the output location of the target we are building */
+    std::string perConfigGenex;
+    if (this->Makefile->GetGlobalGenerator()->IsMultiConfig()) {
+      perConfigGenex = "_$<UPPER_CASE:$<CONFIG>>";
+    }
+    fprintf(fout,
+            "file(GENERATE OUTPUT "
+            "\"${CMAKE_BINARY_DIR}/%s%s_loc\"\n",
+            targetName.c_str(), perConfigGenex.c_str());
+    fprintf(fout, "     CONTENT $<TARGET_FILE:%s>)\n", targetName.c_str());
+
     bool warnCMP0067 = false;
     bool honorStandard = true;
 
@@ -849,6 +911,7 @@ bool cmCoreTryCompile::TryCompileCode(Arguments& arguments,
     vars.insert(kCMAKE_WARN_DEPRECATED);
     vars.emplace("CMAKE_MSVC_RUNTIME_LIBRARY"_s);
     vars.emplace("CMAKE_WATCOM_RUNTIME_LIBRARY"_s);
+    vars.emplace("CMAKE_MSVC_DEBUG_INFORMATION_FORMAT"_s);
 
     if (cmValue varListStr = this->Makefile->GetDefinition(
           kCMAKE_TRY_COMPILE_PLATFORM_VARIABLES)) {
@@ -935,7 +998,7 @@ bool cmCoreTryCompile::TryCompileCode(Arguments& arguments,
 
   if (this->SrcFileSignature) {
     std::string copyFileErrorMessage;
-    this->FindOutputFile(targetName, targetType);
+    this->FindOutputFile(targetName);
 
     if ((res == 0) && arguments.CopyFileTo) {
       std::string const& copyFile = *arguments.CopyFileTo;
@@ -1035,62 +1098,37 @@ void cmCoreTryCompile::CleanupFiles(std::string const& binDir)
   }
 }
 
-void cmCoreTryCompile::FindOutputFile(const std::string& targetName,
-                                      cmStateEnums::TargetType targetType)
+void cmCoreTryCompile::FindOutputFile(const std::string& targetName)
 {
   this->FindErrorMessage.clear();
   this->OutputFile.clear();
   std::string tmpOutputFile = "/";
-  if (targetType == cmStateEnums::EXECUTABLE) {
-    tmpOutputFile += targetName;
-    tmpOutputFile +=
-      this->Makefile->GetSafeDefinition("CMAKE_EXECUTABLE_SUFFIX");
-  } else // if (targetType == cmStateEnums::STATIC_LIBRARY)
-  {
-    tmpOutputFile +=
-      this->Makefile->GetSafeDefinition("CMAKE_STATIC_LIBRARY_PREFIX");
-    tmpOutputFile += targetName;
-    tmpOutputFile +=
-      this->Makefile->GetSafeDefinition("CMAKE_STATIC_LIBRARY_SUFFIX");
+  tmpOutputFile += targetName;
+
+  if (this->Makefile->GetGlobalGenerator()->IsMultiConfig()) {
+    tmpOutputFile += "_DEBUG";
+  }
+  tmpOutputFile += "_loc";
+
+  std::string command = cmStrCat(this->BinaryDirectory, tmpOutputFile);
+  if (!cmSystemTools::FileExists(command)) {
+    std::ostringstream emsg;
+    emsg << "Unable to find the recorded try_compile output location:\n";
+    emsg << cmStrCat("  ", command, "\n");
+    this->FindErrorMessage = emsg.str();
+    return;
   }
 
-  // a list of directories where to search for the compilation result
-  // at first directly in the binary dir
-  std::vector<std::string> searchDirs;
-  searchDirs.emplace_back();
-
-  cmValue config =
-    this->Makefile->GetDefinition("CMAKE_TRY_COMPILE_CONFIGURATION");
-  // if a config was specified try that first
-  if (cmNonempty(config)) {
-    std::string tmp = cmStrCat('/', *config);
-    searchDirs.emplace_back(std::move(tmp));
-  }
-  searchDirs.emplace_back("/Debug");
-
-  // handle app-bundles (for targeting apple-platforms)
-  std::string app = "/" + targetName + ".app";
-  if (cmNonempty(config)) {
-    std::string tmp = cmStrCat('/', *config, app);
-    searchDirs.emplace_back(std::move(tmp));
-  }
-  std::string tmp = "/Debug" + app;
-  searchDirs.emplace_back(std::move(tmp));
-  searchDirs.emplace_back(std::move(app));
-
-  searchDirs.emplace_back("/Development");
-
-  for (std::string const& sdir : searchDirs) {
-    std::string command = cmStrCat(this->BinaryDirectory, sdir, tmpOutputFile);
-    if (cmSystemTools::FileExists(command)) {
-      this->OutputFile = cmSystemTools::CollapseFullPath(command);
-      return;
-    }
+  std::string outputFileLocation;
+  cmsys::ifstream ifs(command.c_str());
+  cmSystemTools::GetLineFromStream(ifs, outputFileLocation);
+  if (!cmSystemTools::FileExists(outputFileLocation)) {
+    std::ostringstream emsg;
+    emsg << "Recorded try_compile output location doesn't exist:\n";
+    emsg << cmStrCat("  ", outputFileLocation, "\n");
+    this->FindErrorMessage = emsg.str();
+    return;
   }
 
-  std::ostringstream emsg;
-  emsg << "Unable to find the executable at any of:\n";
-  emsg << cmWrap("  " + this->BinaryDirectory, searchDirs, tmpOutputFile, "\n")
-       << "\n";
-  this->FindErrorMessage = emsg.str();
+  this->OutputFile = cmSystemTools::CollapseFullPath(outputFileLocation);
 }

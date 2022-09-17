@@ -3776,14 +3776,20 @@ void cmGlobalXCodeGenerator::AddDependAndLinkInformation(cmXCodeObject* target)
     // add the library search paths
     {
       BuildObjectListOrString libSearchPaths(this, true);
+
       std::string linkDirs;
       for (auto const& libDir : cli->GetDirectories()) {
         if (!libDir.empty() && libDir != "/usr/lib") {
-          libSearchPaths.Add(this->XCodeEscapePath(
-            libDir + "/$(CONFIGURATION)$(EFFECTIVE_PLATFORM_NAME)"));
+          cmPolicies::PolicyStatus cmp0142 =
+            target->GetTarget()->GetPolicyStatusCMP0142();
+          if (cmp0142 == cmPolicies::OLD || cmp0142 == cmPolicies::WARN) {
+            libSearchPaths.Add(this->XCodeEscapePath(
+              libDir + "/$(CONFIGURATION)$(EFFECTIVE_PLATFORM_NAME)"));
+          }
           libSearchPaths.Add(this->XCodeEscapePath(libDir));
         }
       }
+
       // Add previously collected paths where to look for libraries
       // that were added to "Link Binary With Libraries"
       for (auto& libDir : linkSearchPaths) {
@@ -3841,9 +3847,17 @@ void cmGlobalXCodeGenerator::AddDependAndLinkInformation(cmXCodeObject* target)
               // an implicit search path, so we need it
               libPaths.Add("-F " + this->XCodeEscapePath(fwItems->first));
             }
-            libPaths.Add(
-              libName.GetFormattedItem(this->XCodeEscapePath(fwItems->second))
-                .Value);
+            if (libName.GetFeatureName() == "__CMAKE_LINK_FRAMEWORK"_s) {
+              // use the full path
+              libPaths.Add(
+                libName.GetFormattedItem(this->XCodeEscapePath(cleanPath))
+                  .Value);
+            } else {
+              libPaths.Add(
+                libName
+                  .GetFormattedItem(this->XCodeEscapePath(fwItems->second))
+                  .Value);
+            }
           } else {
             libPaths.Add(
               libName.GetFormattedItem(this->XCodeEscapePath(cleanPath))
