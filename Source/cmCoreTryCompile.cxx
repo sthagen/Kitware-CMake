@@ -153,7 +153,7 @@ auto const TryCompileBaseArgParser =
     .Bind("__CMAKE_INTERNAL"_s, &Arguments::CMakeInternal)
   /* keep semicolon on own line */;
 
-auto const TryCompileBaseNonProjectArgParser =
+auto const TryCompileBaseSourcesArgParser =
   cmArgumentParser<Arguments>{ TryCompileBaseArgParser }
     .Bind("SOURCES"_s, &Arguments::Sources)
     .Bind("COMPILE_DEFINITIONS"_s, TryCompileCompileDefs,
@@ -170,6 +170,13 @@ auto const TryCompileBaseNonProjectArgParser =
     .BIND_LANG_PROPS(OBJCXX)
   /* keep semicolon on own line */;
 
+auto const TryCompileBaseNewSourcesArgParser =
+  cmArgumentParser<Arguments>{ TryCompileBaseSourcesArgParser }
+    .Bind("SOURCE_FROM_ARG"_s, &Arguments::SourceFromArg)
+    .Bind("SOURCE_FROM_VAR"_s, &Arguments::SourceFromVar)
+    .Bind("SOURCE_FROM_FILE"_s, &Arguments::SourceFromFile)
+  /* keep semicolon on own line */;
+
 auto const TryCompileBaseProjectArgParser =
   cmArgumentParser<Arguments>{ TryCompileBaseArgParser }
     .Bind("PROJECT"_s, &Arguments::ProjectName)
@@ -182,21 +189,18 @@ auto const TryCompileProjectArgParser =
   makeTryCompileParser(TryCompileBaseProjectArgParser);
 
 auto const TryCompileSourcesArgParser =
-  makeTryCompileParser(TryCompileBaseNonProjectArgParser);
+  makeTryCompileParser(TryCompileBaseNewSourcesArgParser);
 
 auto const TryCompileOldArgParser =
-  makeTryCompileParser(TryCompileBaseNonProjectArgParser)
+  makeTryCompileParser(TryCompileBaseSourcesArgParser)
     .Bind(1, &Arguments::BinaryDirectory)
     .Bind(2, &Arguments::SourceDirectoryOrFile)
     .Bind(3, &Arguments::ProjectName)
     .Bind(4, &Arguments::TargetName)
   /* keep semicolon on own line */;
 
-auto const TryRunProjectArgParser =
-  makeTryRunParser(TryCompileBaseProjectArgParser);
-
 auto const TryRunSourcesArgParser =
-  makeTryRunParser(TryCompileBaseNonProjectArgParser);
+  makeTryRunParser(TryCompileBaseNewSourcesArgParser);
 
 auto const TryRunOldArgParser = makeTryRunParser(TryCompileOldArgParser);
 
@@ -226,11 +230,10 @@ Arguments cmCoreTryCompile::ParseArgs(
   std::vector<std::string> unparsedArguments;
   const auto& second = *(++args.begin());
 
-  if (second == "PROJECT") {
-    // New PROJECT signature.
-    auto arguments = this->ParseArgs(
-      args, isTryRun ? TryRunProjectArgParser : TryCompileProjectArgParser,
-      unparsedArguments);
+  if (!isTryRun && second == "PROJECT") {
+    // New PROJECT signature (try_compile only).
+    auto arguments =
+      this->ParseArgs(args, TryCompileProjectArgParser, unparsedArguments);
     if (!arguments.BinaryDirectory) {
       arguments.BinaryDirectory = unique_binary_directory;
     }
@@ -397,28 +400,48 @@ bool cmCoreTryCompile::TryCompileCode(Arguments& arguments,
     return false;
   }
 
-  // only valid for srcfile signatures
-  if (!this->SrcFileSignature) {
+  if (this->SrcFileSignature) {
+    if (arguments.SourceFromArg && arguments.SourceFromArg->size() % 2) {
+      this->Makefile->IssueMessage(
+        MessageType::FATAL_ERROR,
+        "SOURCE_FROM_ARG requires exactly two arguments");
+      return false;
+    }
+    if (arguments.SourceFromVar && arguments.SourceFromVar->size() % 2) {
+      this->Makefile->IssueMessage(
+        MessageType::FATAL_ERROR,
+        "SOURCE_FROM_VAR requires exactly two arguments");
+      return false;
+    }
+    if (arguments.SourceFromFile && arguments.SourceFromFile->size() % 2) {
+      this->Makefile->IssueMessage(
+        MessageType::FATAL_ERROR,
+        "SOURCE_FROM_FILE requires exactly two arguments");
+      return false;
+    }
+  } else {
+    // only valid for srcfile signatures
     if (!arguments.LangProps.empty()) {
       this->Makefile->IssueMessage(
         MessageType::FATAL_ERROR,
         cmStrCat(arguments.LangProps.begin()->first,
-                 " allowed only in source file signature."));
+                 " allowed only in source file signature"));
       return false;
     }
     if (!arguments.CompileDefs.empty()) {
       this->Makefile->IssueMessage(
         MessageType::FATAL_ERROR,
-        "COMPILE_DEFINITIONS specified on a srcdir type TRY_COMPILE");
+        "COMPILE_DEFINITIONS allowed only in source file signature");
       return false;
     }
     if (arguments.CopyFileTo) {
       this->Makefile->IssueMessage(
         MessageType::FATAL_ERROR,
-        "COPY_FILE specified on a srcdir type TRY_COMPILE");
+        "COPY_FILE allowed only in source file signature");
       return false;
     }
   }
+
   // make sure the binary directory exists
   if (useUniqueBinaryDirectory) {
     this->BinaryDirectory =
@@ -449,10 +472,60 @@ bool cmCoreTryCompile::TryCompileCode(Arguments& arguments,
     std::vector<std::string> sources;
     if (arguments.Sources) {
       sources = std::move(*arguments.Sources);
-    } else {
-      // TODO: ensure SourceDirectoryOrFile has a value
+    } else if (arguments.SourceDirectoryOrFile) {
       sources.emplace_back(*arguments.SourceDirectoryOrFile);
     }
+    if (arguments.SourceFromArg) {
+      auto const k = arguments.SourceFromArg->size();
+      for (auto i = decltype(k){ 0 }; i < k; i += 2) {
+        const auto& name = (*arguments.SourceFromArg)[i + 0];
+        const auto& content = (*arguments.SourceFromArg)[i + 1];
+        auto out = this->WriteSource(name, content, "SOURCES_FROM_ARG");
+        if (out.empty()) {
+          return false;
+        }
+        sources.emplace_back(std::move(out));
+      }
+    }
+    if (arguments.SourceFromVar) {
+      auto const k = arguments.SourceFromVar->size();
+      for (auto i = decltype(k){ 0 }; i < k; i += 2) {
+        const auto& name = (*arguments.SourceFromVar)[i + 0];
+        const auto& var = (*arguments.SourceFromVar)[i + 1];
+        const auto& content = this->Makefile->GetDefinition(var);
+        auto out = this->WriteSource(name, content, "SOURCES_FROM_VAR");
+        if (out.empty()) {
+          return false;
+        }
+        sources.emplace_back(std::move(out));
+      }
+    }
+    if (arguments.SourceFromFile) {
+      auto const k = arguments.SourceFromFile->size();
+      for (auto i = decltype(k){ 0 }; i < k; i += 2) {
+        const auto& dst = (*arguments.SourceFromFile)[i + 0];
+        const auto& src = (*arguments.SourceFromFile)[i + 1];
+
+        if (!cmSystemTools::GetFilenamePath(dst).empty()) {
+          const auto& msg =
+            cmStrCat("SOURCE_FROM_FILE given invalid filename \"", dst, "\"");
+          this->Makefile->IssueMessage(MessageType::FATAL_ERROR, msg);
+          return false;
+        }
+
+        auto dstPath = cmStrCat(this->BinaryDirectory, "/", dst);
+        auto const result = cmSystemTools::CopyFileAlways(src, dstPath);
+        if (!result.IsSuccess()) {
+          const auto& msg = cmStrCat("SOURCE_FROM_FILE failed to copy \"", src,
+                                     "\": ", result.GetString());
+          this->Makefile->IssueMessage(MessageType::FATAL_ERROR, msg);
+          return false;
+        }
+
+        sources.emplace_back(std::move(dstPath));
+      }
+    }
+    // TODO: ensure sources is not empty
 
     // Detect languages to enable.
     cmGlobalGenerator* gg = this->Makefile->GetGlobalGenerator();
@@ -1131,4 +1204,35 @@ void cmCoreTryCompile::FindOutputFile(const std::string& targetName)
   }
 
   this->OutputFile = cmSystemTools::CollapseFullPath(outputFileLocation);
+}
+
+std::string cmCoreTryCompile::WriteSource(std::string const& filename,
+                                          std::string const& content,
+                                          char const* command) const
+{
+  if (!cmSystemTools::GetFilenamePath(filename).empty()) {
+    const auto& msg =
+      cmStrCat(command, " given invalid filename \"", filename, "\"");
+    this->Makefile->IssueMessage(MessageType::FATAL_ERROR, msg);
+    return {};
+  }
+
+  auto filepath = cmStrCat(this->BinaryDirectory, "/", filename);
+  cmsys::ofstream file{ filepath.c_str(), std::ios::out };
+  if (!file) {
+    const auto& msg =
+      cmStrCat(command, " failed to open \"", filename, "\" for writing");
+    this->Makefile->IssueMessage(MessageType::FATAL_ERROR, msg);
+    return {};
+  }
+
+  file << content;
+  if (!file) {
+    const auto& msg = cmStrCat(command, " failed to write \"", filename, "\"");
+    this->Makefile->IssueMessage(MessageType::FATAL_ERROR, msg);
+    return {};
+  }
+
+  file.close();
+  return filepath;
 }
