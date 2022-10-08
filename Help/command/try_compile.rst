@@ -59,10 +59,10 @@ Try Compiling Source Files
 .. code-block:: cmake
 
   try_compile(<resultVar>
-              <SOURCES <srcfile...>]             |
-               SOURCE_FROM_ARG <name> <content>] |
-               SOURCE_FROM_VAR <name> <var>]     |
-               SOURCE_FROM_FILE <name> <path>    >...
+              <SOURCES <srcfile...>]                 |
+               SOURCE_FROM_CONTENT <name> <content>] |
+               SOURCE_FROM_VAR <name> <var>]         |
+               SOURCE_FROM_FILE <name> <path>        >...
               [NO_CACHE]
               [CMAKE_FLAGS <flags>...]
               [COMPILE_DEFINITIONS <defs>...]
@@ -102,9 +102,9 @@ contain something like the following:
   target_link_options(cmTryCompileExec PRIVATE <LINK_OPTIONS from caller>)
   target_link_libraries(cmTryCompileExec ${LINK_LIBRARIES})
 
-CMake will automatically generate a unique directory for each ``try_compile``
-operation in an unspecified location within the project's binary directory.
-These directories will be cleaned automatically unless
+CMake automatically generates, for each ``try_compile`` operation, a
+unique directory under ``${CMAKE_BINARY_DIR}/CMakeFiles/CMakeScratch``
+with an unspecified name.  These directories are cleaned automatically unless
 :option:`--debug-trycompile <cmake --debug-trycompile>` is passed to ``cmake``.
 Such directories from previous runs are also unconditionally cleaned at the
 beginning of any ``cmake`` execution.
@@ -194,7 +194,7 @@ The options are:
 ``OUTPUT_VARIABLE <var>``
   Store the output from the build process in the given variable.
 
-``SOURCE_FROM_ARG <name> <content>``
+``SOURCE_FROM_CONTENT <name> <content>``
   .. versionadded:: 3.25
 
   Write ``<content>`` to a file named ``<name>`` in the operation directory.
@@ -202,7 +202,7 @@ The options are:
   the contents of the file are dynamically specified. The specified ``<name>``
   is not allowed to contain path components.
 
-  ``SOURCE_FROM_ARG`` may be specified multiple times.
+  ``SOURCE_FROM_CONTENT`` may be specified multiple times.
 
 ``SOURCE_FROM_FILE <name> <path>``
   .. versionadded:: 3.25
@@ -214,14 +214,15 @@ The options are:
   ``SOURCE_FROM_*``. (Otherwise, ``SOURCES`` is usually more convenient.) The
   specified ``<name>`` is not allowed to contain path components.
 
-``SOURCE_FROM_VAR <name> <content>``
+``SOURCE_FROM_VAR <name> <var>``
   .. versionadded:: 3.25
 
   Write the contents of ``<var>`` to a file named ``<name>`` in the operation
-  directory. This is the same as ``SOURCE_FROM_ARG``, but takes the contents
-  from the specified CMake variable, rather than directly, which may be useful
-  when passing arguments through a function which wraps ``try_compile``. The
-  specified ``<name>`` is not allowed to contain path components.
+  directory. This is the same as ``SOURCE_FROM_CONTENT``, but takes the
+  contents from the specified CMake variable, rather than directly, which may
+  be useful when passing arguments through a function which wraps
+  ``try_compile``. The specified ``<name>`` is not allowed to contain path
+  components.
 
   ``SOURCE_FROM_VAR`` may be specified multiple times.
 
