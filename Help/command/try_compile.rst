@@ -59,10 +59,10 @@ Try Compiling Source Files
 .. code-block:: cmake
 
   try_compile(<resultVar>
-              <SOURCES <srcfile...>]                 |
-               SOURCE_FROM_CONTENT <name> <content>] |
-               SOURCE_FROM_VAR <name> <var>]         |
-               SOURCE_FROM_FILE <name> <path>        >...
+              <SOURCES <srcfile...>                 |
+               SOURCE_FROM_CONTENT <name> <content> |
+               SOURCE_FROM_VAR <name> <var>         |
+               SOURCE_FROM_FILE <name> <path>       >...
               [NO_CACHE]
               [CMAKE_FLAGS <flags>...]
               [COMPILE_DEFINITIONS <defs>...]
@@ -315,8 +315,9 @@ a build configuration.
   the generated project (unless overridden by an explicit option).
 
 .. versionchanged:: 3.14
-  For the :generator:`Green Hills MULTI` generator the GHS toolset and target
-  system customization cache variables are also propagated into the test project.
+  For the :generator:`Green Hills MULTI` generator, the GHS toolset and target
+  system customization cache variables are also propagated into the test
+  project.
 
 .. versionadded:: 3.24
   The :variable:`CMAKE_TRY_COMPILE_NO_PLATFORM_VARIABLES` variable may be
@@ -324,5 +325,5 @@ a build configuration.
 
 .. versionadded:: 3.25
   If :policy:`CMP0141` is set to ``NEW``, one can use
-  :variable:`CMAKE_MSVC_DEBUG_INFORMATION_FORMAT` to specify MSVC debug
+  :variable:`CMAKE_MSVC_DEBUG_INFORMATION_FORMAT` to specify the MSVC debug
   information format.

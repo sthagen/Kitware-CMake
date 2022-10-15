@@ -1,13 +1,9 @@
 # Distributed under the OSI-approved BSD 3-Clause License.  See accompanying
 # file Copyright.txt or https://cmake.org/licensing for details.
 
-cmake_minimum_required(VERSION 3.13...3.23 FATAL_ERROR)
+cmake_minimum_required(VERSION 3.13...3.24 FATAL_ERROR)
 set(CMAKE_USER_MAKE_RULES_OVERRIDE_C ${CMAKE_CURRENT_SOURCE_DIR}/Source/Modules/OverrideC.cmake)
 set(CMAKE_USER_MAKE_RULES_OVERRIDE_CXX ${CMAKE_CURRENT_SOURCE_DIR}/Source/Modules/OverrideCXX.cmake)
-
-if(POLICY CMP0129)
-  cmake_policy(SET CMP0129 NEW) # CMake 3.23
-endif()
 
 project(CMake)
 unset(CMAKE_USER_MAKE_RULES_OVERRIDE_CXX)
@@ -277,6 +273,16 @@ if(CMake_RUN_CLANG_TIDY)
   endif()
   set(CMAKE_CXX_CLANG_TIDY "${CLANG_TIDY_COMMAND}")
 
+  option(CMake_USE_CLANG_TIDY_MODULE "Use CMake's clang-tidy module." OFF)
+  if(CMake_USE_CLANG_TIDY_MODULE)
+    find_library(CMake_CLANG_TIDY_MODULE NAMES cmake-clang-tidy-module DOC "Location of the clang-tidy module")
+    if(NOT CMake_CLANG_TIDY_MODULE)
+      message(FATAL_ERROR "CMake_USE_CLANG_TIDY_MODULE is ON but cmake-clang-tidy-module is not found!")
+    endif()
+    list(APPEND CMAKE_CXX_CLANG_TIDY "--load=${CMake_CLANG_TIDY_MODULE}")
+    set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${CMake_CLANG_TIDY_MODULE}")
+  endif()
+
   # Create a preprocessor definition that depends on .clang-tidy content so
   # the compile command will change when .clang-tidy changes.  This ensures
   # that a subsequent build re-runs clang-tidy on all sources even if they
@@ -286,6 +292,11 @@ if(CMake_RUN_CLANG_TIDY)
   file(SHA1 ${CMAKE_CURRENT_SOURCE_DIR}/.clang-tidy clang_tidy_sha1)
   set(CLANG_TIDY_DEFINITIONS "CLANG_TIDY_SHA1=${clang_tidy_sha1}")
   unset(clang_tidy_sha1)
+  if(CMake_USE_CLANG_TIDY_MODULE)
+    file(SHA1 "${CMake_CLANG_TIDY_MODULE}" clang_tidy_module_sha1)
+    list(APPEND CLANG_TIDY_DEFINITIONS "CLANG_TIDY_MODULE_SHA1=${clang_tidy_module_sha1}")
+    unset(clang_tidy_module_sha1)
+  endif()
 
 endif()
 configure_file(.clang-tidy .clang-tidy COPYONLY)

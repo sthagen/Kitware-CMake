@@ -109,6 +109,7 @@ of the following libraries that are part of the CUDAToolkit:
 - :ref:`CUDA Runtime Library<cuda_toolkit_rt_lib>`
 - :ref:`CUDA Driver Library<cuda_toolkit_driver_lib>`
 - :ref:`cuBLAS<cuda_toolkit_cuBLAS>`
+- :ref:`cuFile<cuda_toolkit_cuFile>`
 - :ref:`cuFFT<cuda_toolkit_cuFFT>`
 - :ref:`cuRAND<cuda_toolkit_cuRAND>`
 - :ref:`cuSOLVER<cuda_toolkit_cuSOLVER>`
@@ -119,6 +120,7 @@ of the following libraries that are part of the CUDAToolkit:
 - :ref:`nvGRAPH<cuda_toolkit_nvGRAPH>`
 - :ref:`nvJPEG<cuda_toolkit_nvJPEG>`
 - :ref:`nvidia-ML<cuda_toolkit_nvML>`
+- :ref:`nvPTX Compiler<cuda_toolkit_nvptx>`
 - :ref:`nvRTC<cuda_toolkit_nvRTC>`
 - :ref:`nvToolsExt<cuda_toolkit_nvToolsExt>`
 - :ref:`nvtx3<cuda_toolkit_nvtx3>`
@@ -163,6 +165,22 @@ Targets Created:
 - ``CUDA::cublas_static``
 - ``CUDA::cublasLt`` starting in CUDA 10.1
 - ``CUDA::cublasLt_static`` starting in CUDA 10.1
+
+.. _`cuda_toolkit_cuFile`:
+
+cuFile
+""""""
+
+.. versionadded:: 3.25
+
+The NVIDIA GPUDirect Storage `cuFile <https://docs.nvidia.com/cuda/cufile-api/index.html>`_ library.
+
+Targets Created:
+
+- ``CUDA::cuFile`` starting in CUDA 11.4
+- ``CUDA::cuFile_static`` starting in CUDA 11.4
+- ``CUDA::cuFile_rdma`` starting in CUDA 11.4
+- ``CUDA::cuFile_rdma_static`` starting in CUDA 11.4
 
 .. _`cuda_toolkit_cuFFT`:
 
@@ -333,6 +351,22 @@ Targets Created:
 
 - ``CUDA::nvjpeg``
 - ``CUDA::nvjpeg_static``
+
+.. _`cuda_toolkit_nvPTX`:
+
+nvPTX Compiler
+""""""""""""""
+
+.. versionadded:: 3.25
+
+The `nvPTX <https://docs.nvidia.com/cuda/ptx-compiler-api/index.html>`_ (PTX Compilation) library.
+The PTX Compiler APIs are a set of APIs which can be used to compile a PTX program into GPU assembly code.
+Introduced in CUDA 11.1
+This is a static library only.
+
+Targets Created:
+
+- ``CUDA::nvptxcompiler`` starting in CUDA 11.1
 
 .. _`cuda_toolkit_nvRTC`:
 
@@ -959,6 +993,14 @@ if(CUDAToolkit_FOUND)
     _CUDAToolkit_find_and_add_import_lib(cublas_static DEPS culibos)
   endif()
 
+  if(CUDAToolkit_VERSION VERSION_GREATER_EQUAL 11.4)
+    _CUDAToolkit_find_and_add_import_lib(cuFile DEPS culibos)
+    _CUDAToolkit_find_and_add_import_lib(cuFile_static DEPS culibos)
+
+    _CUDAToolkit_find_and_add_import_lib(cuFile_rdma DEPS cuFile culibos)
+    _CUDAToolkit_find_and_add_import_lib(cuFile_rdma_static DEPS cuFile_static culibos)
+  endif()
+
   # cuFFTW depends on cuFFT
   _CUDAToolkit_find_and_add_import_lib(cufftw DEPS cufft)
   _CUDAToolkit_find_and_add_import_lib(cufftw_static DEPS cufft_static)
@@ -1015,6 +1057,9 @@ if(CUDAToolkit_FOUND)
   endif()
 
   _CUDAToolkit_find_and_add_import_lib(nvrtc DEPS cuda_driver)
+  if(CUDAToolkit_VERSION VERSION_GREATER_EQUAL 11.1.0)
+    _CUDAToolkit_find_and_add_import_lib(nvptxcompiler_static DEPS cuda_driver)
+  endif()
 
   _CUDAToolkit_find_and_add_import_lib(nvml ALT nvidia-ml nvml)
 
