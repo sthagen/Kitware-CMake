@@ -33,6 +33,7 @@
 #  include <cm3p/json/value.h>
 
 #  include "cmCMakePresetsGraph.h"
+#  include "cmMakefileProfilingData.h"
 #endif
 
 class cmExternalMakefileProjectGeneratorFactory;
@@ -41,9 +42,6 @@ class cmFileTimeCache;
 class cmGlobalGenerator;
 class cmGlobalGeneratorFactory;
 class cmMakefile;
-#if !defined(CMAKE_BOOTSTRAP)
-class cmMakefileProfilingData;
-#endif
 class cmMessenger;
 class cmVariableWatch;
 struct cmBuildOptions;
@@ -611,7 +609,18 @@ public:
   bool Open(const std::string& dir, bool dryRun);
 
   //! run the --workflow option
-  int Workflow(const std::string& presetName, bool listPresets);
+  enum class WorkflowListPresets
+  {
+    No,
+    Yes,
+  };
+  enum class WorkflowFresh
+  {
+    No,
+    Yes,
+  };
+  int Workflow(const std::string& presetName, WorkflowListPresets listPresets,
+               WorkflowFresh fresh);
 
   void UnwatchUnusedCli(const std::string& var);
   void WatchUnusedCli(const std::string& var);
@@ -628,6 +637,17 @@ public:
 #if !defined(CMAKE_BOOTSTRAP)
   cmMakefileProfilingData& GetProfilingOutput();
   bool IsProfilingEnabled() const;
+
+  template <typename... Args>
+  cm::optional<cmMakefileProfilingData::RAII> CreateProfilingEntry(
+    Args&&... args)
+  {
+    if (this->IsProfilingEnabled()) {
+      return cm::make_optional<cmMakefileProfilingData::RAII>(
+        this->GetProfilingOutput(), std::forward<Args>(args)...);
+    }
+    return cm::nullopt;
+  }
 #endif
 
 protected:

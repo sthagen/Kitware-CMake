@@ -142,6 +142,9 @@ source and build trees and generate a buildsystem:
     $ cmake .
 
 ``cmake [<options>] -S <path-to-source> -B <path-to-build>``
+
+  .. versionadded:: 3.13
+
   Uses ``<path-to-build>`` as the build tree and ``<path-to-source>``
   as the source tree.  The specified paths may be absolute or relative
   to the current working directory.  The source tree must contain a
@@ -554,6 +557,8 @@ following options:
   contain CMake preset files.
 
 .. option:: -j [<jobs>], --parallel [<jobs>]
+
+  .. versionadded:: 3.12
 
   The maximum number of concurrent processes to use when building.
   If ``<jobs>`` is omitted the native build tool's default number is used.
@@ -1280,6 +1285,12 @@ The options are:
 
   Lists the available workflow presets. The current working directory must
   contain CMake preset files.
+
+.. option:: --fresh
+
+  Perform a fresh configuration of the build tree.
+  This removes any existing ``CMakeCache.txt`` file and associated
+  ``CMakeFiles/`` directory, and recreates them from scratch.
 
 View Help
 =========
