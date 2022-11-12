@@ -3,7 +3,9 @@
 #include <clang-tidy/ClangTidyModule.h>
 #include <clang-tidy/ClangTidyModuleRegistry.h>
 
+#include "UseBespokeEnumClassCheck.h"
 #include "UseCmstrlenCheck.h"
+#include "UseCmsysFstreamCheck.h"
 
 namespace clang {
 namespace tidy {
@@ -14,6 +16,10 @@ public:
   void addCheckFactories(ClangTidyCheckFactories& CheckFactories) override
   {
     CheckFactories.registerCheck<UseCmstrlenCheck>("cmake-use-cmstrlen");
+    CheckFactories.registerCheck<UseCmsysFstreamCheck>(
+      "cmake-use-cmsys-fstream");
+    CheckFactories.registerCheck<UseBespokeEnumClassCheck>(
+      "cmake-use-bespoke-enum-class");
   }
 };
 
