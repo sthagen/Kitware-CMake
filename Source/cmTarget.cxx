@@ -526,6 +526,7 @@ cmTarget::cmTarget(std::string const& name, cmStateEnums::TargetType type,
     initProp("ANDROID_ANT_ADDITIONAL_OPTIONS");
     initProp("BUILD_RPATH");
     initProp("BUILD_RPATH_USE_ORIGIN");
+    initProp("CXX_SCAN_FOR_MODULES");
     initProp("INSTALL_NAME_DIR");
     initProp("INSTALL_REMOVE_ENVIRONMENT_RPATH");
     initPropValue("INSTALL_RPATH", "");
@@ -2656,8 +2657,9 @@ cmFileSet* cmTarget::GetFileSet(const std::string& name)
 std::pair<cmFileSet*, bool> cmTarget::GetOrCreateFileSet(
   const std::string& name, const std::string& type, cmFileSetVisibility vis)
 {
-  auto result = this->impl->FileSets.emplace(
-    std::make_pair(name, cmFileSet(name, type, vis)));
+  auto result = this->impl->FileSets.emplace(std::make_pair(
+    name,
+    cmFileSet(*this->GetMakefile()->GetCMakeInstance(), name, type, vis)));
   if (result.second) {
     auto bt = this->impl->Makefile->GetBacktrace();
     if (type == this->impl->HeadersFileSets.TypeName) {

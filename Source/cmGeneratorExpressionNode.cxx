@@ -57,7 +57,7 @@ std::string cmGeneratorExpressionNode::EvaluateDependentExpression(
   cmGeneratorExpressionDAGChecker* dagChecker,
   cmGeneratorTarget const* currentTarget)
 {
-  cmGeneratorExpression ge(context->Backtrace);
+  cmGeneratorExpression ge(*lg->GetCMakeInstance(), context->Backtrace);
   std::unique_ptr<cmCompiledGeneratorExpression> cge = ge.Parse(prop);
   cge->SetEvaluateForBuildsystem(context->EvaluateForBuildsystem);
   cge->SetQuiet(context->Quiet);
@@ -113,6 +113,8 @@ static const struct OneNode : public cmGeneratorExpressionNode
 static const struct OneNode buildInterfaceNode;
 
 static const struct ZeroNode installInterfaceNode;
+
+static const struct OneNode buildLocalInterfaceNode;
 
 struct BooleanOpNode : public cmGeneratorExpressionNode
 {
@@ -1970,7 +1972,10 @@ static const struct TargetPropertyNode : public cmGeneratorExpressionNode
         }
         return std::string();
       }
-      target = context->LG->FindGeneratorTargetToUse(targetName);
+      cmLocalGenerator const* lg = context->CurrentTarget
+        ? context->CurrentTarget->GetLocalGenerator()
+        : context->LG;
+      target = lg->FindGeneratorTargetToUse(targetName);
 
       if (!target) {
         std::ostringstream e;
@@ -3320,6 +3325,7 @@ const cmGeneratorExpressionNode* cmGeneratorExpressionNode::GetNode(
     { "GENEX_EVAL", &genexEvalNode },
     { "BUILD_INTERFACE", &buildInterfaceNode },
     { "INSTALL_INTERFACE", &installInterfaceNode },
+    { "BUILD_LOCAL_INTERFACE", &buildLocalInterfaceNode },
     { "INSTALL_PREFIX", &installPrefixNode },
     { "JOIN", &joinNode },
     { "LINK_ONLY", &linkOnlyNode },

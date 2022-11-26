@@ -1408,12 +1408,14 @@ bool HandleCopyFile(std::vector<std::string> const& args,
 
   struct Arguments
   {
+    bool InputMayBeRecent = false;
     bool OnlyIfDifferent = false;
     std::string Result;
   };
 
   static auto const parser =
     cmArgumentParser<Arguments>{}
+      .Bind("INPUT_MAY_BE_RECENT"_s, &Arguments::InputMayBeRecent)
       .Bind("ONLY_IF_DIFFERENT"_s, &Arguments::OnlyIfDifferent)
       .Bind("RESULT"_s, &Arguments::Result);
 
@@ -1456,9 +1458,13 @@ bool HandleCopyFile(std::vector<std::string> const& args,
   } else {
     when = cmSystemTools::CopyWhen::Always;
   }
+  cmSystemTools::CopyInputRecent const inputRecent = arguments.InputMayBeRecent
+    ? cmSystemTools::CopyInputRecent::Yes
+    : cmSystemTools::CopyInputRecent::No;
 
   std::string err;
-  if (cmSystemTools::CopySingleFile(oldname, newname, when, &err) ==
+  if (cmSystemTools::CopySingleFile(oldname, newname, when, inputRecent,
+                                    &err) ==
       cmSystemTools::CopyResult::Success) {
     if (!arguments.Result.empty()) {
       status.GetMakefile().AddDefinition(arguments.Result, "0");
@@ -2462,11 +2468,13 @@ void AddEvaluationFile(const std::string& inputName,
 {
   cmListFileBacktrace lfbt = status.GetMakefile().GetBacktrace();
 
-  cmGeneratorExpression outputGe(lfbt);
+  cmGeneratorExpression outputGe(*status.GetMakefile().GetCMakeInstance(),
+                                 lfbt);
   std::unique_ptr<cmCompiledGeneratorExpression> outputCge =
     outputGe.Parse(outputExpr);
 
-  cmGeneratorExpression conditionGe(lfbt);
+  cmGeneratorExpression conditionGe(*status.GetMakefile().GetCMakeInstance(),
+                                    lfbt);
   std::unique_ptr<cmCompiledGeneratorExpression> conditionCge =
     conditionGe.Parse(condition);
 
@@ -3402,20 +3410,29 @@ bool HandleArchiveCreateCommand(std::vector<std::string> const& args,
   }
 
   int compressionLevel = 0;
+  int minCompressionLevel = 0;
+  int maxCompressionLevel = 9;
+  if (compress == cmSystemTools::TarCompressZstd) {
+    maxCompressionLevel = 19;
+  }
+
   if (!parsedArgs.CompressionLevel.empty()) {
     if (parsedArgs.CompressionLevel.size() != 1 &&
         !std::isdigit(parsedArgs.CompressionLevel[0])) {
-      status.SetError(cmStrCat("compression level ",
-                               parsedArgs.CompressionLevel,
-                               " should be in range 0 to 9"));
+      status.SetError(
+        cmStrCat("compression level ", parsedArgs.CompressionLevel, " for ",
+                 parsedArgs.Compression, " should be in range ",
+                 minCompressionLevel, " to ", maxCompressionLevel));
       cmSystemTools::SetFatalErrorOccurred();
       return false;
     }
     compressionLevel = std::stoi(parsedArgs.CompressionLevel);
-    if (compressionLevel < 0 || compressionLevel > 9) {
-      status.SetError(cmStrCat("compression level ",
-                               parsedArgs.CompressionLevel,
-                               " should be in range 0 to 9"));
+    if (compressionLevel < minCompressionLevel ||
+        compressionLevel > maxCompressionLevel) {
+      status.SetError(
+        cmStrCat("compression level ", parsedArgs.CompressionLevel, " for ",
+                 parsedArgs.Compression, " should be in range ",
+                 minCompressionLevel, " to ", maxCompressionLevel));
       cmSystemTools::SetFatalErrorOccurred();
       return false;
     }

@@ -750,7 +750,8 @@ The options are:
 
   file(COPY_FILE <oldname> <newname>
        [RESULT <result>]
-       [ONLY_IF_DIFFERENT])
+       [ONLY_IF_DIFFERENT]
+       [INPUT_MAY_BE_RECENT])
 
 .. versionadded:: 3.21
 
@@ -768,6 +769,14 @@ The options are:
   If the ``<newname>`` path already exists, do not replace it if the file's
   contents are already the same as ``<oldname>`` (this avoids updating
   ``<newname>``'s timestamp).
+
+``INPUT_MAY_BE_RECENT``
+  .. versionadded:: 3.26
+
+  Tell CMake that the input file may have been recently created.  This is
+  meaningful only on Windows, where files may be inaccessible for a short
+  time after they are created.  With this option, if permission is denied,
+  CMake will retry reading the input a few times.
 
 This sub-command has some similarities to :command:`configure_file` with the
 ``COPYONLY`` option.  An important difference is that :command:`configure_file`
@@ -1213,6 +1222,9 @@ directed to do so with the ``COMPRESSION`` option.  Valid values for
   The compression level can be specified with the ``COMPRESSION_LEVEL`` option.
   The ``<compression-level>`` should be between 0-9, with the default being 0.
   The ``COMPRESSION`` option must be present when ``COMPRESSION_LEVEL`` is given.
+
+.. versionadded:: 3.26
+  The ``<compression-level>`` of the ``Zstd`` algorithm can be set between 0-19.
 
 .. note::
   With ``FORMAT`` set to ``raw`` only one file will be compressed with the

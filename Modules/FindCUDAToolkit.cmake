@@ -831,11 +831,18 @@ elseif(NOT CUDAToolkit_FIND_QUIETLY)
   message(STATUS "Unable to find cuda_runtime.h in \"${CUDAToolkit_TARGET_DIR}/include\" for CUDAToolkit_INCLUDE_DIR.")
 endif()
 
-# The NVHPC layout moves math library headers and libraries to a sibling directory.
+# The NVHPC layout moves math library headers and libraries to a sibling directory and it could be nested under
+# the version of the CUDA toolchain
 # Create a separate variable so this directory can be selectively added to math targets.
 if(NOT EXISTS "${CUDAToolkit_INCLUDE_DIR}/cublas_v2.h")
-  file(REAL_PATH "${CUDAToolkit_TARGET_DIR}/../../" CUDAToolkit_MATH_INCLUDE_DIR)
-  cmake_path(APPEND CUDAToolkit_MATH_INCLUDE_DIR "math_libs/include")
+  file(REAL_PATH "${CUDAToolkit_TARGET_DIR}" CUDAToolkit_MATH_INCLUDE_DIR)
+  cmake_path(APPEND CUDAToolkit_MATH_INCLUDE_DIR "../../math_libs/")
+  if(EXISTS "${CUDAToolkit_MATH_INCLUDE_DIR}/${CUDAToolkit_VERSION_MAJOR}.${CUDAToolkit_VERSION_MINOR}/")
+    cmake_path(APPEND CUDAToolkit_MATH_INCLUDE_DIR "${CUDAToolkit_VERSION_MAJOR}.${CUDAToolkit_VERSION_MINOR}/")
+  endif()
+  cmake_path(APPEND CUDAToolkit_MATH_INCLUDE_DIR "include")
+  cmake_path(NORMAL_PATH CUDAToolkit_MATH_INCLUDE_DIR)
+
   if(NOT EXISTS "${CUDAToolkit_MATH_INCLUDE_DIR}/cublas_v2.h")
     if(NOT CUDAToolkit_FIND_QUIETLY)
       message(STATUS "Unable to find cublas_v2.h in either \"${CUDAToolkit_INCLUDE_DIR}\" or \"${CUDAToolkit_MATH_INCLUDE_DIR}\"")
@@ -1060,7 +1067,9 @@ if(CUDAToolkit_FOUND)
   if(CUDAToolkit_VERSION VERSION_GREATER_EQUAL 11.1.0)
     if(NOT TARGET CUDA::nvptxcompiler_static)
       _CUDAToolkit_find_and_add_import_lib(nvptxcompiler_static DEPS cuda_driver)
-      target_link_libraries(CUDA::nvptxcompiler_static INTERFACE Threads::Threads)
+      if(TARGET CUDA::nvptxcompiler_static)
+        target_link_libraries(CUDA::nvptxcompiler_static INTERFACE Threads::Threads)
+      endif()
     endif()
   endif()
 
