@@ -35,6 +35,7 @@ class cmMakefile;
 class cmOutputConverter;
 class cmStateDirectory;
 class cmake;
+struct cmCxxModuleExportInfo;
 
 /**
  * \class cmGlobalNinjaGenerator
@@ -417,7 +418,6 @@ public:
   bool HasOutputPathPrefix() const { return !this->OutputPathPrefix.empty(); }
   void StripNinjaOutputPathPrefixAsSuffix(std::string& path);
 
-  struct CxxModuleExportInfo;
   bool WriteDyndepFile(
     std::string const& dir_top_src, std::string const& dir_top_bld,
     std::string const& dir_cur_src, std::string const& dir_cur_bld,
@@ -425,7 +425,7 @@ public:
     std::string const& module_dir,
     std::vector<std::string> const& linked_target_dirs,
     std::string const& arg_lang, std::string const& arg_modmapfmt,
-    CxxModuleExportInfo const& export_info);
+    cmCxxModuleExportInfo const& export_info);
 
   virtual std::string BuildAlias(const std::string& alias,
                                  const std::string& /*config*/) const
@@ -469,7 +469,7 @@ public:
 
   bool IsSingleConfigUtility(cmGeneratorTarget const* target) const;
 
-  bool CheckCxxModuleSupport();
+  bool CheckCxxModuleSupport() override;
 
 protected:
   void Generate() override;
@@ -592,7 +592,7 @@ private:
 
   codecvt::Encoding NinjaExpectedEncoding = codecvt::None;
 
-  bool DiagnosedCxxModuleSupport = false;
+  bool DiagnosedCxxModuleNinjaSupport = false;
 
   void InitOutputPathPrefix();
 

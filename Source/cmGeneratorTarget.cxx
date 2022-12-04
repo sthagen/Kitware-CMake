@@ -749,6 +749,12 @@ void cmGeneratorTarget::ClearSourcesCache()
   this->VisitedConfigsForObjects.clear();
   this->LinkImplMap.clear();
   this->LinkImplUsageRequirementsOnlyMap.clear();
+  this->IncludeDirectoriesCache.clear();
+  this->CompileOptionsCache.clear();
+  this->CompileDefinitionsCache.clear();
+  this->PrecompileHeadersCache.clear();
+  this->LinkOptionsCache.clear();
+  this->LinkDirectoriesCache.clear();
 }
 
 void cmGeneratorTarget::ClearLinkInterfaceCache()
@@ -3829,6 +3835,13 @@ void processIncludeDirectories(cmGeneratorTarget const* tgt,
 std::vector<BT<std::string>> cmGeneratorTarget::GetIncludeDirectories(
   const std::string& config, const std::string& lang) const
 {
+  ConfigAndLanguage cacheKey(config, lang);
+  {
+    auto it = this->IncludeDirectoriesCache.find(cacheKey);
+    if (it != this->IncludeDirectoriesCache.end()) {
+      return it->second;
+    }
+  }
   std::vector<BT<std::string>> includes;
   std::unordered_set<std::string> uniqueIncludes;
 
@@ -3903,6 +3916,7 @@ std::vector<BT<std::string>> cmGeneratorTarget::GetIncludeDirectories(
   processIncludeDirectories(this, entries, includes, uniqueIncludes,
                             debugIncludes);
 
+  this->IncludeDirectoriesCache.emplace(cacheKey, includes);
   return includes;
 }
 
@@ -4080,6 +4094,13 @@ void cmGeneratorTarget::GetCompileOptions(std::vector<std::string>& result,
 std::vector<BT<std::string>> cmGeneratorTarget::GetCompileOptions(
   std::string const& config, std::string const& language) const
 {
+  ConfigAndLanguage cacheKey(config, language);
+  {
+    auto it = this->CompileOptionsCache.find(cacheKey);
+    if (it != this->CompileOptionsCache.end()) {
+      return it->second;
+    }
+  }
   std::vector<BT<std::string>> result;
   std::unordered_set<std::string> uniqueOptions;
 
@@ -4106,6 +4127,7 @@ std::vector<BT<std::string>> cmGeneratorTarget::GetCompileOptions(
   processOptions(this, entries, result, uniqueOptions, debugOptions,
                  "compile options", OptionsParse::Shell);
 
+  CompileOptionsCache.emplace(cacheKey, result);
   return result;
 }
 
@@ -4167,6 +4189,13 @@ void cmGeneratorTarget::GetCompileDefinitions(
 std::vector<BT<std::string>> cmGeneratorTarget::GetCompileDefinitions(
   std::string const& config, std::string const& language) const
 {
+  ConfigAndLanguage cacheKey(config, language);
+  {
+    auto it = this->CompileDefinitionsCache.find(cacheKey);
+    if (it != this->CompileDefinitionsCache.end()) {
+      return it->second;
+    }
+  }
   std::vector<BT<std::string>> list;
   std::unordered_set<std::string> uniqueOptions;
 
@@ -4220,12 +4249,20 @@ std::vector<BT<std::string>> cmGeneratorTarget::GetCompileDefinitions(
   processOptions(this, entries, list, uniqueOptions, debugDefines,
                  "compile definitions", OptionsParse::None);
 
+  this->CompileDefinitionsCache.emplace(cacheKey, list);
   return list;
 }
 
 std::vector<BT<std::string>> cmGeneratorTarget::GetPrecompileHeaders(
   const std::string& config, const std::string& language) const
 {
+  ConfigAndLanguage cacheKey(config, language);
+  {
+    auto it = this->PrecompileHeadersCache.find(cacheKey);
+    if (it != this->PrecompileHeadersCache.end()) {
+      return it->second;
+    }
+  }
   std::unordered_set<std::string> uniqueOptions;
 
   cmGeneratorExpressionDAGChecker dagChecker(this, "PRECOMPILE_HEADERS",
@@ -4253,6 +4290,7 @@ std::vector<BT<std::string>> cmGeneratorTarget::GetPrecompileHeaders(
   processOptions(this, entries, list, uniqueOptions, debugDefines,
                  "precompile headers", OptionsParse::None);
 
+  this->PrecompileHeadersCache.emplace(cacheKey, list);
   return list;
 }
 
@@ -4613,6 +4651,13 @@ void cmGeneratorTarget::GetLinkOptions(std::vector<std::string>& result,
 std::vector<BT<std::string>> cmGeneratorTarget::GetLinkOptions(
   std::string const& config, std::string const& language) const
 {
+  ConfigAndLanguage cacheKey(config, language);
+  {
+    auto it = this->LinkOptionsCache.find(cacheKey);
+    if (it != this->LinkOptionsCache.end()) {
+      return it->second;
+    }
+  }
   std::vector<BT<std::string>> result;
   std::unordered_set<std::string> uniqueOptions;
 
@@ -4690,7 +4735,10 @@ std::vector<BT<std::string>> cmGeneratorTarget::GetLinkOptions(
 
   // Last step: replace "LINKER:" prefixed elements by
   // actual linker wrapper
-  return this->ResolveLinkerWrapper(result, language);
+  result = this->ResolveLinkerWrapper(result, language);
+
+  this->LinkOptionsCache.emplace(cacheKey, result);
+  return result;
 }
 
 std::vector<BT<std::string>>& cmGeneratorTarget::ResolveLinkerWrapper(
@@ -4889,6 +4937,13 @@ void cmGeneratorTarget::GetLinkDirectories(std::vector<std::string>& result,
 std::vector<BT<std::string>> cmGeneratorTarget::GetLinkDirectories(
   std::string const& config, std::string const& language) const
 {
+  ConfigAndLanguage cacheKey(config, language);
+  {
+    auto it = this->LinkDirectoriesCache.find(cacheKey);
+    if (it != this->LinkDirectoriesCache.end()) {
+      return it->second;
+    }
+  }
   std::vector<BT<std::string>> result;
   std::unordered_set<std::string> uniqueDirectories;
 
@@ -4918,6 +4973,7 @@ std::vector<BT<std::string>> cmGeneratorTarget::GetLinkDirectories(
   processLinkDirectories(this, entries, result, uniqueDirectories,
                          debugDirectories);
 
+  this->LinkDirectoriesCache.emplace(cacheKey, result);
   return result;
 }
 
@@ -8868,4 +8924,102 @@ void cmGeneratorTarget::CheckCxxModuleStatus(std::string const& config) const
         break;
     }
   }
+}
+
+bool cmGeneratorTarget::NeedCxxModuleSupport(std::string const& lang,
+                                             std::string const& config) const
+{
+  if (lang != "CXX"_s) {
+    return false;
+  }
+  return this->HaveCxxModuleSupport(config) == Cxx20SupportLevel::Supported &&
+    this->GetGlobalGenerator()->CheckCxxModuleSupport();
+}
+
+bool cmGeneratorTarget::NeedDyndep(std::string const& lang,
+                                   std::string const& config) const
+{
+  return lang == "Fortran"_s || this->NeedCxxModuleSupport(lang, config);
+}
+
+cmFileSet const* cmGeneratorTarget::GetFileSetForSource(
+  std::string const& config, cmSourceFile const* sf) const
+{
+  this->BuildFileSetInfoCache(config);
+
+  auto const& path = sf->GetFullPath();
+  auto const& per_config = this->Configs[config];
+
+  auto const fsit = per_config.FileSetCache.find(path);
+  if (fsit == per_config.FileSetCache.end()) {
+    return nullptr;
+  }
+  return fsit->second;
+}
+
+bool cmGeneratorTarget::NeedDyndepForSource(std::string const& lang,
+                                            std::string const& config,
+                                            cmSourceFile const* sf) const
+{
+  bool const needDyndep = this->NeedDyndep(lang, config);
+  if (!needDyndep) {
+    return false;
+  }
+  auto const* fs = this->GetFileSetForSource(config, sf);
+  if (fs &&
+      (fs->GetType() == "CXX_MODULES"_s ||
+       fs->GetType() == "CXX_MODULE_HEADER_UNITS"_s)) {
+    return true;
+  }
+  auto const sfProp = sf->GetProperty("CXX_SCAN_FOR_MODULES");
+  if (sfProp.IsSet()) {
+    return sfProp.IsOn();
+  }
+  auto const tgtProp = this->GetProperty("CXX_SCAN_FOR_MODULES");
+  if (tgtProp.IsSet()) {
+    return tgtProp.IsOn();
+  }
+  return true;
+}
+
+void cmGeneratorTarget::BuildFileSetInfoCache(std::string const& config) const
+{
+  auto& per_config = this->Configs[config];
+
+  if (per_config.BuiltFileSetCache) {
+    return;
+  }
+
+  auto const* tgt = this->Target;
+
+  for (auto const& name : tgt->GetAllFileSetNames()) {
+    auto const* file_set = tgt->GetFileSet(name);
+    if (!file_set) {
+      tgt->GetMakefile()->IssueMessage(
+        MessageType::INTERNAL_ERROR,
+        cmStrCat("Target \"", tgt->GetName(),
+                 "\" is tracked to have file set \"", name,
+                 "\", but it was not found."));
+      continue;
+    }
+
+    auto fileEntries = file_set->CompileFileEntries();
+    auto directoryEntries = file_set->CompileDirectoryEntries();
+    auto directories = file_set->EvaluateDirectoryEntries(
+      directoryEntries, this->LocalGenerator, config, this);
+
+    std::map<std::string, std::vector<std::string>> files;
+    for (auto const& entry : fileEntries) {
+      file_set->EvaluateFileEntry(directories, files, entry,
+                                  this->LocalGenerator, config, this);
+    }
+
+    for (auto const& it : files) {
+      for (auto const& filename : it.second) {
+        per_config.FileSetCache[filename] = file_set;
+      }
+    }
+  }
+
+  per_config.BuiltFileSetCache = true;
 }
