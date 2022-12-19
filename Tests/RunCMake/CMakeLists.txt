@@ -693,6 +693,7 @@ add_RunCMake_test(target_link_options -DCMAKE_C_COMPILER_ID=${CMAKE_C_COMPILER_I
 set_property(TEST RunCMake.target_link_options APPEND
   PROPERTY LABELS "CUDA")
 
+add_RunCMake_test(add_compile_definitions)
 add_RunCMake_test(target_compile_definitions)
 add_RunCMake_test(target_compile_features)
 add_RunCMake_test(target_compile_options
@@ -760,8 +761,11 @@ add_RunCMake_test(install -DNO_NAMELINK=${NO_NAMELINK} -DCYGWIN=${CYGWIN} -DMSYS
 set_property(TEST RunCMake.install APPEND
   PROPERTY LABELS "ISPC")
 
+if(DEFINED CMake_COMPILER_FORCES_NEW_DTAGS)
+  list(APPEND file-GET_RUNTIME_DEPENDENCIES_ARGS
+    -DCMake_COMPILER_FORCES_NEW_DTAGS=${CMake_COMPILER_FORCES_NEW_DTAGS})
+endif()
 add_RunCMake_test(file-GET_RUNTIME_DEPENDENCIES
-  -DCMAKE_C_COMPILER_ID=${CMAKE_C_COMPILER_ID}
   -DCMake_INSTALL_NAME_TOOL_BUG=${CMake_INSTALL_NAME_TOOL_BUG}
   )
 

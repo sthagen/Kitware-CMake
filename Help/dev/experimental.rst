@@ -18,7 +18,7 @@ C++20 Module APIs
 =================
 
 Variable: ``CMAKE_EXPERIMENTAL_CXX_MODULE_CMAKE_API``
-Value: ``9629ab6c-6c0e-423f-bb9d-cc5ac4a22041``
+Value: ``2182bf5c-ef0d-489a-91da-49dbc3090d2a``
 
 In order to support C++20 modules, there are a number of behaviors that have
 CMake APIs to provide the required features to build and export them from a
@@ -102,9 +102,9 @@ For compilers that generate module maps, tell CMake as follows:
   set(CMAKE_EXPERIMENTAL_CXX_MODULE_MAP_FLAG
     "${compiler_flags_for_module_map} -fmodule-mapper=<MODULE_MAP_FILE>")
 
-Currently, the only supported formats are ``gcc`` and ``msvc``.  The ``gcc``
-format is described in the GCC documentation, but the relevant section for the
-purposes of CMake is:
+Currently, the only supported formats are, ``clang``, ``gcc``, and ``msvc``.
+The ``gcc`` format is described in the GCC documentation, but the relevant
+section for the purposes of CMake is:
 
     A mapping file consisting of space-separated module-name, filename
     pairs, one per line.  Only the mappings for the direct imports and any
@@ -118,6 +118,9 @@ purposes of CMake is:
 The ``msvc`` format is a response file containing flags required to compile
 any module interfaces properly as well as find any required files to satisfy
 ``import`` statements as required for Microsoft's Visual Studio toolchains.
+
+Similarly, the ``clang`` format is a response file containing flags using
+Clang's module flags.
 
 .. _`D1483r1`: https://mathstuf.fedorapeople.org/fortran-modules/fortran-modules.html
 .. _`P1689r5`: http://www.open-std.org/jtc1/sc22/wg21/docs/papers/2022/p1689r5.html

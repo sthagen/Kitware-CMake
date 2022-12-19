@@ -47,6 +47,7 @@ run_cmake_command(E___run_co_compile-no-iwyu ${CMAKE_COMMAND} -E __run_co_compil
 run_cmake_command(E___run_co_compile-bad-iwyu ${CMAKE_COMMAND} -E __run_co_compile --iwyu=iwyu-does-not-exist -- command-does-not-exist)
 run_cmake_command(E___run_co_compile-no--- ${CMAKE_COMMAND} -E __run_co_compile --iwyu=iwyu-does-not-exist command-does-not-exist)
 run_cmake_command(E___run_co_compile-no-cc ${CMAKE_COMMAND} -E __run_co_compile --iwyu=iwyu-does-not-exist --)
+run_cmake_command(E___run_co_compile-tidy-remove-fixes ${CMAKE_COMMAND} -E __run_co_compile "--tidy=${CMAKE_COMMAND}\\;-E\\;true\\;--export-fixes=${RunCMake_BINARY_DIR}/tidy-fixes.yaml" -- ${CMAKE_COMMAND} -E true)
 
 run_cmake_command(G_no-arg ${CMAKE_COMMAND} -B DummyBuildDir -G)
 run_cmake_command(G_bad-arg ${CMAKE_COMMAND} -B DummyBuildDir -G NoSuchGenerator)
@@ -54,6 +55,7 @@ run_cmake_command(P_no-arg ${CMAKE_COMMAND} -P)
 run_cmake_command(P_no-file ${CMAKE_COMMAND} -P nosuchscriptfile.cmake)
 run_cmake_command(P_args ${CMAKE_COMMAND} -P "${RunCMake_SOURCE_DIR}/P_args.cmake" relative/path "${RunCMake_SOURCE_DIR}")
 run_cmake_command(P_arbitrary_args ${CMAKE_COMMAND} -P "${RunCMake_SOURCE_DIR}/P_arbitrary_args.cmake" -- -DFOO -S -B --fresh --version)
+run_cmake_command(P_P_in_arbitrary_args ${CMAKE_COMMAND} -P "${RunCMake_SOURCE_DIR}/P_arbitrary_args.cmake" -- -P "${RunCMake_SOURCE_DIR}/non_existing.cmake")
 run_cmake_command(P_fresh ${CMAKE_COMMAND} -P "${RunCMake_SOURCE_DIR}/P_fresh.cmake" --fresh)
 
 run_cmake_command(build-no-dir

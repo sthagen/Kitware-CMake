@@ -991,6 +991,8 @@ void cmVisualStudio10TargetGenerator::WriteSdkStyleProjectFile(
 
   this->WriteDotNetDocumentationFile(e0);
   this->WriteAllSources(e0);
+  this->WriteEmbeddedResourceGroup(e0);
+  this->WriteXamlFilesGroup(e0);
   this->WriteDotNetReferences(e0);
   this->WritePackageReferences(e0);
   this->WriteProjectReferences(e0);
@@ -3856,6 +3858,10 @@ bool cmVisualStudio10TargetGenerator::ComputeMasmOptions(
   auto pOptions = cm::make_unique<Options>(
     this->LocalGenerator, Options::MasmCompiler, gg->GetMasmFlagTable());
   Options& masmOptions = *pOptions;
+
+  // MSBuild enables debug information by default.
+  // Disable it explicitly unless a flag parsed below re-enables it.
+  masmOptions.AddFlag("GenerateDebugInformation", "false");
 
   std::string flags;
   this->LocalGenerator->AddLanguageFlags(flags, this->GeneratorTarget,

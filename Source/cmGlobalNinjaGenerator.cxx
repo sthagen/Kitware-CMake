@@ -592,6 +592,8 @@ void cmGlobalNinjaGenerator::Generate()
   this->CMakeCacheFile = this->NinjaOutputPath("CMakeCache.txt");
   this->DisableCleandead = false;
   this->DiagnosedCxxModuleNinjaSupport = false;
+  this->ClangTidyExportFixesDirs.clear();
+  this->ClangTidyExportFixesFiles.clear();
 
   this->PolicyCMP0058 =
     this->LocalGenerators[0]->GetMakefile()->GetPolicyStatus(
@@ -632,6 +634,8 @@ void cmGlobalNinjaGenerator::Generate()
   {
     this->CleanMetaData();
   }
+
+  this->RemoveUnknownClangTidyExportFixesFiles();
 }
 
 void cmGlobalNinjaGenerator::CleanMetaData()
@@ -2094,6 +2098,7 @@ void cmGlobalNinjaGenerator::WriteTargetClean(std::ostream& os)
       }
 
       std::vector<std::string> byproducts;
+      byproducts.reserve(this->CrossConfigs.size());
       for (auto const& config : this->CrossConfigs) {
         byproducts.push_back(
           this->BuildAlias(GetByproductsForCleanTargetName(), config));
@@ -2567,6 +2572,8 @@ bool cmGlobalNinjaGenerator::WriteDyndepFile(
   cm::optional<CxxModuleMapFormat> modmap_fmt;
   if (arg_modmapfmt.empty()) {
     // nothing to do.
+  } else if (arg_modmapfmt == "clang") {
+    modmap_fmt = CxxModuleMapFormat::Clang;
   } else if (arg_modmapfmt == "gcc") {
     modmap_fmt = CxxModuleMapFormat::Gcc;
   } else if (arg_modmapfmt == "msvc") {

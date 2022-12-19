@@ -3726,6 +3726,24 @@ std::string cmGeneratorTarget::GetCreateRuleVariable(
   return "";
 }
 
+//----------------------------------------------------------------------------
+std::string cmGeneratorTarget::GetClangTidyExportFixesDirectory(
+  const std::string& lang) const
+{
+  cmValue val =
+    this->GetProperty(cmStrCat(lang, "_CLANG_TIDY_EXPORT_FIXES_DIR"));
+  if (!cmNonempty(val)) {
+    return {};
+  }
+
+  std::string path = *val;
+  if (!cmSystemTools::FileIsFullPath(path)) {
+    path =
+      cmStrCat(this->LocalGenerator->GetCurrentBinaryDirectory(), '/', path);
+  }
+  return cmSystemTools::CollapseFullPath(path);
+}
+
 namespace {
 void processIncludeDirectories(cmGeneratorTarget const* tgt,
                                EvaluatedTargetPropertyEntries& entries,
@@ -4651,7 +4669,8 @@ void cmGeneratorTarget::GetLinkOptions(std::vector<std::string>& result,
 std::vector<BT<std::string>> cmGeneratorTarget::GetLinkOptions(
   std::string const& config, std::string const& language) const
 {
-  ConfigAndLanguage cacheKey(config, language);
+  ConfigAndLanguage cacheKey(
+    config, cmStrCat(language, this->IsDeviceLink() ? "-device" : ""));
   {
     auto it = this->LinkOptionsCache.find(cacheKey);
     if (it != this->LinkOptionsCache.end()) {
@@ -4937,7 +4956,8 @@ void cmGeneratorTarget::GetLinkDirectories(std::vector<std::string>& result,
 std::vector<BT<std::string>> cmGeneratorTarget::GetLinkDirectories(
   std::string const& config, std::string const& language) const
 {
-  ConfigAndLanguage cacheKey(config, language);
+  ConfigAndLanguage cacheKey(
+    config, cmStrCat(language, this->IsDeviceLink() ? "-device" : ""));
   {
     auto it = this->LinkDirectoriesCache.find(cacheKey);
     if (it != this->LinkDirectoriesCache.end()) {

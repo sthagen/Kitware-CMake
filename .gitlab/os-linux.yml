@@ -258,7 +258,7 @@
 ### NVHPC Compiler
 
 .nvhpc:
-    image: "kitware/cmake:ci-nvhpc22.9-x86_64-2022-11-22"
+    image: "kitware/cmake:ci-nvhpc22.11-x86_64-2022-12-06"
     variables:
         CMAKE_ARCH: x86_64
 
@@ -269,66 +269,70 @@
 
 ### CUDA builds
 
-.cuda9.2:
-    image: "kitware/cmake:ci-cuda9.2-x86_64-2021-10-01"
-
+.cuda:
     variables:
         GIT_CLONE_PATH: "$CI_BUILDS_DIR/cmake ci"
-        CMAKE_ARCH: x86_64
         CTEST_LABELS: "CUDA"
         CMAKE_CUDA_ARCHITECTURES_NATIVE_CLAMP: 1
 
+.cuda9.2:
+    extends: .cuda
+    image: "kitware/cmake:ci-cuda9.2-x86_64-2021-10-01"
+    variables:
+        CMAKE_ARCH: x86_64
+
 .cuda9.2_nvidia:
     extends: .cuda9.2
-
     variables:
         CMAKE_CONFIGURATION: cuda9.2_nvidia
         CMAKE_GENERATOR: "Ninja Multi-Config"
 
 .cuda10.2:
+    extends: .cuda
     image: "kitware/cmake:ci-cuda10.2-x86_64-2021-06-16"
-
     variables:
-        GIT_CLONE_PATH: "$CI_BUILDS_DIR/cmake ci"
         CMAKE_ARCH: x86_64
-        CTEST_LABELS: "CUDA"
-        CMAKE_CUDA_ARCHITECTURES_NATIVE_CLAMP: 1
 
 .cuda10.2_nvidia:
     extends: .cuda10.2
-
     variables:
         CMAKE_CONFIGURATION: cuda10.2_nvidia
         CTEST_NO_WARNINGS_ALLOWED: 1
 
 .cuda10.2_clang:
     extends: .cuda10.2
-
     variables:
         CMAKE_CONFIGURATION: cuda10.2_clang
         CTEST_NO_WARNINGS_ALLOWED: 1
 
 .cuda11.6:
+    extends: .cuda
     image: "kitware/cmake:ci-cuda11.6-x86_64-2022-02-28"
-
     variables:
-        GIT_CLONE_PATH: "$CI_BUILDS_DIR/cmake ci"
         CMAKE_ARCH: x86_64
-        CTEST_LABELS: "CUDA"
-        CMAKE_CUDA_ARCHITECTURES_NATIVE_CLAMP: 1
 
 .cuda11.6_nvidia:
     extends: .cuda11.6
-
     variables:
         CMAKE_CONFIGURATION: cuda11.6_nvidia
         CTEST_NO_WARNINGS_ALLOWED: 1
 
 .cuda11.6_clang:
     extends: .cuda11.6
-
     variables:
         CMAKE_CONFIGURATION: cuda11.6_clang
+        CTEST_NO_WARNINGS_ALLOWED: 1
+
+.cuda11.8_minimal:
+    extends: .cuda
+    image: "kitware/cmake:ci-cuda11.8-minimal-x86_64-2022-12-06"
+    variables:
+        CMAKE_ARCH: x86_64
+
+.cuda11.8_minimal_nvidia:
+    extends: .cuda11.8_minimal
+    variables:
+        CMAKE_CONFIGURATION: cuda11.8_minimal_nvidia
         CTEST_NO_WARNINGS_ALLOWED: 1
 
 ### HIP builds
@@ -370,6 +374,28 @@
 
     variables:
         CMAKE_CONFIGURATION: linux_gcc_cxx_modules_ninja_multi
+        CMAKE_GENERATOR: "Ninja Multi-Config"
+
+.clang_cxx_modules_x86_64:
+    image: "kitware/cmake:ci-clang_cxx_modules-x86_64-2022-12-15"
+
+    variables:
+        GIT_CLONE_PATH: "$CI_BUILDS_DIR/cmake ci"
+        CMAKE_ARCH: x86_64
+        CC: "/opt/llvm-p1689/bin/clang"
+        CXX: "/opt/llvm-p1689/bin/clang++"
+
+.clang_cxx_modules_ninja:
+    extends: .clang_cxx_modules_x86_64
+
+    variables:
+        CMAKE_CONFIGURATION: linux_clang_cxx_modules_ninja
+
+.clang_cxx_modules_ninja_multi:
+    extends: .clang_cxx_modules_x86_64
+
+    variables:
+        CMAKE_CONFIGURATION: linux_clang_cxx_modules_ninja_multi
         CMAKE_GENERATOR: "Ninja Multi-Config"
 
 ## Tags
@@ -454,7 +480,7 @@
     stage: build
     extends: .fedora37
     script:
-        - codespell
+        - .gitlab/ci/codespell.sh
     interruptible: true
 
 .cmake_build_linux:
@@ -465,8 +491,10 @@
         - .gitlab/ci/sccache.sh
         - sccache --start-server
         - sccache --show-stats
+        - .gitlab/ci/pre_build.sh
         - "$LAUNCHER ctest -VV -S .gitlab/ci/ctest_configure.cmake"
         - "$LAUNCHER ctest -VV -S .gitlab/ci/ctest_build.cmake"
+        - .gitlab/ci/post_build.sh
         - sccache --show-stats
 
     interruptible: true
