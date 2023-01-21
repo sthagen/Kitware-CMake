@@ -17,19 +17,20 @@ if(CMAKE_Swift_COMPILER_ID)
   include(Platform/${CMAKE_EFFECTIVE_SYSTEM_NAME}-${CMAKE_Swift_COMPILER_ID}-Swift OPTIONAL)
 endif()
 
-set(CMAKE_EXE_EXPORTS_Swift_FLAG "-emit-module -emit-module-path <SWIFT_MODULE> ${CMAKE_Swift_IMPLIB_LINKER_FLAGS}")
-
 set(CMAKE_INCLUDE_FLAG_Swift "-I ")
-if(CMAKE_SYSTEM_NAME STREQUAL Darwin)
+
+# FIXME: Move compiler- and platform-specific flags to the above-included modules.
+if(CMAKE_SYSTEM_NAME STREQUAL "Darwin" OR CMAKE_SYSTEM_NAME STREQUAL "iOS"
+    OR CMAKE_SYSTEM_NAME STREQUAL "tvOS" OR CMAKE_SYSTEM_NAME STREQUAL "watchOS")
   set(CMAKE_SHARED_LIBRARY_SONAME_Swift_FLAG "-Xlinker -install_name -Xlinker ")
 elseif(NOT CMAKE_SYSTEM_NAME STREQUAL Windows)
   set(CMAKE_SHARED_LIBRARY_SONAME_Swift_FLAG "-Xlinker -soname -Xlinker ")
 endif()
-
 if(NOT CMAKE_SYSTEM_NAME STREQUAL Windows)
   set(CMAKE_EXECUTABLE_RUNTIME_Swift_FLAG "-Xlinker -rpath -Xlinker ")
   set(CMAKE_SHARED_LIBRARY_RUNTIME_Swift_FLAG "-Xlinker -rpath -Xlinker ")
-  if(CMAKE_SYSTEM_NAME STREQUAL Darwin)
+  if(CMAKE_SYSTEM_NAME STREQUAL "Darwin" OR CMAKE_SYSTEM_NAME STREQUAL "iOS"
+      OR CMAKE_SYSTEM_NAME STREQUAL "tvOS" OR CMAKE_SYSTEM_NAME STREQUAL "watchOS")
     set(CMAKE_EXECUTABLE_RUNTIME_Swift_FLAG_SEP "")
     set(CMAKE_SHARED_LIBRARY_RUNTIME_Swift_FLAG_SEP "")
   else()
@@ -112,6 +113,10 @@ endif()
 
 if(NOT CMAKE_Swift_LINK_EXECUTABLE)
   set(CMAKE_Swift_LINK_EXECUTABLE "<CMAKE_Swift_COMPILER> -j ${CMAKE_Swift_NUM_THREADS} -num-threads ${CMAKE_Swift_NUM_THREADS} -emit-executable -o <TARGET> -emit-dependencies <DEFINES> <FLAGS> <INCLUDES> <SWIFT_SOURCES> <LINK_FLAGS> <LINK_LIBRARIES>")
+endif()
+
+if(NOT CMAKE_Swift_LINK_EXECUTABLE_WITH_EXPORTS)
+  set(CMAKE_Swift_LINK_EXECUTABLE_WITH_EXPORTS "${CMAKE_Swift_LINK_EXECUTABLE} -emit-module -emit-module-path <SWIFT_MODULE> ${CMAKE_Swift_IMPLIB_LINKER_FLAGS}")
 endif()
 
 if(NOT CMAKE_Swift_CREATE_STATIC_LIBRARY)

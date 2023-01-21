@@ -1,6 +1,13 @@
 ^
 ---
-events:
+events:(
+  -
+    kind: "message-v1"
+    backtrace:(
+      - "[^"]+")+
+    message: \|(
++      [^
+]*)*)+
   -
     kind: "try_compile-v1"
     backtrace:
@@ -8,6 +15,8 @@ events:
       - "[^"]*/Modules/CMakeTestCCompiler.cmake:[0-9]+ \(CMAKE_DETERMINE_COMPILER_ABI\)"
       - "Inspect.cmake:[0-9]+ \(enable_language\)"
       - "CMakeLists.txt:[0-9]+ \(include\)"
+    checks:
+      - "Detecting C compiler ABI info"
     directories:
       source: "[^"]*/Tests/RunCMake/try_compile/Inspect-build/CMakeFiles/CMakeScratch/TryCompile-[^/]+"
       binary: "[^"]*/Tests/RunCMake/try_compile/Inspect-build/CMakeFiles/CMakeScratch/TryCompile-[^/]+"
@@ -15,7 +24,14 @@ events:
       variable: "CMAKE_C_ABI_COMPILED"
       cached: true
       stdout: \|.*
-      exitCode: 0
+      exitCode: 0(
+  -
+    kind: "message-v1"
+    backtrace:(
+      - "[^"]+")+
+    message: \|(
++      [^
+]*)*)+
   -
     kind: "try_compile-v1"
     backtrace:
@@ -23,6 +39,8 @@ events:
       - "[^"]*/Modules/CMakeTestCXXCompiler.cmake:[0-9]+ \(CMAKE_DETERMINE_COMPILER_ABI\)"
       - "Inspect.cmake:[0-9]+ \(enable_language\)"
       - "CMakeLists.txt:[0-9]+ \(include\)"
+    checks:
+      - "Detecting CXX compiler ABI info"
     directories:
       source: "[^"]*/Tests/RunCMake/try_compile/Inspect-build/CMakeFiles/CMakeScratch/TryCompile-[^/]+"
       binary: "[^"]*/Tests/RunCMake/try_compile/Inspect-build/CMakeFiles/CMakeScratch/TryCompile-[^/]+"
@@ -30,5 +48,12 @@ events:
       variable: "CMAKE_CXX_ABI_COMPILED"
       cached: true
       stdout: \|.*
-      exitCode: 0
+      exitCode: 0(
+  -
+    kind: "message-v1"
+    backtrace:(
+      - "[^"]+")+
+    message: \|(
++      [^
+]*)*)*
 \.\.\.$

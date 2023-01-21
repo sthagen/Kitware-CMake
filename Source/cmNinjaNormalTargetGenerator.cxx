@@ -644,14 +644,7 @@ std::vector<std::string> cmNinjaNormalTargetGenerator::ComputeLinkCmd(
     } break;
     case cmStateEnums::SHARED_LIBRARY:
     case cmStateEnums::MODULE_LIBRARY:
-      break;
     case cmStateEnums::EXECUTABLE:
-      if (this->TargetLinkLanguage(config) == "Swift") {
-        if (this->GeneratorTarget->IsExecutableWithExports()) {
-          this->Makefile->GetDefExpandList("CMAKE_EXE_EXPORTS_Swift_FLAG",
-                                           linkCmds);
-        }
-      }
       break;
     default:
       assert(false && "Unexpected target type");
@@ -1112,7 +1105,8 @@ void cmNinjaNormalTargetGenerator::WriteLinkStatement(
           this->GetObjectFilePath(source, config));
       }
     }
-    if (targetType != cmStateEnums::EXECUTABLE) {
+    if (targetType != cmStateEnums::EXECUTABLE ||
+        gt->IsExecutableWithExports()) {
       linkBuild.Outputs.push_back(vars["SWIFT_MODULE"]);
     }
   } else {
@@ -1228,16 +1222,14 @@ void cmNinjaNormalTargetGenerator::WriteLinkStatement(
   if (!this->SetMsvcTargetPdbVariable(vars, config)) {
     // It is common to place debug symbols at a specific place,
     // so we need a plain target name in the rule available.
-    std::string prefix;
-    std::string base;
-    std::string suffix;
-    gt->GetFullNameComponents(prefix, base, suffix, config);
+    cmGeneratorTarget::NameComponents const& components =
+      gt->GetFullNameComponents(config);
     std::string dbg_suffix = ".dbg";
     // TODO: Where to document?
     if (cmValue d = mf->GetDefinition("CMAKE_DEBUG_SYMBOL_SUFFIX")) {
       dbg_suffix = *d;
     }
-    vars["TARGET_PDB"] = base + suffix + dbg_suffix;
+    vars["TARGET_PDB"] = components.base + components.suffix + dbg_suffix;
   }
 
   const std::string objPath =
