@@ -6,7 +6,12 @@
 #include <sstream>
 #include <utility>
 
+#include <cm/string_view>
+#include <cmext/string_view>
+
 #include "cmComputeLinkInformation.h"
+#include "cmGeneratorExpression.h"
+#include "cmGeneratorExpressionDAGChecker.h"
 #include "cmGeneratorTarget.h"
 #include "cmGlobalCommonGenerator.h"
 #include "cmGlobalGenerator.h"
@@ -157,7 +162,7 @@ std::string cmCommonTargetGenerator::GetIncludes(std::string const& l,
 }
 
 std::vector<std::string> cmCommonTargetGenerator::GetLinkedTargetDirectories(
-  const std::string& config) const
+  const std::string& lang, const std::string& config) const
 {
   std::vector<std::string> dirs;
   std::set<cmGeneratorTarget const*> emitted;
@@ -172,6 +177,8 @@ std::vector<std::string> cmCommonTargetGenerator::GetLinkedTargetDirectories(
           // Target->GetLinkInformation already processed their
           // link interface and they don't have any output themselves.
           && linkee->GetType() != cmStateEnums::INTERFACE_LIBRARY &&
+          ((lang == "CXX"_s && linkee->HaveCxx20ModuleSources()) ||
+           (lang == "Fortran"_s && linkee->HaveFortranSources(config))) &&
           emitted.insert(linkee).second) {
         cmLocalGenerator* lg = linkee->GetLocalGenerator();
         std::string di = cmStrCat(lg->GetCurrentBinaryDirectory(), '/',
@@ -283,11 +290,17 @@ std::string cmCommonTargetGenerator::GetLinkerLauncher(
   const std::string& config)
 {
   std::string lang = this->GeneratorTarget->GetLinkerLanguage(config);
-  cmValue launcherProp =
-    this->GeneratorTarget->GetProperty(lang + "_LINKER_LAUNCHER");
+  std::string propName = lang + "_LINKER_LAUNCHER";
+  cmValue launcherProp = this->GeneratorTarget->GetProperty(propName);
   if (cmNonempty(launcherProp)) {
+    cmGeneratorExpressionDAGChecker dagChecker(this->GeneratorTarget, propName,
+                                               nullptr, nullptr);
+    std::string evaluatedLinklauncher = cmGeneratorExpression::Evaluate(
+      *launcherProp, this->LocalCommonGenerator, config, this->GeneratorTarget,
+      &dagChecker, this->GeneratorTarget, lang);
     // Convert ;-delimited list to single string
-    std::vector<std::string> args = cmExpandedList(*launcherProp, true);
+    std::vector<std::string> args =
+      cmExpandedList(evaluatedLinklauncher, true);
     if (!args.empty()) {
       args[0] = this->LocalCommonGenerator->ConvertToOutputFormat(
         args[0], cmOutputConverter::SHELL);

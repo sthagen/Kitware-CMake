@@ -886,7 +886,8 @@ void cmNinjaTargetGenerator::WriteCompileRule(const std::string& lang,
     std::string const clauncher_prop = cmStrCat(lang, "_COMPILER_LAUNCHER");
     cmValue clauncher = this->GeneratorTarget->GetProperty(clauncher_prop);
     std::string evaluatedClauncher = cmGeneratorExpression::Evaluate(
-      *clauncher, this->LocalGenerator, config);
+      *clauncher, this->LocalGenerator, config, this->GeneratorTarget, nullptr,
+      this->GeneratorTarget, lang);
     if (!evaluatedClauncher.empty()) {
       compilerLauncher = evaluatedClauncher;
     }
@@ -1675,7 +1676,7 @@ void cmNinjaTargetGenerator::WriteTargetDependInfo(std::string const& lang,
 
   Json::Value& tdi_linked_target_dirs = tdi["linked-target-dirs"] =
     Json::arrayValue;
-  for (std::string const& l : this->GetLinkedTargetDirectories(config)) {
+  for (std::string const& l : this->GetLinkedTargetDirectories(lang, config)) {
     tdi_linked_target_dirs.append(l);
   }
 

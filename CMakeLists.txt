@@ -1,7 +1,7 @@
 # Distributed under the OSI-approved BSD 3-Clause License.  See accompanying
 # file Copyright.txt or https://cmake.org/licensing for details.
 
-cmake_minimum_required(VERSION 3.13...3.24 FATAL_ERROR)
+cmake_minimum_required(VERSION 3.13...3.25 FATAL_ERROR)
 set(CMAKE_USER_MAKE_RULES_OVERRIDE_C ${CMAKE_CURRENT_SOURCE_DIR}/Source/Modules/OverrideC.cmake)
 set(CMAKE_USER_MAKE_RULES_OVERRIDE_CXX ${CMAKE_CURRENT_SOURCE_DIR}/Source/Modules/OverrideCXX.cmake)
 
@@ -313,6 +313,11 @@ if(CMake_RUN_IWYU)
   endif()
   set(CMAKE_CXX_INCLUDE_WHAT_YOU_USE
     "${IWYU_COMMAND};-Xiwyu;--mapping_file=${CMake_SOURCE_DIR}/Utilities/IWYU/mapping.imp;-w")
+  option(CMake_IWYU_VERBOSE "Run include-what-you-use in verbose mode" OFF)
+  if (CMake_IWYU_VERBOSE)
+    list(APPEND CMAKE_CXX_INCLUDE_WHAT_YOU_USE
+      -Xiwyu -v7)
+  endif ()
   list(APPEND CMAKE_CXX_INCLUDE_WHAT_YOU_USE ${CMake_IWYU_OPTIONS})
 endif()
 
