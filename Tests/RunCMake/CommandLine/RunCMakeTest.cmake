@@ -56,6 +56,7 @@ run_cmake_command(P_no-file ${CMAKE_COMMAND} -P nosuchscriptfile.cmake)
 run_cmake_command(P_args ${CMAKE_COMMAND} -P "${RunCMake_SOURCE_DIR}/P_args.cmake" relative/path "${RunCMake_SOURCE_DIR}")
 run_cmake_command(P_arbitrary_args ${CMAKE_COMMAND} -P "${RunCMake_SOURCE_DIR}/P_arbitrary_args.cmake" -- -DFOO -S -B --fresh --version)
 run_cmake_command(P_P_in_arbitrary_args ${CMAKE_COMMAND} -P "${RunCMake_SOURCE_DIR}/P_arbitrary_args.cmake" -- -P "${RunCMake_SOURCE_DIR}/non_existing.cmake")
+run_cmake_command(P_P_in_arbitrary_args_2 ${CMAKE_COMMAND} -P "${RunCMake_SOURCE_DIR}/P_arbitrary_args.cmake" -- -P -o)
 run_cmake_command(P_fresh ${CMAKE_COMMAND} -P "${RunCMake_SOURCE_DIR}/P_fresh.cmake" --fresh)
 
 run_cmake_command(build-no-dir
@@ -1099,6 +1100,13 @@ set(ProfilingTestOutput ${RunCMake_TEST_BINARY_DIR}/output.json)
 set(RunCMake_TEST_OPTIONS --profiling-format=google-trace --profiling-output=${ProfilingTestOutput})
 run_cmake(ProfilingTest)
 unset(RunCMake_TEST_OPTIONS)
+
+if(RunCMake_GENERATOR MATCHES "^Visual Studio 9 2008")
+  run_cmake_with_options(DeprecateVS9-WARN-ON -DCMAKE_WARN_VS9=ON)
+  unset(ENV{CMAKE_WARN_VS9})
+  run_cmake(DeprecateVS9-WARN-ON)
+  run_cmake_with_options(DeprecateVS9-WARN-OFF -DCMAKE_WARN_VS9=OFF)
+endif()
 
 if(RunCMake_GENERATOR MATCHES "^Visual Studio 11 2012")
   run_cmake_with_options(DeprecateVS11-WARN-ON -DCMAKE_WARN_VS11=ON)
