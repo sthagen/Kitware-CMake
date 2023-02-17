@@ -25,7 +25,7 @@ cmExtraKateGenerator::cmExtraKateGenerator() = default;
 cmExternalMakefileProjectGeneratorFactory* cmExtraKateGenerator::GetFactory()
 {
   static cmExternalMakefileProjectGeneratorSimpleFactory<cmExtraKateGenerator>
-    factory("Kate", "Generates Kate project files.");
+    factory("Kate", "Generates Kate project files (deprecated).");
 
   if (factory.GetSupportedGlobalGenerators().empty()) {
 #if defined(_WIN32)
@@ -282,9 +282,8 @@ std::string cmExtraKateGenerator::GenerateFilesString(
     cmMakefile* makefile = lgen->GetMakefile();
     const std::vector<std::string>& listFiles = makefile->GetListFiles();
     for (std::string const& listFile : listFiles) {
-      tmp = listFile;
-      {
-        files.insert(tmp);
+      if (listFile.find("/CMakeFiles/") == std::string::npos) {
+        files.insert(listFile);
       }
     }
 

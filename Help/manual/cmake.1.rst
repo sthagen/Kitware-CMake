@@ -781,7 +781,7 @@ Available commands are:
       (:option:`-A ... <cmake -A>`).  The value is a list of platforms known to
       be supported.
     ``extraGenerators``
-      A list of strings with all the extra generators compatible with
+      A list of strings with all the :ref:`Extra Generators` compatible with
       the generator.
 
   ``fileApi``
@@ -1080,11 +1080,18 @@ Available commands are:
   situations instead. Use ``--`` to stop interpreting options and treat all
   remaining arguments as paths, even if they start with ``-``.
 
-.. option:: sleep <number>...
+.. option:: sleep <number>
 
   .. versionadded:: 3.0
 
-  Sleep for given number of seconds.
+  Sleep for ``<number>`` seconds. ``<number>`` may be a floating point number.
+  A practical minimum is about 0.1 seconds due to overhead in starting/stopping
+  CMake executable. This can be useful in a CMake script to insert a delay:
+
+  .. code-block:: cmake
+
+    # Sleep for about 0.5 seconds
+    execute_process(COMMAND ${CMAKE_COMMAND} -E sleep 0.5)
 
 .. option:: tar [cxt][vf][zjJ] file.tar [<options>] [--] [<pathname>...]
 
@@ -1189,7 +1196,7 @@ Available commands are:
 
 .. option:: time <command> [<args>...]
 
-  Run command and display elapsed time.
+  Run ``<command>`` and display elapsed time (including overhead of CMake frontend).
 
   .. versionadded:: 3.5
     The command now properly passes arguments with spaces or special characters
