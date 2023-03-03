@@ -270,8 +270,6 @@ if(want_NoQt_test)
   add_RunCMake_test(AutogenNoQt TEST_DIR Autogen)
 endif()
 
-add_RunCMake_test(ArtifactOutputDirs)
-
 if(NOT DEFINED CMake_TEST_BuildDepends_GNU_AS
     AND (CMAKE_C_COMPILER_ID STREQUAL "GNU" OR CMAKE_C_COMPILER_ID STREQUAL "LCC")
     AND CMAKE_GENERATOR MATCHES "^Ninja"
@@ -357,6 +355,7 @@ add_RunCMake_test(GenEx-DEVICE_LINK)
 add_RunCMake_test(GenEx-LINK_LIBRARY)
 add_RunCMake_test(GenEx-LINK_GROUP)
 add_RunCMake_test(GenEx-TARGET_FILE -DLINKER_SUPPORTS_PDB=${LINKER_SUPPORTS_PDB})
+add_RunCMake_test(GenEx-TARGET_IMPORT_FILE)
 add_RunCMake_test(GenEx-GENEX_EVAL)
 add_RunCMake_test(GenEx-TARGET_PROPERTY)
 add_RunCMake_test(GenEx-TARGET_RUNTIME_DLLS)
@@ -396,6 +395,7 @@ if(UNIX AND CMAKE_SHARED_LIBRARY_RUNTIME_C_FLAG AND CMAKE_EXECUTABLE_FORMAT STRE
 endif()
 add_RunCMake_test(ScriptMode)
 add_RunCMake_test(Swift -DCMAKE_Swift_COMPILER=${CMAKE_Swift_COMPILER} -DCMAKE_SYSTEM_NAME=${CMAKE_SYSTEM_NAME})
+add_RunCMake_test(TargetArtifacts -DCMAKE_SYSTEM_NAME=${CMAKE_SYSTEM_NAME})
 add_RunCMake_test(TargetObjects)
 add_RunCMake_test(TargetProperties)
 add_RunCMake_test(ToolchainFile)
@@ -515,6 +515,7 @@ add_RunCMake_test(BundleUtilities)
 if(APPLE)
   add_RunCMake_test(INSTALL_NAME_DIR)
   add_RunCMake_test(MacOSVersions)
+  add_RunCMake_test(AppleTextStubs)
 endif()
 
 function(add_RunCMake_test_try_compile)
