@@ -693,12 +693,12 @@ void cmVisualStudio10TargetGenerator::WriteClassicMsBuildProjectFile(
 
     switch (this->ProjectType) {
       case VsProjectType::vcxproj: {
+        Elem(e0, "Import").Attribute("Project", VS10_CXX_DEFAULT_PROPS);
         std::string const& props =
           this->GlobalGenerator->GetPlatformToolsetVersionProps();
         if (!props.empty()) {
           Elem(e0, "Import").Attribute("Project", props);
         }
-        Elem(e0, "Import").Attribute("Project", VS10_CXX_DEFAULT_PROPS);
       } break;
       case VsProjectType::csproj:
         Elem(e0, "Import")
@@ -1810,13 +1810,10 @@ void cmVisualStudio10TargetGenerator::WriteCustomRule(
       this->WriteCustomRuleCSharp(e0, c, name, script, additional_inputs.str(),
                                   outputs.str(), comment, ccg);
     } else {
-      this->WriteCustomRuleCpp(
-        *spe2, c, script, additional_inputs.str(), outputs.str(), comment, ccg,
-        symbolic,
-        (command.GetUsesTerminal() ||
-         (command.HasMainDependency() && source->GetIsGenerated()))
-          ? BuildInParallel::No
-          : BuildInParallel::Yes);
+      // FIXME(#18405): Enable BuildInParallel::Yes via an option or policy.
+      this->WriteCustomRuleCpp(*spe2, c, script, additional_inputs.str(),
+                               outputs.str(), comment, ccg, symbolic,
+                               BuildInParallel::No);
     }
   }
 }

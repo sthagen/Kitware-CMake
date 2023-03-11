@@ -4,6 +4,9 @@
 import os
 import re
 
+from dataclasses import dataclass
+from typing import Any, cast
+
 # Override much of pygments' CMakeLexer.
 # We need to parse CMake syntax definitions, not CMake code.
 
@@ -15,6 +18,9 @@ import re
 from pygments.lexers import CMakeLexer
 from pygments.token import Name, Operator, Punctuation, String, Text, Comment, Generic, Whitespace, Number
 from pygments.lexer import bygroups
+
+# RE to split multiple command signatures
+sig_end_re = re.compile(r'(?<=[)])\n')
 
 # Notes on regular expressions below:
 # - [\.\+-] are needed for string constants like gtk+-2.0
@@ -57,15 +63,19 @@ CMakeLexer.tokens["root"] = [
   #  (r'[^<>\])\}\|$"# \t\n]+', Name.Exception),            # fallback, for debugging only
 ]
 
+from docutils.utils.code_analyzer import Lexer, LexerError
 from docutils.parsers.rst import Directive, directives
 from docutils.transforms import Transform
 from docutils import io, nodes
 
-from sphinx.directives import ObjectDescription
+from sphinx.directives import ObjectDescription, nl_escape_re
 from sphinx.domains import Domain, ObjType
 from sphinx.roles import XRefRole
 from sphinx.util.nodes import make_refnode
+from sphinx.util import logging, ws_re
 from sphinx import addnodes
+
+logger = logging.getLogger(__name__)
 
 sphinx_before_1_4 = False
 sphinx_before_1_7_2 = False
@@ -98,6 +108,14 @@ if sphinx_before_1_7_2:
         new_items.append(item)
     return new_items
   QtHelpBuilder.build_keywords = new_build_keywords
+
+@dataclass
+class ObjectEntry:
+    docname: str
+    objtype: str
+    node_id: str
+    name: str
+
 
 class CMakeModule(Directive):
     required_arguments = 1
@@ -200,14 +218,6 @@ _cmake_index_objs = {
     'variable':   _cmake_index_entry('variable'),
     }
 
-def _cmake_object_inventory(env, document, line, objtype, targetid):
-    inv = env.domaindata['cmake']['objects']
-    if targetid in inv:
-        document.reporter.warning(
-            'CMake object "%s" also described in "%s".' %
-            (targetid, env.doc2path(inv[targetid][0])), line=line)
-    inv[targetid] = (env.docname, objtype)
-
 class CMakeTransform(Transform):
 
     # Run this transform early since we insert nodes we want
@@ -270,8 +280,10 @@ class CMakeTransform(Transform):
             indexnode = addnodes.index()
             indexnode['entries'] = [make_index_entry(title, targetid)]
             self.document.insert(0, indexnode)
+
             # Add to cmake domain object inventory
-            _cmake_object_inventory(env, self.document, 1, objtype, targetid)
+            domain = cast(CMakeDomain, env.get_domain('cmake'))
+            domain.note_object(objtype, targetname, targetid, targetid)
 
 class CMakeObject(ObjectDescription):
 
@@ -286,39 +298,120 @@ class CMakeObject(ObjectDescription):
 
     def add_target_and_index(self, name, sig, signode):
         if self.objtype == 'command':
-           targetname = name.lower()
+            targetname = name.lower()
         else:
-           targetname = name
+            targetname = name
         targetid = '%s:%s' % (self.objtype, targetname)
         if targetid not in self.state.document.ids:
             signode['names'].append(targetid)
             signode['ids'].append(targetid)
             signode['first'] = (not self.names)
             self.state.document.note_explicit_target(signode)
-            _cmake_object_inventory(self.env, self.state.document,
-                                    self.lineno, self.objtype, targetid)
+
+            domain = cast(CMakeDomain, self.env.get_domain('cmake'))
+            domain.note_object(self.objtype, targetname, targetid, targetid,
+                               location=signode)
 
         make_index_entry = _cmake_index_objs.get(self.objtype)
         if make_index_entry:
             self.indexnode['entries'].append(make_index_entry(name, targetid))
 
+class CMakeSignatureObject(CMakeObject):
+    object_type = 'signature'
+
+    option_spec = {
+        'target': directives.unchanged,
+    }
+
+    def get_signatures(self):
+        content = nl_escape_re.sub('', self.arguments[0])
+        lines = sig_end_re.split(content)
+        return [ws_re.sub(' ', line.strip()) for line in lines]
+
+    def handle_signature(self, sig, signode):
+        language = 'cmake'
+        classes = ['code', 'cmake', 'highlight']
+
+        node = addnodes.desc_name(sig, '', classes=classes)
+
+        try:
+            tokens = Lexer(sig, language, 'short')
+        except LexerError as error:
+            if self.state.document.settings.report_level > 2:
+                # Silently insert without syntax highlighting.
+                tokens = Lexer(sig, language, 'none')
+            else:
+                raise self.warning(error)
+
+        for classes, value in tokens:
+            if classes:
+                node += nodes.inline(value, value, classes=classes)
+            else:
+                node += nodes.Text(value)
+
+        signode.clear()
+        signode += node
+
+        return sig
+
+    def __init__(self, *args, **kwargs):
+        self.targetnames = {}
+        super().__init__(*args, **kwargs)
+
+    def add_target_and_index(self, name, sig, signode):
+        if name in self.targetnames:
+            sigargs = self.targetnames[name]
+        else:
+            def extract_keywords(params):
+                for p in params:
+                    if p[0].isalpha():
+                        yield p
+                    else:
+                        return
+
+            keywords = extract_keywords(name.split('(')[1].split())
+            sigargs = ' '.join(keywords)
+        targetname = sigargs.lower()
+        targetid = nodes.make_id(targetname)
+
+        if targetid not in self.state.document.ids:
+            signode['names'].append(targetname)
+            signode['ids'].append(targetid)
+            signode['first'] = (not self.names)
+            self.state.document.note_explicit_target(signode)
+
+            # Register the signature as a command object.
+            command = name.split('(')[0].lower()
+            refname = f'{command}({sigargs})'
+            refid = f'command:{command}({targetname})'
+
+            domain = cast(CMakeDomain, self.env.get_domain('cmake'))
+            domain.note_object('command', name=refname, target_id=refid,
+                               node_id=targetid, location=signode)
+
+    def run(self):
+        targets = self.options.get('target')
+        if targets is not None:
+            signatures = self.get_signatures()
+            targets = [t.strip() for t in targets.split('\n')]
+            for signature, target in zip(signatures, targets):
+                self.targetnames[signature] = target
+
+        return super().run()
+
 class CMakeXRefRole(XRefRole):
 
     # See sphinx.util.nodes.explicit_title_re; \x00 escapes '<'.
     _re = re.compile(r'^(.+?)(\s*)(?<!\x00)<(.*?)>$', re.DOTALL)
-    _re_sub = re.compile(r'^([^()\s]+)\s*\(([^()]*)\)$', re.DOTALL)
+    _re_ref = re.compile(r'^.*\s<\w+([(][\w\s]+[)])?>$', re.DOTALL)
     _re_genex = re.compile(r'^\$<([^<>:]+)(:[^<>]+)?>$', re.DOTALL)
     _re_guide = re.compile(r'^([^<>/]+)/([^<>]*)$', re.DOTALL)
 
     def __call__(self, typ, rawtext, text, *args, **keys):
-        # Translate CMake command cross-references of the form:
-        #  `command_name(SUB_COMMAND)`
-        # to have an explicit target:
-        #  `command_name(SUB_COMMAND) <command_name>`
         if typ == 'cmake:command':
-            m = CMakeXRefRole._re_sub.match(text)
-            if m:
-                text = '%s <%s>' % (text, m.group(1))
+            m = CMakeXRefRole._re_ref.match(text)
+            if m is None:
+                text = f'{text} <{text}>'
         elif typ == 'cmake:genex':
             m = CMakeXRefRole._re_genex.match(text)
             if m:
@@ -374,6 +467,10 @@ class CMakeXRefTransform(Transform):
                 # Do not index cross-references to guide sections.
                 continue
 
+            if objtype == 'command':
+                # Index signature references to their parent command.
+                objname = objname.split('(')[0].lower()
+
             targetnum = env.new_serialno('index-%s:%s' % (objtype, objname))
 
             targetid = 'index-%s-%s:%s' % (targetnum, objtype, objname)
@@ -411,19 +508,9 @@ class CMakeDomain(Domain):
         'command':    CMakeObject,
         'envvar':     CMakeObject,
         'genex':      CMakeObject,
+        'signature':  CMakeSignatureObject,
         'variable':   CMakeObject,
-        # Other object types cannot be created except by the CMakeTransform
-        # 'generator':  CMakeObject,
-        # 'module':     CMakeObject,
-        # 'policy':     CMakeObject,
-        # 'prop_cache': CMakeObject,
-        # 'prop_dir':   CMakeObject,
-        # 'prop_gbl':   CMakeObject,
-        # 'prop_inst':  CMakeObject,
-        # 'prop_sf':    CMakeObject,
-        # 'prop_test':  CMakeObject,
-        # 'prop_tgt':   CMakeObject,
-        # 'manual':     CMakeObject,
+        # Other `object_types` cannot be created except by the `CMakeTransform`
     }
     roles = {
         'command':    CMakeXRefRole(fix_parens = True, lowercase = True),
@@ -450,25 +537,46 @@ class CMakeDomain(Domain):
 
     def clear_doc(self, docname):
         to_clear = set()
-        for fullname, (fn, _) in self.data['objects'].items():
-            if fn == docname:
+        for fullname, obj in self.data['objects'].items():
+            if obj.docname == docname:
                 to_clear.add(fullname)
         for fullname in to_clear:
             del self.data['objects'][fullname]
 
     def resolve_xref(self, env, fromdocname, builder,
                      typ, target, node, contnode):
-        targetid = '%s:%s' % (typ, target)
+        targetid = f'{typ}:{target}'
         obj = self.data['objects'].get(targetid)
+
+        if obj is None and typ == 'command':
+            # If 'command(args)' wasn't found, try just 'command'.
+            # TODO: remove this fallback? warn?
+            # logger.warning(f'no match for {targetid}')
+            command = target.split('(')[0]
+            targetid = f'{typ}:{command}'
+            obj = self.data['objects'].get(targetid)
+
         if obj is None:
             # TODO: warn somehow?
             return None
-        return make_refnode(builder, fromdocname, obj[0], targetid,
+
+        return make_refnode(builder, fromdocname, obj.docname, obj.node_id,
                             contnode, target)
 
+    def note_object(self, objtype: str, name: str, target_id: str,
+                    node_id: str, location: Any = None):
+        if target_id in self.data['objects']:
+            other = self.data['objects'][target_id].docname
+            logger.warning(
+                f'CMake object {target_id!r} also described in {other!r}',
+                location=location)
+
+        self.data['objects'][target_id] = ObjectEntry(
+            self.env.docname, objtype, node_id, name)
+
     def get_objects(self):
-        for refname, (docname, type) in self.data['objects'].items():
-            yield (refname, refname, type, docname, refname, 1)
+        for refname, obj in self.data['objects'].items():
+            yield (refname, obj.name, obj.objtype, obj.docname, obj.node_id, 1)
 
 def setup(app):
     app.add_directive('cmake-module', CMakeModule)
