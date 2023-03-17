@@ -1810,10 +1810,15 @@ void cmVisualStudio10TargetGenerator::WriteCustomRule(
       this->WriteCustomRuleCSharp(e0, c, name, script, additional_inputs.str(),
                                   outputs.str(), comment, ccg);
     } else {
-      // FIXME(#18405): Enable BuildInParallel::Yes via an option or policy.
+      BuildInParallel buildInParallel = BuildInParallel::No;
+      if (command.GetCMP0147Status() == cmPolicies::NEW &&
+          !command.GetUsesTerminal() &&
+          !(command.HasMainDependency() && source->GetIsGenerated())) {
+        buildInParallel = BuildInParallel::Yes;
+      }
       this->WriteCustomRuleCpp(*spe2, c, script, additional_inputs.str(),
                                outputs.str(), comment, ccg, symbolic,
-                               BuildInParallel::No);
+                               buildInParallel);
     }
   }
 }
@@ -3592,13 +3597,13 @@ bool cmVisualStudio10TargetGenerator::ComputeCudaOptions(
   if (this->GeneratorTarget->GetPropertyAsBool("CUDA_SEPARABLE_COMPILATION")) {
     cudaOptions.AddFlag("GenerateRelocatableDeviceCode", "true");
   }
-  bool notPtx = true;
+  bool notPtxLike = true;
   if (this->GeneratorTarget->GetPropertyAsBool("CUDA_PTX_COMPILATION")) {
     cudaOptions.AddFlag("NvccCompilation", "ptx");
     // We drop the %(Extension) component as CMake expects all PTX files
     // to not have the source file extension at all
     cudaOptions.AddFlag("CompileOut", "$(IntDir)%(Filename).ptx");
-    notPtx = false;
+    notPtxLike = false;
 
     if (cmSystemTools::VersionCompare(cmSystemTools::OP_GREATER_EQUAL,
                                       cudaVersion, "9.0") &&
@@ -3613,9 +3618,24 @@ bool cmVisualStudio10TargetGenerator::ComputeCudaOptions(
                           "%(BaseCommandLineTemplate) [CompileOut] [FastMath] "
                           "[Defines] \"%(FullPath)\"");
     }
+  } else if (this->GeneratorTarget->GetPropertyAsBool(
+               "CUDA_CUBIN_COMPILATION")) {
+    cudaOptions.AddFlag("NvccCompilation", "cubin");
+    cudaOptions.AddFlag("CompileOut", "$(IntDir)%(Filename).cubin");
+    notPtxLike = false;
+  } else if (this->GeneratorTarget->GetPropertyAsBool(
+               "CUDA_FATBIN_COMPILATION")) {
+    cudaOptions.AddFlag("NvccCompilation", "fatbin");
+    cudaOptions.AddFlag("CompileOut", "$(IntDir)%(Filename).fatbin");
+    notPtxLike = false;
+  } else if (this->GeneratorTarget->GetPropertyAsBool(
+               "CUDA_OPTIX_COMPILATION")) {
+    cudaOptions.AddFlag("NvccCompilation", "optix-ir");
+    cudaOptions.AddFlag("CompileOut", "$(IntDir)%(Filename).optixir");
+    notPtxLike = false;
   }
 
-  if (notPtx &&
+  if (notPtxLike &&
       cmSystemTools::VersionCompareGreaterEq(
         "8.0", this->GlobalGenerator->GetPlatformToolsetCudaString())) {
     // Explicitly state that we want this file to be treated as a

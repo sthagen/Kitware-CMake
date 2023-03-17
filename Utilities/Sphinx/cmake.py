@@ -1,113 +1,123 @@
 # Distributed under the OSI-approved BSD 3-Clause License.  See accompanying
 # file Copyright.txt or https://cmake.org/licensing for details.
 
+# BEGIN imports
+
 import os
 import re
 
 from dataclasses import dataclass
-from typing import Any, cast
+from typing import Any, List, Tuple, Type, cast
 
-# Override much of pygments' CMakeLexer.
-# We need to parse CMake syntax definitions, not CMake code.
-
-# For hard test cases that use much of the syntax below, see
-# - module/FindPkgConfig.html (with "glib-2.0>=2.10 gtk+-2.0" and similar)
-# - module/ExternalProject.html (with http:// https:// git@; also has command options -E --build)
-# - manual/cmake-buildsystem.7.html (with nested $<..>; relative and absolute paths, "::")
-
-from pygments.lexers import CMakeLexer
-from pygments.token import Name, Operator, Punctuation, String, Text, Comment, Generic, Whitespace, Number
-from pygments.lexer import bygroups
-
-# RE to split multiple command signatures
-sig_end_re = re.compile(r'(?<=[)])\n')
-
-# Notes on regular expressions below:
-# - [\.\+-] are needed for string constants like gtk+-2.0
-# - Unix paths are recognized by '/'; support for Windows paths may be added if needed
-# - (\\.) allows for \-escapes (used in manual/cmake-language.7)
-# - $<..$<..$>..> nested occurrence in cmake-buildsystem
-# - Nested variable evaluations are only supported in a limited capacity. Only
-#   one level of nesting is supported and at most one nested variable can be present.
-
-CMakeLexer.tokens["root"] = [
-  (r'\b(\w+)([ \t]*)(\()', bygroups(Name.Function, Text, Name.Function), '#push'),     # fctn(
-  (r'\(', Name.Function, '#push'),
-  (r'\)', Name.Function, '#pop'),
-  (r'\[', Punctuation, '#push'),
-  (r'\]', Punctuation, '#pop'),
-  (r'[|;,.=*\-]', Punctuation),
-  (r'\\\\', Punctuation),                                   # used in commands/source_group
-  (r'[:]', Operator),
-  (r'[<>]=', Punctuation),                                  # used in FindPkgConfig.cmake
-  (r'\$<', Operator, '#push'),                              # $<...>
-  (r'<[^<|]+?>(\w*\.\.\.)?', Name.Variable),                # <expr>
-  (r'(\$\w*\{)([^\}\$]*)?(?:(\$\w*\{)([^\}]+?)(\}))?([^\}]*?)(\})',  # ${..} $ENV{..}, possibly nested
-    bygroups(Operator, Name.Tag, Operator, Name.Tag, Operator, Name.Tag, Operator)),
-  (r'([A-Z]+\{)(.+?)(\})', bygroups(Operator, Name.Tag, Operator)),  # DATA{ ...}
-  (r'[a-z]+(@|(://))((\\.)|[\w.+-:/\\])+', Name.Attribute),          # URL, git@, ...
-  (r'/\w[\w\.\+-/\\]*', Name.Attribute),                    # absolute path
-  (r'/', Name.Attribute),
-  (r'\w[\w\.\+-]*/[\w.+-/\\]*', Name.Attribute),            # relative path
-  (r'[A-Z]((\\.)|[\w.+-])*[a-z]((\\.)|[\w.+-])*', Name.Builtin), # initial A-Z, contains a-z
-  (r'@?[A-Z][A-Z0-9_]*', Name.Constant),
-  (r'[a-z_]((\\;)|(\\ )|[\w.+-])*', Name.Builtin),
-  (r'[0-9][0-9\.]*', Number),
-  (r'(?s)"(\\"|[^"])*"', String),                           # "string"
-  (r'\.\.\.', Name.Variable),
-  (r'<', Operator, '#push'),                                # <..|..> is different from <expr>
-  (r'>', Operator, '#pop'),
-  (r'\n', Whitespace),
-  (r'[ \t]+', Whitespace),
-  (r'#.*\n', Comment),
-  #  (r'[^<>\])\}\|$"# \t\n]+', Name.Exception),            # fallback, for debugging only
-]
+import sphinx
 
 from docutils.utils.code_analyzer import Lexer, LexerError
 from docutils.parsers.rst import Directive, directives
 from docutils.transforms import Transform
+from docutils.nodes import Element, Node, TextElement, system_message
 from docutils import io, nodes
 
 from sphinx.directives import ObjectDescription, nl_escape_re
 from sphinx.domains import Domain, ObjType
 from sphinx.roles import XRefRole
+from sphinx.util.docutils import ReferenceRole
 from sphinx.util.nodes import make_refnode
 from sphinx.util import logging, ws_re
 from sphinx import addnodes
 
+# END imports
+
+# %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+# BEGIN pygments tweaks
+
+# Override much of pygments' CMakeLexer.
+# We need to parse CMake syntax definitions, not CMake code.
+
+# For hard test cases that use much of the syntax below, see
+# - module/FindPkgConfig.html
+#     (with "glib-2.0>=2.10 gtk+-2.0" and similar)
+# - module/ExternalProject.html
+#     (with http:// https:// git@; also has command options -E --build)
+# - manual/cmake-buildsystem.7.html
+#     (with nested $<..>; relative and absolute paths, "::")
+
+from pygments.lexers import CMakeLexer
+from pygments.token import (Comment, Name, Number, Operator, Punctuation,
+                            String, Text, Whitespace)
+from pygments.lexer import bygroups
+
+# Notes on regular expressions below:
+# - [\.\+-] are needed for string constants like gtk+-2.0
+# - Unix paths are recognized by '/'; support for Windows paths may be added
+#   if needed
+# - (\\.) allows for \-escapes (used in manual/cmake-language.7)
+# - $<..$<..$>..> nested occurrence in cmake-buildsystem
+# - Nested variable evaluations are only supported in a limited capacity.
+#   Only one level of nesting is supported and at most one nested variable can
+#   be present.
+
+CMakeLexer.tokens["root"] = [
+  # fctn(
+  (r'\b(\w+)([ \t]*)(\()',
+   bygroups(Name.Function, Text, Name.Function), '#push'),
+  (r'\(', Name.Function, '#push'),
+  (r'\)', Name.Function, '#pop'),
+  (r'\[', Punctuation, '#push'),
+  (r'\]', Punctuation, '#pop'),
+  (r'[|;,.=*\-]', Punctuation),
+  # used in commands/source_group
+  (r'\\\\', Punctuation),
+  (r'[:]', Operator),
+  # used in FindPkgConfig.cmake
+  (r'[<>]=', Punctuation),
+  # $<...>
+  (r'\$<', Operator, '#push'),
+  # <expr>
+  (r'<[^<|]+?>(\w*\.\.\.)?', Name.Variable),
+  # ${..} $ENV{..}, possibly nested
+  (r'(\$\w*\{)([^\}\$]*)?(?:(\$\w*\{)([^\}]+?)(\}))?([^\}]*?)(\})',
+   bygroups(Operator, Name.Tag, Operator, Name.Tag, Operator, Name.Tag,
+            Operator)),
+  # DATA{ ...}
+  (r'([A-Z]+\{)(.+?)(\})', bygroups(Operator, Name.Tag, Operator)),
+  # URL, git@, ...
+  (r'[a-z]+(@|(://))((\\.)|[\w.+-:/\\])+', Name.Attribute),
+  # absolute path
+  (r'/\w[\w\.\+-/\\]*', Name.Attribute),
+  (r'/', Name.Attribute),
+  # relative path
+  (r'\w[\w\.\+-]*/[\w.+-/\\]*', Name.Attribute),
+  # initial A-Z, contains a-z
+  (r'[A-Z]((\\.)|[\w.+-])*[a-z]((\\.)|[\w.+-])*', Name.Builtin),
+  (r'@?[A-Z][A-Z0-9_]*', Name.Constant),
+  (r'[a-z_]((\\;)|(\\ )|[\w.+-])*', Name.Builtin),
+  (r'[0-9][0-9\.]*', Number),
+  # "string"
+  (r'(?s)"(\\"|[^"])*"', String),
+  (r'\.\.\.', Name.Variable),
+  # <..|..> is different from <expr>
+  (r'<', Operator, '#push'),
+  (r'>', Operator, '#pop'),
+  (r'\n', Whitespace),
+  (r'[ \t]+', Whitespace),
+  (r'#.*\n', Comment),
+  # fallback, for debugging only
+  #  (r'[^<>\])\}\|$"# \t\n]+', Name.Exception),
+]
+
+# END pygments tweaks
+
+# %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+# Require at least Sphinx 2.x.
+assert sphinx.version_info >= (2,)
+
 logger = logging.getLogger(__name__)
 
-sphinx_before_1_4 = False
-sphinx_before_1_7_2 = False
-try:
-    from sphinx import version_info
-    if version_info < (1, 4):
-        sphinx_before_1_4 = True
-    if version_info < (1, 7, 2):
-        sphinx_before_1_7_2 = True
-except ImportError:
-    # The `sphinx.version_info` tuple was added in Sphinx v1.2:
-    sphinx_before_1_4 = True
-    sphinx_before_1_7_2 = True
+# RE to split multiple command signatures.
+sig_end_re = re.compile(r'(?<=[)])\n')
 
-if sphinx_before_1_7_2:
-  # Monkey patch for sphinx generating invalid content for qcollectiongenerator
-  # https://github.com/sphinx-doc/sphinx/issues/1435
-  from sphinx.util.pycompat import htmlescape
-  from sphinx.builders.qthelp import QtHelpBuilder
-  old_build_keywords = QtHelpBuilder.build_keywords
-  def new_build_keywords(self, title, refs, subitems):
-    old_items = old_build_keywords(self, title, refs, subitems)
-    new_items = []
-    for item in old_items:
-      before, rest = item.split("ref=\"", 1)
-      ref, after = rest.split("\"")
-      if ("<" in ref and ">" in ref):
-        new_items.append(before + "ref=\"" + htmlescape(ref) + "\"" + after)
-      else:
-        new_items.append(item)
-    return new_items
-  QtHelpBuilder.build_keywords = new_build_keywords
 
 @dataclass
 class ObjectEntry:
@@ -130,7 +140,7 @@ class CMakeModule(Directive):
     def run(self):
         settings = self.state.document.settings
         if not settings.file_insertion_enabled:
-            raise self.warning('"%s" directive disabled.' % self.name)
+            raise self.warning(f'{self.name!r} directive disabled.')
 
         env = self.state.document.settings.env
         rel_path, path = env.relfn2path(self.arguments[0])
@@ -141,13 +151,12 @@ class CMakeModule(Directive):
             settings.record_dependencies.add(path)
             f = io.FileInput(source_path=path, encoding=encoding,
                              error_handler=e_handler)
-        except UnicodeEncodeError as error:
-            msg = ('Problems with "%s" directive path:\n'
-                   'Cannot encode input file path "%s" '
-                   '(wrong locale?).' % (self.name, path))
+        except UnicodeEncodeError:
+            msg = (f'Problems with {self.name!r} directive path:\n'
+                   f'Cannot encode input file path {path!r} (wrong locale?).')
             raise self.severe(msg)
         except IOError as error:
-            msg = 'Problems with "%s" directive path:\n%s.' % (self.name, error)
+            msg = f'Problems with {self.name!r} directive path:\n{error}.'
             raise self.severe(msg)
         raw_lines = f.read().splitlines()
         f.close()
@@ -167,7 +176,7 @@ class CMakeModule(Directive):
                 # Line mode: check for .rst start (bracket or line)
                 m = self.re_start.match(line)
                 if m:
-                    rst = ']%s]' % m.group('eq')
+                    rst = f']{m.group("eq")}]'
                     line = ''
                 elif line == '#.rst:':
                     rst = '#'
@@ -182,21 +191,19 @@ class CMakeModule(Directive):
                     line = ''
             lines.append(line)
         if rst is not None and rst != '#':
-            raise self.warning('"%s" found unclosed bracket "#[%s[.rst:" in %s' %
-                               (self.name, rst[1:-1], path))
+            raise self.warning(f'{self.name!r} found unclosed bracket '
+                               f'"#[{rst[1:-1]}[.rst:" in {path!r}')
         self.state_machine.insert_input(lines, path)
         return []
+
 
 class _cmake_index_entry:
     def __init__(self, desc):
         self.desc = desc
 
-    def __call__(self, title, targetid, main = 'main'):
-        # See https://github.com/sphinx-doc/sphinx/issues/2673
-        if sphinx_before_1_4:
-            return ('pair', u'%s ; %s' % (self.desc, title), targetid, main)
-        else:
-            return ('pair', u'%s ; %s' % (self.desc, title), targetid, main, None)
+    def __call__(self, title, targetid, main='main'):
+        return ('pair', f'{self.desc} ; {title}', targetid, main, None)
+
 
 _cmake_index_objs = {
     'command':    _cmake_index_entry('command'),
@@ -217,6 +224,7 @@ _cmake_index_objs = {
     'prop_tgt':   _cmake_index_entry('target property'),
     'variable':   _cmake_index_entry('variable'),
     }
+
 
 class CMakeTransform(Transform):
 
@@ -244,7 +252,8 @@ class CMakeTransform(Transform):
                 title = False
             else:
                 for line in f:
-                    if len(line) > 0 and (line[0].isalnum() or line[0] == '<' or line[0] == '$'):
+                    if len(line) > 0 and (line[0].isalnum() or
+                                          line[0] == '<' or line[0] == '$'):
                         title = line.rstrip()
                         break
                 f.close()
@@ -272,7 +281,7 @@ class CMakeTransform(Transform):
                     if m:
                         title = m.group(1)
                 targetname = title
-            targetid = '%s:%s' % (objtype, targetname)
+            targetid = f'{objtype}:{targetname}'
             targetnode = nodes.target('', '', ids=[targetid])
             self.document.note_explicit_target(targetnode)
             self.document.insert(0, targetnode)
@@ -285,23 +294,25 @@ class CMakeTransform(Transform):
             domain = cast(CMakeDomain, env.get_domain('cmake'))
             domain.note_object(objtype, targetname, targetid, targetid)
 
+
 class CMakeObject(ObjectDescription):
+    def __init__(self, *args, **kwargs):
+        self.targetname = None
+        super().__init__(*args, **kwargs)
 
     def handle_signature(self, sig, signode):
         # called from sphinx.directives.ObjectDescription.run()
         signode += addnodes.desc_name(sig, sig)
-        if self.objtype == 'genex':
-            m = CMakeXRefRole._re_genex.match(sig)
-            if m:
-                sig = m.group(1)
         return sig
 
     def add_target_and_index(self, name, sig, signode):
         if self.objtype == 'command':
             targetname = name.lower()
+        elif self.targetname:
+            targetname = self.targetname
         else:
             targetname = name
-        targetid = '%s:%s' % (self.objtype, targetname)
+        targetid = f'{self.objtype}:{targetname}'
         if targetid not in self.state.document.ids:
             signode['names'].append(targetid)
             signode['ids'].append(targetid)
@@ -316,17 +327,95 @@ class CMakeObject(ObjectDescription):
         if make_index_entry:
             self.indexnode['entries'].append(make_index_entry(name, targetid))
 
-class CMakeSignatureObject(CMakeObject):
-    object_type = 'signature'
 
+class CMakeGenexObject(CMakeObject):
     option_spec = {
         'target': directives.unchanged,
     }
 
-    def get_signatures(self):
+    def handle_signature(self, sig, signode):
+        name = super().handle_signature(sig, signode)
+
+        m = CMakeXRefRole._re_genex.match(sig)
+        if m:
+            name = m.group(1)
+
+        return name
+
+    def run(self):
+        target = self.options.get('target')
+        if target is not None:
+            self.targetname = target
+
+        return super().run()
+
+
+class CMakeSignatureObject(CMakeObject):
+    object_type = 'signature'
+
+    BREAK_ALL = 'all'
+    BREAK_SMART = 'smart'
+    BREAK_VERBATIM = 'verbatim'
+
+    BREAK_CHOICES = {BREAK_ALL, BREAK_SMART, BREAK_VERBATIM}
+
+    def break_option(argument):
+        return directives.choice(argument, CMakeSignatureObject.BREAK_CHOICES)
+
+    option_spec = {
+        'target': directives.unchanged,
+        'break': break_option,
+    }
+
+    def _break_signature_all(sig: str) -> str:
+        return ws_re.sub(' ', sig)
+
+    def _break_signature_verbatim(sig: str) -> str:
+        lines = [ws_re.sub('\xa0', line.strip()) for line in sig.split('\n')]
+        return ' '.join(lines)
+
+    def _break_signature_smart(sig: str) -> str:
+        tokens = []
+        for line in sig.split('\n'):
+            token = ''
+            delim = ''
+
+            for c in line.strip():
+                if len(delim) == 0 and ws_re.match(c):
+                    if len(token):
+                        tokens.append(ws_re.sub('\xa0', token))
+                        token = ''
+                else:
+                    if c == '[':
+                        delim += ']'
+                    elif c == '<':
+                        delim += '>'
+                    elif len(delim) and c == delim[-1]:
+                        delim = delim[:-1]
+                    token += c
+
+            if len(token):
+                tokens.append(ws_re.sub('\xa0', token))
+
+        return ' '.join(tokens)
+
+    def __init__(self, *args, **kwargs):
+        self.targetnames = {}
+        self.break_style = CMakeSignatureObject.BREAK_SMART
+        super().__init__(*args, **kwargs)
+
+    def get_signatures(self) -> List[str]:
         content = nl_escape_re.sub('', self.arguments[0])
         lines = sig_end_re.split(content)
-        return [ws_re.sub(' ', line.strip()) for line in lines]
+
+        if self.break_style == CMakeSignatureObject.BREAK_VERBATIM:
+            fixup = CMakeSignatureObject._break_signature_verbatim
+        elif self.break_style == CMakeSignatureObject.BREAK_SMART:
+            fixup = CMakeSignatureObject._break_signature_smart
+        else:
+            fixup = CMakeSignatureObject._break_signature_all
+
+        return [fixup(line.strip()) for line in lines]
 
     def handle_signature(self, sig, signode):
         language = 'cmake'
@@ -344,7 +433,9 @@ class CMakeSignatureObject(CMakeObject):
                 raise self.warning(error)
 
         for classes, value in tokens:
-            if classes:
+            if value == '\xa0':
+                node += nodes.inline(value, value, classes=['nbsp'])
+            elif classes:
                 node += nodes.inline(value, value, classes=classes)
             else:
                 node += nodes.Text(value)
@@ -354,13 +445,10 @@ class CMakeSignatureObject(CMakeObject):
 
         return sig
 
-    def __init__(self, *args, **kwargs):
-        self.targetnames = {}
-        super().__init__(*args, **kwargs)
-
     def add_target_and_index(self, name, sig, signode):
-        if name in self.targetnames:
-            sigargs = self.targetnames[name]
+        sig = sig.replace('\xa0', ' ')
+        if sig in self.targetnames:
+            sigargs = self.targetnames[sig]
         else:
             def extract_keywords(params):
                 for p in params:
@@ -369,7 +457,7 @@ class CMakeSignatureObject(CMakeObject):
                     else:
                         return
 
-            keywords = extract_keywords(name.split('(')[1].split())
+            keywords = extract_keywords(sig.split('(')[1].split())
             sigargs = ' '.join(keywords)
         targetname = sigargs.lower()
         targetid = nodes.make_id(targetname)
@@ -381,7 +469,7 @@ class CMakeSignatureObject(CMakeObject):
             self.state.document.note_explicit_target(signode)
 
             # Register the signature as a command object.
-            command = name.split('(')[0].lower()
+            command = sig.split('(')[0].lower()
             refname = f'{command}({sigargs})'
             refid = f'command:{command}({targetname})'
 
@@ -390,6 +478,8 @@ class CMakeSignatureObject(CMakeObject):
                                node_id=targetid, location=signode)
 
     def run(self):
+        self.break_style = CMakeSignatureObject.BREAK_ALL
+
         targets = self.options.get('target')
         if targets is not None:
             signatures = self.get_signatures()
@@ -397,38 +487,79 @@ class CMakeSignatureObject(CMakeObject):
             for signature, target in zip(signatures, targets):
                 self.targetnames[signature] = target
 
+        self.break_style = (
+            self.options.get('break', CMakeSignatureObject.BREAK_SMART))
+
         return super().run()
 
-class CMakeXRefRole(XRefRole):
 
+class CMakeReferenceRole:
     # See sphinx.util.nodes.explicit_title_re; \x00 escapes '<'.
     _re = re.compile(r'^(.+?)(\s*)(?<!\x00)<(.*?)>$', re.DOTALL)
-    _re_ref = re.compile(r'^.*\s<\w+([(][\w\s]+[)])?>$', re.DOTALL)
+
+    @staticmethod
+    def _escape_angle_brackets(text: str) -> str:
+        # CMake cross-reference targets frequently contain '<' so escape
+        # any explicit `<target>` with '<' not preceded by whitespace.
+        while True:
+            m = CMakeReferenceRole._re.match(text)
+            if m and len(m.group(2)) == 0:
+                text = f'{m.group(1)}\x00<{m.group(3)}>'
+            else:
+                break
+        return text
+
+    def __class_getitem__(cls, parent: Any):
+        class Class(parent):
+            def __call__(self, name: str, rawtext: str, text: str,
+                         *args, **kwargs
+                        ) -> Tuple[List[Node], List[system_message]]:
+                text = CMakeReferenceRole._escape_angle_brackets(text)
+                return super().__call__(name, rawtext, text, *args, **kwargs)
+        return Class
+
+
+class CMakeCRefRole(CMakeReferenceRole[ReferenceRole]):
+    nodeclass: Type[Element] = nodes.reference
+    innernodeclass: Type[TextElement] = nodes.literal
+    classes: List[str] = ['cmake', 'literal']
+
+    def run(self) -> Tuple[List[Node], List[system_message]]:
+        refnode = self.nodeclass(self.rawtext)
+        self.set_source_info(refnode)
+
+        refnode['refid'] = nodes.make_id(self.target)
+        refnode += self.innernodeclass(self.rawtext, self.title,
+                                       classes=self.classes)
+
+        return [refnode], []
+
+
+class CMakeXRefRole(CMakeReferenceRole[XRefRole]):
+
+    _re_sub = re.compile(r'^([^()\s]+)\s*\(([^()]*)\)$', re.DOTALL)
     _re_genex = re.compile(r'^\$<([^<>:]+)(:[^<>]+)?>$', re.DOTALL)
     _re_guide = re.compile(r'^([^<>/]+)/([^<>]*)$', re.DOTALL)
 
-    def __call__(self, typ, rawtext, text, *args, **keys):
+    def __call__(self, typ, rawtext, text, *args, **kwargs):
         if typ == 'cmake:command':
-            m = CMakeXRefRole._re_ref.match(text)
-            if m is None:
+            # Translate a CMake command cross-reference of the form:
+            #  `command_name(SUB_COMMAND)`
+            # to be its own explicit target:
+            #  `command_name(SUB_COMMAND) <command_name(SUB_COMMAND)>`
+            # so the XRefRole `fix_parens` option does not add more `()`.
+            m = CMakeXRefRole._re_sub.match(text)
+            if m:
                 text = f'{text} <{text}>'
         elif typ == 'cmake:genex':
             m = CMakeXRefRole._re_genex.match(text)
             if m:
-                text = '%s <%s>' % (text, m.group(1))
+                text = f'{text} <{m.group(1)}>'
         elif typ == 'cmake:guide':
             m = CMakeXRefRole._re_guide.match(text)
             if m:
-                text = '%s <%s>' % (m.group(2), text)
-        # CMake cross-reference targets frequently contain '<' so escape
-        # any explicit `<target>` with '<' not preceded by whitespace.
-        while True:
-            m = CMakeXRefRole._re.match(text)
-            if m and len(m.group(2)) == 0:
-                text = '%s\x00<%s>' % (m.group(1), m.group(3))
-            else:
-                break
-        return XRefRole.__call__(self, typ, rawtext, text, *args, **keys)
+                text = f'{m.group(2)} <{text}>'
+        return super().__call__(typ, rawtext, text, *args, **kwargs)
 
     # We cannot insert index nodes using the result_nodes method
     # because CMakeXRefRole is processed before substitution_reference
@@ -440,6 +571,7 @@ class CMakeXRefRole(XRefRole):
     #
     # def result_nodes(self, document, env, node, is_ref):
     #     pass
+
 
 class CMakeXRefTransform(Transform):
 
@@ -471,15 +603,16 @@ class CMakeXRefTransform(Transform):
                 # Index signature references to their parent command.
                 objname = objname.split('(')[0].lower()
 
-            targetnum = env.new_serialno('index-%s:%s' % (objtype, objname))
+            targetnum = env.new_serialno(f'index-{objtype}:{objname}')
 
-            targetid = 'index-%s-%s:%s' % (targetnum, objtype, objname)
+            targetid = f'index-{targetnum}-{objtype}:{objname}'
             targetnode = nodes.target('', '', ids=[targetid])
             self.document.note_explicit_target(targetnode)
 
             indexnode = addnodes.index()
             indexnode['entries'] = [make_index_entry(objname, targetid, '')]
             ref.replace_self([indexnode, targetnode, ref])
+
 
 class CMakeDomain(Domain):
     """CMake domain."""
@@ -507,13 +640,14 @@ class CMakeDomain(Domain):
     directives = {
         'command':    CMakeObject,
         'envvar':     CMakeObject,
-        'genex':      CMakeObject,
+        'genex':      CMakeGenexObject,
         'signature':  CMakeSignatureObject,
         'variable':   CMakeObject,
         # Other `object_types` cannot be created except by the `CMakeTransform`
     }
     roles = {
-        'command':    CMakeXRefRole(fix_parens = True, lowercase = True),
+        'cref':       CMakeCRefRole(),
+        'command':    CMakeXRefRole(fix_parens=True, lowercase=True),
         'cpack_gen':  CMakeXRefRole(),
         'envvar':     CMakeXRefRole(),
         'generator':  CMakeXRefRole(),
@@ -577,6 +711,7 @@ class CMakeDomain(Domain):
     def get_objects(self):
         for refname, obj in self.data['objects'].items():
             yield (refname, obj.name, obj.objtype, obj.docname, obj.node_id, 1)
+
 
 def setup(app):
     app.add_directive('cmake-module', CMakeModule)

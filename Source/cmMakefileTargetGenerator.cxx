@@ -3,6 +3,7 @@
 #include "cmMakefileTargetGenerator.h"
 
 #include <algorithm>
+#include <array>
 #include <cassert>
 #include <cstdio>
 #include <iterator>
@@ -540,8 +541,8 @@ void cmMakefileTargetGenerator::WriteTargetLanguageFlags()
     *this->FlagFileStream << language << "_DEFINES = " << defines << "\n\n";
     *this->FlagFileStream << language << "_INCLUDES = " << includes << "\n\n";
 
-    std::vector<std::string> architectures;
-    this->GeneratorTarget->GetAppleArchs(this->GetConfigName(), architectures);
+    std::vector<std::string> architectures =
+      this->GeneratorTarget->GetAppleArchs(this->GetConfigName(), language);
     architectures.emplace_back();
 
     for (const std::string& arch : architectures) {
@@ -670,8 +671,8 @@ void cmMakefileTargetGenerator::WriteObjectRuleFiles(
   std::string configUpper = cmSystemTools::UpperCase(config);
 
   // Add precompile headers dependencies
-  std::vector<std::string> architectures;
-  this->GeneratorTarget->GetAppleArchs(config, architectures);
+  std::vector<std::string> architectures =
+    this->GeneratorTarget->GetAppleArchs(config, lang);
   if (architectures.empty()) {
     architectures.emplace_back();
   }
@@ -977,11 +978,23 @@ void cmMakefileTargetGenerator::WriteObjectRuleFiles(
           this->Makefile->GetRequiredDefinition("_CMAKE_CUDA_RDC_FLAG");
         cudaCompileMode = cmStrCat(cudaCompileMode, rdcFlag, " ");
       }
-      if (this->GeneratorTarget->GetPropertyAsBool("CUDA_PTX_COMPILATION")) {
-        const std::string& ptxFlag =
-          this->Makefile->GetRequiredDefinition("_CMAKE_CUDA_PTX_FLAG");
-        cudaCompileMode = cmStrCat(cudaCompileMode, ptxFlag);
-      } else {
+
+      static std::array<cm::string_view, 4> const compileModes{
+        { "PTX"_s, "CUBIN"_s, "FATBIN"_s, "OPTIX"_s }
+      };
+      bool useNormalCompileMode = true;
+      for (cm::string_view mode : compileModes) {
+        auto propName = cmStrCat("CUDA_", mode, "_COMPILATION");
+        auto defName = cmStrCat("_CMAKE_CUDA_", mode, "_FLAG");
+        if (this->GeneratorTarget->GetPropertyAsBool(propName)) {
+          const std::string& flag =
+            this->Makefile->GetRequiredDefinition(defName);
+          cudaCompileMode = cmStrCat(cudaCompileMode, flag);
+          useNormalCompileMode = false;
+          break;
+        }
+      }
+      if (useNormalCompileMode) {
         const std::string& wholeFlag =
           this->Makefile->GetRequiredDefinition("_CMAKE_CUDA_WHOLE_FLAG");
         cudaCompileMode = cmStrCat(cudaCompileMode, wholeFlag);

@@ -241,6 +241,10 @@ Document a "genex" object:
 
 The directive requires a single argument, the generator expression name.
 
+The optional ``:target:`` option allows a custom target name to be specified.
+Because this will affect the ability to reference the "genex" object using the
+``:genex:`` role, this option should be used very sparingly.
+
 ``signature`` directive
 ^^^^^^^^^^^^^^^^^^^^^^^
 
@@ -300,6 +304,23 @@ The ``signature`` directive generates a hyperlink target for each signature:
   ```REF`_`` or ```TEXT <REF_>`_`` syntax.  Like reStructuredText section
   headers, the targets do not work with Sphinx ``:ref:`` syntax, however
   they can be globally referenced using e.g. ``:command:`string(APPEND)```.
+
+Although whitespace in the signature is not preserved, by default, line breaks
+are suppressed inside of square- or angle-brackets.  This behavior can be
+controlled using the ``:break:`` option; note, however, that there is no way
+to *force* a line break.  The default value is 'smart'.  Allowable values are:
+
+  ``all``
+    Allow line breaks at any whitespace.
+
+  ``smart`` (default)
+    Allow line breaks at whitespace, except between matched square- or
+    angle-brackets.  For example, if a signature contains the text
+    ``<input>... [OUTPUT_VARIABLE <out-var>]``, a line break would be allowed
+    after ``<input>...`` but not between ``OUTPUT_VARIABLE`` and ``<out-var>``.
+
+  ``verbatim``
+    Allow line breaks only where the source document contains a newline.
 
 The directive treats its content as the documentation of the signature(s).
 Indent the signature documentation accordingly.
@@ -373,6 +394,10 @@ This is necessary because we use ``<placeholders>`` frequently in
 object names like ``OUTPUT_NAME_<CONFIG>``.  The form ``a <b>``,
 with a space preceding ``<``, is still interpreted as a link text
 with an explicit target.
+
+Additionally, the ``cref`` role may be used to create references
+to local targets that have literal styling.  This is especially
+useful for referencing a subcommand in the command's documentation.
 
 .. _`list()`: https://cmake.org/cmake/help/latest/command/list.html
 .. _`list(APPEND)`: https://cmake.org/cmake/help/latest/command/list.html
