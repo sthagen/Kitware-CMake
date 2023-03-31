@@ -1543,10 +1543,12 @@ bool cmGlobalGenerator::Compute()
     return false;
   }
 
-  // Iterate through all targets and set up AUTOMOC, AUTOUIC and AUTORCC
-  if (!this->QtAutoGen()) {
+#ifndef CMAKE_BOOTSTRAP
+  cmQtAutoGenGlobalInitializer qtAutoGen(this->LocalGenerators);
+  if (!qtAutoGen.InitializeCustomTargets()) {
     return false;
   }
+#endif
 
   // Add generator specific helper commands
   for (const auto& localGen : this->LocalGenerators) {
@@ -1562,6 +1564,12 @@ bool cmGlobalGenerator::Compute()
       return false;
     }
   }
+
+#ifndef CMAKE_BOOTSTRAP
+  if (!qtAutoGen.SetupCustomTargets()) {
+    return false;
+  }
+#endif
 
   for (const auto& localGen : this->LocalGenerators) {
     cmMakefile* mf = localGen->GetMakefile();
@@ -1727,8 +1735,7 @@ cmGlobalGenerator::GetLocalGeneratorTargetsInOrder(cmLocalGenerator* lg) const
   cm::append(gts, lg->GetGeneratorTargets());
   std::sort(gts.begin(), gts.end(),
             [this](cmGeneratorTarget const* l, cmGeneratorTarget const* r) {
-              return this->TargetOrderIndex.at(l) <
-                this->TargetOrderIndex.at(r);
+              return this->TargetOrderIndexLess(l, r);
             });
   return gts;
 }
@@ -1762,16 +1769,6 @@ void cmGlobalGenerator::ComputeTargetOrder(cmGeneratorTarget const* gt,
   }
 
   entry->second = index++;
-}
-
-bool cmGlobalGenerator::QtAutoGen()
-{
-#ifndef CMAKE_BOOTSTRAP
-  cmQtAutoGenGlobalInitializer initializer(this->LocalGenerators);
-  return initializer.generate();
-#else
-  return true;
-#endif
 }
 
 bool cmGlobalGenerator::AddHeaderSetVerification()
@@ -3068,6 +3065,12 @@ cmGlobalGenerator::GetTargetDirectDepends(cmGeneratorTarget const* target)
   return this->TargetDependencies[target];
 }
 
+bool cmGlobalGenerator::TargetOrderIndexLess(cmGeneratorTarget const* l,
+                                             cmGeneratorTarget const* r) const
+{
+  return this->TargetOrderIndex.at(l) < this->TargetOrderIndex.at(r);
+}
+
 bool cmGlobalGenerator::IsReservedTarget(std::string const& name)
 {
   // The following is a list of targets reserved
@@ -3536,4 +3539,33 @@ cmInstallRuntimeDependencySet* cmGlobalGenerator::GetNamedRuntimeDependencySet(
     this->RuntimeDependencySets.push_back(std::move(set));
   }
   return it->second;
+}
+
+cmGlobalGenerator::StripCommandStyle cmGlobalGenerator::GetStripCommandStyle(
+  std::string const& strip)
+{
+#ifdef __APPLE__
+  auto i = this->StripCommandStyleMap.find(strip);
+  if (i == this->StripCommandStyleMap.end()) {
+    StripCommandStyle style = StripCommandStyle::Default;
+
+    // Try running strip tool with Apple-specific options.
+    std::vector<std::string> cmd{ strip, "-u", "-r" };
+    std::string out;
+    std::string err;
+    int ret;
+    if (cmSystemTools::RunSingleCommand(cmd, &out, &err, &ret, nullptr,
+                                        cmSystemTools::OUTPUT_NONE) &&
+        // Check for Apple-specific output.
+        ret != 0 && cmHasLiteralPrefix(err, "fatal error: /") &&
+        err.find("/usr/bin/strip: no files specified") != std::string::npos) {
+      style = StripCommandStyle::Apple;
+    }
+    i = this->StripCommandStyleMap.emplace(strip, style).first;
+  }
+  return i->second;
+#else
+  static_cast<void>(strip);
+  return StripCommandStyle::Default;
+#endif
 }

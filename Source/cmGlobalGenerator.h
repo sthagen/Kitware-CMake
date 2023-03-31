@@ -479,6 +479,11 @@ public:
   TargetDependSet const& GetTargetDirectDepends(
     const cmGeneratorTarget* target);
 
+  // Return true if target 'l' occurs before 'r' in a global ordering
+  // of targets that respects inter-target dependencies.
+  bool TargetOrderIndexLess(cmGeneratorTarget const* l,
+                            cmGeneratorTarget const* r) const;
+
   const std::map<std::string, std::vector<cmLocalGenerator*>>& GetProjectMap()
     const
   {
@@ -602,6 +607,13 @@ public:
   cmInstallRuntimeDependencySet* GetNamedRuntimeDependencySet(
     const std::string& name);
 
+  enum class StripCommandStyle
+  {
+    Default,
+    Apple,
+  };
+  StripCommandStyle GetStripCommandStyle(std::string const& strip);
+
 protected:
   // for a project collect all its targets by following depend
   // information, and also collect all the targets
@@ -624,10 +636,6 @@ protected:
   virtual bool CheckALLOW_DUPLICATE_CUSTOM_TARGETS() const;
 
   void CxxModuleSupportCheck() const;
-
-  /// @brief Qt AUTOMOC/UIC/RCC target generation
-  /// @return true on success
-  bool QtAutoGen();
 
   bool AddHeaderSetVerification();
 
@@ -731,6 +739,10 @@ private:
   std::map<std::string, std::string> ExtensionToLanguage;
   std::map<std::string, int> LanguageToLinkerPreference;
   std::map<std::string, std::string> LanguageToOriginalSharedLibFlags;
+
+#ifdef __APPLE__
+  std::map<std::string, StripCommandStyle> StripCommandStyleMap;
+#endif
 
   mutable bool DiagnosedCxxModuleSupport = false;
 

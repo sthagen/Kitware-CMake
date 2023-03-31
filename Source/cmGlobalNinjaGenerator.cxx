@@ -949,8 +949,9 @@ void cmGlobalNinjaGenerator::EnableLanguage(
       mf->GetSafeDefinition(cmStrCat("CMAKE_", l, "_SIMULATE_ID"));
     std::string const& compilerFrontendVariant = mf->GetSafeDefinition(
       cmStrCat("CMAKE_", l, "_COMPILER_FRONTEND_VARIANT"));
-    this->SetUsingGCCOnWindows(
-      DetectGCCOnWindows(compilerId, simulateId, compilerFrontendVariant));
+    if (DetectGCCOnWindows(compilerId, simulateId, compilerFrontendVariant)) {
+      this->MarkAsGCCOnWindows();
+    }
 #endif
   }
 }
@@ -1368,17 +1369,7 @@ void cmGlobalNinjaGenerator::AppendTargetDepends(
 }
 
 void cmGlobalNinjaGenerator::AppendTargetDependsClosure(
-  cmGeneratorTarget const* target, cmNinjaDeps& outputs,
-  const std::string& config, const std::string& fileConfig, bool genexOutput)
-{
-  cmNinjaOuts outs;
-  this->AppendTargetDependsClosure(target, outs, config, fileConfig,
-                                   genexOutput, true);
-  cm::append(outputs, outs);
-}
-
-void cmGlobalNinjaGenerator::AppendTargetDependsClosure(
-  cmGeneratorTarget const* target, cmNinjaOuts& outputs,
+  cmGeneratorTarget const* target, std::unordered_set<std::string>& outputs,
   const std::string& config, const std::string& fileConfig, bool genexOutput,
   bool omit_self)
 {
@@ -1399,7 +1390,8 @@ void cmGlobalNinjaGenerator::AppendTargetDependsClosure(
     // relevant for filling the cache entries properly isolated and a global
     // result set that is relevant for the result of the top level call to
     // AppendTargetDependsClosure.
-    cmNinjaOuts this_outs; // this will be the new cache entry
+    std::unordered_set<std::string>
+      this_outs; // this will be the new cache entry
 
     for (auto const& dep_target : this->GetTargetDirectDepends(target)) {
       if (!dep_target->IsInBuildSystem()) {
@@ -2843,8 +2835,9 @@ int cmcmd_cmake_ninja_dyndep(std::vector<std::string>::const_iterator argBeg,
   cmGlobalNinjaGenerator& gg =
     cm::static_reference_cast<cmGlobalNinjaGenerator>(ggd);
 #  ifdef _WIN32
-  gg.SetUsingGCCOnWindows(
-    DetectGCCOnWindows(compilerId, simulateId, compilerFrontendVariant));
+  if (DetectGCCOnWindows(compilerId, simulateId, compilerFrontendVariant)) {
+    gg.MarkAsGCCOnWindows();
+  }
 #  endif
   return gg.WriteDyndepFile(dir_top_src, dir_top_bld, dir_cur_src, dir_cur_bld,
                             arg_dd, arg_ddis, module_dir, linked_target_dirs,
