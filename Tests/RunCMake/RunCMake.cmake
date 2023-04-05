@@ -94,7 +94,7 @@ function(run_cmake test)
     if(APPLE)
       list(APPEND RunCMake_TEST_OPTIONS -DCMAKE_POLICY_DEFAULT_CMP0025=NEW)
     endif()
-    if(NOT RunCMake_TEST_NO_CMP0129 AND CMAKE_C_COMPILER_ID STREQUAL "LCC")
+    if(RunCMake_TEST_LCC AND NOT RunCMake_TEST_NO_CMP0129)
       list(APPEND RunCMake_TEST_OPTIONS -DCMAKE_POLICY_DEFAULT_CMP0129=NEW)
     endif()
     if(RunCMake_MAKE_PROGRAM)
@@ -174,6 +174,7 @@ function(run_cmake test)
     "|icp?c: remark #10441: The Intel\\(R\\) C\\+\\+ Compiler Classic \\(ICC\\) is deprecated"
 
     "|[^\n]*install_name_tool: warning: changes being made to the file will invalidate the code signature in:"
+    "|[^\n]*xcodebuild[^\n]*DVTCoreDeviceEnabledState: DVTCoreDeviceEnabledState_Disabled set via user default"
     "|[^\n]*xcodebuild[^\n]*DVTPlugInManager"
     "|[^\n]*xcodebuild[^\n]*DVTSDK: Warning: SDK path collision for path"
     "|[^\n]*xcodebuild[^\n]*Requested but did not find extension point with identifier"
