@@ -21,8 +21,6 @@
 #include <cm3p/json/value.h>
 #include <cm3p/json/writer.h>
 
-#include "cmsys/RegularExpression.hxx"
-
 #include "cmComputeLinkInformation.h"
 #include "cmCustomCommandGenerator.h"
 #include "cmDyndepCollation.h"
@@ -32,6 +30,7 @@
 #include "cmGeneratorTarget.h"
 #include "cmGlobalCommonGenerator.h"
 #include "cmGlobalNinjaGenerator.h"
+#include "cmList.h"
 #include "cmLocalGenerator.h"
 #include "cmLocalNinjaGenerator.h"
 #include "cmMakefile.h"
@@ -1038,7 +1037,7 @@ void cmNinjaTargetGenerator::WriteCompileRule(const std::string& lang,
   // If compiler launcher was specified and not consumed above, it
   // goes to the beginning of the command line.
   if (!compileCmds.empty() && !compilerLauncher.empty()) {
-    std::vector<std::string> args = cmExpandedList(compilerLauncher, true);
+    cmList args{ compilerLauncher, cmList::EmptyElements::Yes };
     if (!args.empty()) {
       args[0] = this->LocalGenerator->ConvertToOutputFormat(
         args[0], cmOutputConverter::SHELL);
@@ -1046,7 +1045,7 @@ void cmNinjaTargetGenerator::WriteCompileRule(const std::string& lang,
         i = this->LocalGenerator->EscapeForShell(i);
       }
     }
-    compileCmds.front().insert(0, cmStrCat(cmJoin(args, " "), ' '));
+    compileCmds.front().insert(0, cmStrCat(args.join(" "), ' '));
   }
 
   if (!compileCmds.empty()) {
@@ -1056,7 +1055,7 @@ void cmNinjaTargetGenerator::WriteCompileRule(const std::string& lang,
   const auto& extraCommands = this->GetMakefile()->GetSafeDefinition(
     cmStrCat("CMAKE_", lang, "_DEPENDS_EXTRA_COMMANDS"));
   if (!extraCommands.empty()) {
-    auto commandList = cmExpandedList(extraCommands);
+    cmList commandList{ extraCommands };
     compileCmds.insert(compileCmds.end(), commandList.cbegin(),
                        commandList.cend());
   }
@@ -1261,7 +1260,6 @@ namespace {
 cmNinjaBuild GetScanBuildStatement(const std::string& ruleName,
                                    const std::string& ppFileName,
                                    bool compilePP, bool compilePPWithDefines,
-                                   cmValue ppExcludeFlagsRegex,
                                    cmNinjaBuild& objBuild, cmNinjaVars& vars,
                                    const std::string& objectFileName,
                                    cmLocalGenerator* lg)
@@ -1289,20 +1287,6 @@ cmNinjaBuild GetScanBuildStatement(const std::string& ruleName,
 
   // Scanning and compilation generally use the same flags.
   scanBuild.Variables["FLAGS"] = vars["FLAGS"];
-
-  // Exclude flags not valid during preprocessing.
-  if (compilePP && !ppExcludeFlagsRegex.IsEmpty()) {
-    std::string in = std::move(scanBuild.Variables["FLAGS"]);
-    std::string out;
-    cmsys::RegularExpression regex(*ppExcludeFlagsRegex);
-    std::string::size_type pos = 0;
-    while (regex.find(in.c_str() + pos)) {
-      out = cmStrCat(out, in.substr(pos, regex.start()), ' ');
-      pos += regex.end();
-    }
-    out = cmStrCat(out, in.substr(pos));
-    scanBuild.Variables["FLAGS"] = std::move(out);
-  }
 
   if (compilePP && !compilePPWithDefines) {
     // Move preprocessor definitions to the scan/preprocessor build statement.
@@ -1468,7 +1452,7 @@ void cmNinjaTargetGenerator::WriteObjectBuildStatement(
   }
 
   if (cmValue objectDeps = source->GetProperty("OBJECT_DEPENDS")) {
-    std::vector<std::string> objDepList = cmExpandedList(*objectDeps);
+    cmList objDepList{ *objectDeps };
     std::copy(objDepList.begin(), objDepList.end(),
               std::back_inserter(depList));
   }
@@ -1528,22 +1512,18 @@ void cmNinjaTargetGenerator::WriteObjectBuildStatement(
 
     std::string scanRuleName;
     std::string ppFileName;
-    cmValue ppExcludeFlagsRegex;
     if (compilePP) {
       scanRuleName = this->LanguagePreprocessAndScanRule(language, config);
       ppFileName = this->ConvertToNinjaPath(
         this->GetPreprocessedFilePath(source, config));
-      ppExcludeFlagsRegex = this->Makefile->GetDefinition(cmStrCat(
-        "CMAKE_", language, "_PREPROCESS_SOURCE_EXCLUDE_FLAGS_REGEX"));
     } else {
       scanRuleName = this->LanguageScanRule(language, config);
       ppFileName = cmStrCat(objectFileName, ".ddi.i");
     }
 
     cmNinjaBuild ppBuild = GetScanBuildStatement(
-      scanRuleName, ppFileName, compilePP, compilePPWithDefines,
-      ppExcludeFlagsRegex, objBuild, vars, objectFileName,
-      this->LocalGenerator);
+      scanRuleName, ppFileName, compilePP, compilePPWithDefines, objBuild,
+      vars, objectFileName, this->LocalGenerator);
 
     if (compilePP) {
       // In case compilation requires flags that are incompatible with
@@ -1688,7 +1668,7 @@ void cmNinjaTargetGenerator::WriteObjectBuildStatement(
     if (!evaluatedObjectOutputs.empty()) {
       cmNinjaBuild build("phony");
       build.Comment = "Additional output files.";
-      build.Outputs = cmExpandedList(evaluatedObjectOutputs);
+      build.Outputs = cmList{ evaluatedObjectOutputs }.data();
       std::transform(build.Outputs.begin(), build.Outputs.end(),
                      build.Outputs.begin(), this->MapToNinjaPath());
       build.ExplicitDeps = objBuild.Outputs;

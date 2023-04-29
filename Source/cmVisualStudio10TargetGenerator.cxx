@@ -9,6 +9,7 @@
 #include <set>
 #include <sstream>
 
+#include <cm/filesystem>
 #include <cm/memory>
 #include <cm/optional>
 #include <cm/string_view>
@@ -31,6 +32,7 @@
 #include "cmGlobalVisualStudio7Generator.h"
 #include "cmGlobalVisualStudioGenerator.h"
 #include "cmLinkLineDeviceComputer.h"
+#include "cmList.h"
 #include "cmListFileCache.h"
 #include "cmLocalGenerator.h"
 #include "cmLocalVisualStudio10Generator.h"
@@ -49,6 +51,8 @@
 #include "cmTarget.h"
 #include "cmValue.h"
 #include "cmVisualStudioGeneratorOptions.h"
+
+const std::string kBuildSystemSources = "Buildsystem Input Files";
 
 struct cmIDEFlagTable;
 
@@ -1167,7 +1171,7 @@ void cmVisualStudio10TargetGenerator::WriteImports(Elem& e0)
   cmValue imports =
     this->GeneratorTarget->Target->GetProperty("VS_PROJECT_IMPORT");
   if (imports) {
-    std::vector<std::string> argsSplit = cmExpandedList(*imports, false);
+    cmList argsSplit{ *imports };
     for (auto& path : argsSplit) {
       if (!cmsys::SystemTools::FileIsFullPath(path)) {
         path = this->Makefile->GetCurrentSourceDirectory() + "/" + path;
@@ -1949,7 +1953,13 @@ void cmVisualStudio10TargetGenerator::WriteGroups()
                  "http://schemas.microsoft.com/developer/msbuild/2003");
 
     for (auto const& ti : this->Tools) {
-      this->WriteGroupSources(e0, ti.first, ti.second, sourceGroups);
+      if ((this->GeneratorTarget->GetName() ==
+           CMAKE_CHECK_BUILD_SYSTEM_TARGET) &&
+          (ti.first == "None")) {
+        this->WriteBuildSystemSources(e0, ti.first, ti.second);
+      } else {
+        this->WriteGroupSources(e0, ti.first, ti.second, sourceGroups);
+      }
     }
 
     // Added files are images and the manifest.
@@ -2020,6 +2030,18 @@ void cmVisualStudio10TargetGenerator::WriteGroups()
                    "rc;ico;cur;bmp;dlg;rc2;rct;bin;rgs;"
                    "gif;jpg;jpeg;jpe;resx;tiff;tif;png;wav;mfcribbon-ms");
       }
+
+      if (this->GeneratorTarget->GetName() ==
+          CMAKE_CHECK_BUILD_SYSTEM_TARGET) {
+        for (const std::string& filter : this->BuildSystemSourcesFilters) {
+          std::string guidName = "SG_Filter_";
+          guidName += filter;
+          std::string guid = this->GlobalGenerator->GetGUID(guidName);
+          Elem e2(e1, "Filter");
+          e2.Attribute("Include", filter);
+          e2.Element("UniqueIdentifier", "{" + guid + "}");
+        }
+      }
     }
   }
   fout << '\n';
@@ -2086,6 +2108,39 @@ void cmVisualStudio10TargetGenerator::WriteGroupSources(
   }
 }
 
+void cmVisualStudio10TargetGenerator::WriteBuildSystemSources(
+  Elem& e0, std::string const& name, ToolSources const& sources)
+{
+  const std::string srcDir = this->Makefile->GetCurrentSourceDirectory();
+  const std::string::size_type srcDirLength = srcDir.length();
+
+  Elem e1(e0, "ItemGroup");
+  e1.SetHasElements();
+  for (ToolSource const& s : sources) {
+    cmSourceFile const* sf = s.SourceFile;
+    std::string const& source = sf->GetFullPath();
+
+    cm::filesystem::path sourcePath(source);
+    bool isInSrcDir = cmHasPrefix(source, srcDir);
+
+    std::string filter = kBuildSystemSources;
+    if (isInSrcDir) {
+      std::string parentPath = sourcePath.parent_path().string();
+      if (srcDir != parentPath) {
+        filter += parentPath.substr(srcDirLength);
+      }
+      ConvertToWindowsSlash(filter);
+      this->BuildSystemSourcesFilters.insert(filter);
+    }
+
+    std::string path = this->ConvertPath(source, s.RelativePath);
+    ConvertToWindowsSlash(path);
+    Elem e2(e1, name);
+    e2.Attribute("Include", path);
+    e2.Element("Filter", filter);
+  }
+}
+
 void cmVisualStudio10TargetGenerator::WriteHeaderSource(
   Elem& e1, cmSourceFile const* sf, ConfigToSettings const& toolSettings)
 {
@@ -2113,8 +2168,8 @@ void cmVisualStudio10TargetGenerator::ParseSettingsProperty(
     for (const std::string& config : this->Configurations) {
       std::string evaluated = cge->Evaluate(this->LocalGenerator, config);
 
-      std::vector<std::string> settings = cmExpandedList(evaluated);
-      for (const std::string& setting : settings) {
+      cmList settings{ evaluated };
+      for (const auto& setting : settings) {
         const std::string::size_type assignment = setting.find('=');
         if (assignment != std::string::npos) {
           const std::string propName = setting.substr(0, assignment);
@@ -2714,16 +2769,11 @@ void cmVisualStudio10TargetGenerator::OutputSourceSpecificFlags(
 
   if (lang == "ASM_NASM") {
     if (cmValue objectDeps = sf.GetProperty("OBJECT_DEPENDS")) {
-      std::string dependencies;
-      std::vector<std::string> depends = cmExpandedList(*objectDeps);
-      const char* sep = "";
-      for (std::string& d : depends) {
+      cmList depends{ *objectDeps };
+      for (auto& d : depends) {
         ConvertToWindowsSlash(d);
-        dependencies += sep;
-        dependencies += d;
-        sep = ";";
       }
-      e2.Element("AdditionalDependencies", dependencies);
+      e2.Element("AdditionalDependencies", depends.join(";"));
     }
   }
 

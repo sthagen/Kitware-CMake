@@ -6,16 +6,15 @@
 #include <cassert>
 #include <cctype>
 #include <set>
-#include <vector>
 
 #ifdef _WIN32
 #  include <unordered_map>
 #  include <utility>
 #endif
 
+#include "cmList.h"
 #include "cmState.h"
 #include "cmStateDirectory.h"
-#include "cmStringAlgorithms.h"
 #include "cmSystemTools.h"
 #include "cmValue.h"
 
@@ -176,7 +175,12 @@ std::string cmOutputConverter::ConvertToOutputForExisting(
       }
 
       std::string tmp{};
-      cmSystemTools::GetShortPath(remote, tmp);
+      cmsys::Status status = cmSystemTools::GetShortPath(remote, tmp);
+      if (!status) {
+        // Fallback for cases when Windows refuses to resolve the short path,
+        // like for C:\Program Files\WindowsApps\...
+        tmp = remote;
+      }
       shortPathCache[remote] = tmp;
       return tmp;
     }();
@@ -319,7 +323,7 @@ cmOutputConverter::FortranFormat cmOutputConverter::GetFortranFormat(
 {
   FortranFormat format = FortranFormatNone;
   if (!value.empty()) {
-    for (std::string const& fi : cmExpandedList(value)) {
+    for (std::string const& fi : cmList(value)) {
       if (fi == "FIXED") {
         format = FortranFormatFixed;
       }
