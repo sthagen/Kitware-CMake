@@ -805,6 +805,9 @@ public:
   /** Return whether this target may be used to link another target.  */
   bool IsLinkable() const;
 
+  /** Return whether the link step generates a dependency file. */
+  bool HasLinkDependencyFile(std::string const& config) const;
+
   /** Return whether this target is a shared library Framework on
       Apple.  */
   bool IsFrameworkOnApple() const;
@@ -912,6 +915,8 @@ public:
   std::vector<std::string> GetGeneratedISPCObjects(
     std::string const& config) const;
 
+  void AddSystemIncludeDirectory(std::string const& inc,
+                                 std::string const& lang);
   bool AddHeaderSetVerification();
   std::string GenerateHeaderSetVerificationFile(
     cmSourceFile& source, const std::string& dir,

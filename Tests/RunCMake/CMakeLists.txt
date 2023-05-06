@@ -295,6 +295,7 @@ endif()
 add_RunCMake_test(BuildDepends
   -DMSVC_VERSION=${MSVC_VERSION}
   -DCMAKE_C_COMPILER_ID=${CMAKE_C_COMPILER_ID}
+  -DCMAKE_C_LINK_DEPENDS_USE_COMPILER=${CMAKE_C_LINK_DEPENDS_USE_COMPILER}
   -DCMake_TEST_BuildDepends_GNU_AS=${CMake_TEST_BuildDepends_GNU_AS}
   )
 if(UNIX AND "${CMAKE_GENERATOR}" MATCHES "Unix Makefiles|Ninja")
@@ -561,7 +562,10 @@ add_RunCMake_test(alias_targets)
 add_RunCMake_test(InterfaceLibrary)
 add_RunCMake_test(no_install_prefix)
 add_RunCMake_test(configure_file)
-add_RunCMake_test(CTestTimeout -DTIMEOUT=${CTestTestTimeout_TIME})
+if(CTestTestTimeout_TIME)
+  set(CTestTimeout_ARGS -DTIMEOUT=${CTestTestTimeout_TIME})
+endif()
+add_RunCMake_test(CTestTimeout)
 add_RunCMake_test(CTestTimeoutAfterMatch)
 if(CMake_TEST_CUDA)
   add_RunCMake_test(CUDA_architectures)

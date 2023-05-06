@@ -41,19 +41,18 @@
 
 cmLocalNinjaGenerator::cmLocalNinjaGenerator(cmGlobalGenerator* gg,
                                              cmMakefile* mf)
-  : cmLocalCommonGenerator(gg, mf, WorkDir::TopBin)
+  : cmLocalCommonGenerator(gg, mf)
 {
 }
 
 // Virtual public methods.
 
-cmRulePlaceholderExpander*
+std::unique_ptr<cmRulePlaceholderExpander>
 cmLocalNinjaGenerator::CreateRulePlaceholderExpander() const
 {
-  cmRulePlaceholderExpander* ret =
-    this->cmLocalGenerator::CreateRulePlaceholderExpander();
+  auto ret = this->cmLocalGenerator::CreateRulePlaceholderExpander();
   ret->SetTargetImpLib("$TARGET_IMPLIB");
-  return ret;
+  return std::unique_ptr<cmRulePlaceholderExpander>(std::move(ret));
 }
 
 cmLocalNinjaGenerator::~cmLocalNinjaGenerator() = default;
@@ -186,6 +185,26 @@ const cmGlobalNinjaGenerator* cmLocalNinjaGenerator::GetGlobalNinjaGenerator()
 cmGlobalNinjaGenerator* cmLocalNinjaGenerator::GetGlobalNinjaGenerator()
 {
   return static_cast<cmGlobalNinjaGenerator*>(this->GetGlobalGenerator());
+}
+
+std::string const& cmLocalNinjaGenerator::GetWorkingDirectory() const
+{
+  return this->GetState()->GetBinaryDirectory();
+}
+
+std::string cmLocalNinjaGenerator::MaybeRelativeToWorkDir(
+  std::string const& path) const
+{
+  return this->GetGlobalNinjaGenerator()->NinjaOutputPath(
+    this->MaybeRelativeToTopBinDir(path));
+}
+
+std::string cmLocalNinjaGenerator::GetLinkDependencyFile(
+  cmGeneratorTarget* target, std::string const& config) const
+{
+  return cmStrCat(target->GetSupportDirectory(),
+                  this->GetGlobalNinjaGenerator()->ConfigDirectory(config),
+                  "/link.d");
 }
 
 // Virtual protected methods.
@@ -893,8 +912,7 @@ std::string cmLocalNinjaGenerator::MakeCustomLauncher(
   }
   vars.Output = output.c_str();
 
-  std::unique_ptr<cmRulePlaceholderExpander> rulePlaceholderExpander(
-    this->CreateRulePlaceholderExpander());
+  auto rulePlaceholderExpander = this->CreateRulePlaceholderExpander();
 
   std::string launcher = *property_value;
   rulePlaceholderExpander->ExpandRuleVariables(this, launcher, vars);
@@ -909,14 +927,11 @@ void cmLocalNinjaGenerator::AdditionalCleanFiles(const std::string& config)
 {
   if (cmValue prop_value =
         this->Makefile->GetProperty("ADDITIONAL_CLEAN_FILES")) {
-    std::vector<std::string> cleanFiles;
-    {
-      cmExpandList(cmGeneratorExpression::Evaluate(*prop_value, this, config),
-                   cleanFiles);
-    }
+    cmList cleanFiles{ cmGeneratorExpression::Evaluate(*prop_value, this,
+                                                       config) };
     std::string const& binaryDir = this->GetCurrentBinaryDirectory();
     cmGlobalNinjaGenerator* gg = this->GetGlobalNinjaGenerator();
-    for (std::string const& cleanFile : cleanFiles) {
+    for (auto const& cleanFile : cleanFiles) {
       // Support relative paths
       gg->AddAdditionalCleanFile(
         cmSystemTools::CollapseFullPath(cleanFile, binaryDir), config);

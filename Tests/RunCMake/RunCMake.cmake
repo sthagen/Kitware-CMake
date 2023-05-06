@@ -47,6 +47,8 @@ function(run_cmake test)
     elseif(EXISTS ${top_src}/${test}-${o}.txt)
       file(READ ${top_src}/${test}-${o}.txt expect_${o})
       string(REGEX REPLACE "\n+$" "" expect_${o} "${expect_${o}}")
+    elseif(DEFINED RunCMake_TEST_EXPECT_${o})
+      string(REGEX REPLACE "\n+$" "" expect_${o} "${RunCMake_TEST_EXPECT_${o}}")
     else()
       unset(expect_${o})
     endif()
@@ -175,7 +177,7 @@ function(run_cmake test)
     "|Your license to use PGI[^\n]*expired"
     "|Please obtain a new version at"
     "|contact PGI Sales at"
-    "|icp?c: remark #10441: The Intel\\(R\\) C\\+\\+ Compiler Classic \\(ICC\\) is deprecated"
+    "|ic(p?c|l): remark #10441: The Intel\\(R\\) C\\+\\+ Compiler Classic \\(ICC\\) is deprecated"
 
     "|[^\n]*install_name_tool: warning: changes being made to the file will invalidate the code signature in:"
     "|[^\n]*xcodebuild[^\n]*DVTCoreDeviceEnabledState: DVTCoreDeviceEnabledState_Disabled set via user default"

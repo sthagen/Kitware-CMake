@@ -62,6 +62,9 @@ void cmMakefileLibraryTargetGenerator::WriteRuleFiles()
   // write in rules for object files and custom commands
   this->WriteTargetBuildRules();
 
+  // Write in the rules for the link dependency file
+  this->WriteTargetLinkDependRules();
+
   // write the link rules
   // Write the rule for this target type.
   switch (this->GeneratorTarget->GetType()) {
@@ -305,7 +308,7 @@ void cmMakefileLibraryTargetGenerator::WriteNvidiaDeviceLibraryRules(
   vars.Language = linkLanguage.c_str();
 
   // Expand the rule variables.
-  std::vector<std::string> real_link_commands;
+  cmList real_link_commands;
   {
     // Set path conversion for link script shells.
     this->LocalGenerator->SetLinkScriptShell(useLinkScript);
@@ -370,16 +373,16 @@ void cmMakefileLibraryTargetGenerator::WriteNvidiaDeviceLibraryRules(
       launcher = cmStrCat(val, ' ');
     }
 
-    std::unique_ptr<cmRulePlaceholderExpander> rulePlaceholderExpander(
-      this->LocalGenerator->CreateRulePlaceholderExpander());
+    auto rulePlaceholderExpander =
+      this->LocalGenerator->CreateRulePlaceholderExpander();
 
     // Construct the main link rule and expand placeholders.
     rulePlaceholderExpander->SetTargetImpLib(targetOutput);
     std::string linkRule = this->GetLinkRule(linkRuleVar);
-    cmExpandList(linkRule, real_link_commands);
+    real_link_commands.append(linkRule);
 
     // Expand placeholders.
-    for (std::string& real_link_command : real_link_commands) {
+    for (auto& real_link_command : real_link_commands) {
       real_link_command = cmStrCat(launcher, real_link_command);
       rulePlaceholderExpander->ExpandRuleVariables(this->LocalGenerator,
                                                    real_link_command, vars);
@@ -641,9 +644,9 @@ void cmMakefileLibraryTargetGenerator::WriteLibraryRules(
 
   // For static libraries there might be archiving rules.
   bool haveStaticLibraryRule = false;
-  std::vector<std::string> archiveCreateCommands;
-  std::vector<std::string> archiveAppendCommands;
-  std::vector<std::string> archiveFinishCommands;
+  cmList archiveCreateCommands;
+  cmList archiveAppendCommands;
+  cmList archiveFinishCommands;
   std::string::size_type archiveCommandLimit = std::string::npos;
   if (this->GeneratorTarget->GetType() == cmStateEnums::STATIC_LIBRARY) {
     haveStaticLibraryRule = this->Makefile->IsDefinitionSet(linkRuleVar);
@@ -653,21 +656,23 @@ void cmMakefileLibraryTargetGenerator::WriteLibraryRules(
     arCreateVar = this->GeneratorTarget->GetFeatureSpecificLinkRuleVariable(
       arCreateVar, linkLanguage, this->GetConfigName());
 
-    this->Makefile->GetDefExpandList(arCreateVar, archiveCreateCommands);
+    archiveCreateCommands.assign(this->Makefile->GetDefinition(arCreateVar));
+
     std::string arAppendVar =
       cmStrCat("CMAKE_", linkLanguage, "_ARCHIVE_APPEND");
 
     arAppendVar = this->GeneratorTarget->GetFeatureSpecificLinkRuleVariable(
       arAppendVar, linkLanguage, this->GetConfigName());
 
-    this->Makefile->GetDefExpandList(arAppendVar, archiveAppendCommands);
+    archiveAppendCommands.assign(this->Makefile->GetDefinition(arAppendVar));
+
     std::string arFinishVar =
       cmStrCat("CMAKE_", linkLanguage, "_ARCHIVE_FINISH");
 
     arFinishVar = this->GeneratorTarget->GetFeatureSpecificLinkRuleVariable(
       arFinishVar, linkLanguage, this->GetConfigName());
 
-    this->Makefile->GetDefExpandList(arFinishVar, archiveFinishCommands);
+    archiveFinishCommands.assign(this->Makefile->GetDefinition(arFinishVar));
   }
 
   // Decide whether to use archiving rules.
@@ -691,11 +696,11 @@ void cmMakefileLibraryTargetGenerator::WriteLibraryRules(
   }
 
   // Expand the rule variables.
-  std::unique_ptr<cmRulePlaceholderExpander> rulePlaceholderExpander(
-    this->LocalGenerator->CreateRulePlaceholderExpander());
+  auto rulePlaceholderExpander =
+    this->LocalGenerator->CreateRulePlaceholderExpander();
   bool useWatcomQuote =
     this->Makefile->IsOn(linkRuleVar + "_USE_WATCOM_QUOTE");
-  std::vector<std::string> real_link_commands;
+  cmList real_link_commands;
   {
     // Set path conversion for link script shells.
     this->LocalGenerator->SetLinkScriptShell(useLinkScript);
@@ -880,7 +885,7 @@ void cmMakefileLibraryTargetGenerator::WriteLibraryRules(
     } else {
       // Get the set of commands.
       std::string linkRule = this->GetLinkRule(linkRuleVar);
-      cmExpandList(linkRule, real_link_commands);
+      real_link_commands.append(linkRule);
       if (this->UseLWYU) {
         cmValue lwyuCheck =
           this->Makefile->GetDefinition("CMAKE_LINK_WHAT_YOU_USE_CHECK");
@@ -896,7 +901,7 @@ void cmMakefileLibraryTargetGenerator::WriteLibraryRules(
       }
 
       // Expand placeholders.
-      for (std::string& real_link_command : real_link_commands) {
+      for (auto& real_link_command : real_link_commands) {
         real_link_command = cmStrCat(launcher, real_link_command);
         rulePlaceholderExpander->ExpandRuleVariables(this->LocalGenerator,
                                                      real_link_command, vars);

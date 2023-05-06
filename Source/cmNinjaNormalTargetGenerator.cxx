@@ -302,8 +302,8 @@ void cmNinjaNormalTargetGenerator::WriteNvidiaDeviceLinkRule(
       launcher = cmStrCat(val, ' ');
     }
 
-    std::unique_ptr<cmRulePlaceholderExpander> rulePlaceholderExpander(
-      this->GetLocalGenerator()->CreateRulePlaceholderExpander());
+    auto rulePlaceholderExpander =
+      this->GetLocalGenerator()->CreateRulePlaceholderExpander();
 
     // Rule for linking library/executable.
     std::vector<std::string> linkCmds = this->ComputeDeviceLinkCmd();
@@ -362,8 +362,8 @@ void cmNinjaNormalTargetGenerator::WriteDeviceLinkRules(
 
   std::string compileCmd = this->GetMakefile()->GetRequiredDefinition(
     "CMAKE_CUDA_DEVICE_LINK_COMPILE");
-  std::unique_ptr<cmRulePlaceholderExpander> rulePlaceholderExpander(
-    this->GetLocalGenerator()->CreateRulePlaceholderExpander());
+  auto rulePlaceholderExpander =
+    this->GetLocalGenerator()->CreateRulePlaceholderExpander();
   rulePlaceholderExpander->ExpandRuleVariables(this->GetLocalGenerator(),
                                                compileCmd, vars);
 
@@ -416,6 +416,13 @@ void cmNinjaNormalTargetGenerator::WriteLinkRule(bool useResponseFile,
 
     std::string cmakeVarLang =
       cmStrCat("CMAKE_", this->TargetLinkLanguage(config));
+
+    if (this->GeneratorTarget->HasLinkDependencyFile(config)) {
+      auto DepFileFormat = this->GetMakefile()->GetDefinition(
+        cmStrCat(cmakeVarLang, "_LINKER_DEPFILE_FORMAT"));
+      rule.DepType = DepFileFormat;
+      rule.DepFile = "$DEP_FILE";
+    }
 
     // build response file name
     std::string cmakeLinkVar = cmakeVarLang + "_RESPONSE_FILE_LINK_FLAG";
@@ -504,8 +511,8 @@ void cmNinjaNormalTargetGenerator::WriteLinkRule(bool useResponseFile,
       launcher = cmStrCat(val, ' ');
     }
 
-    std::unique_ptr<cmRulePlaceholderExpander> rulePlaceholderExpander(
-      this->GetLocalGenerator()->CreateRulePlaceholderExpander());
+    auto rulePlaceholderExpander =
+      this->GetLocalGenerator()->CreateRulePlaceholderExpander();
 
     // Rule for linking library/executable.
     std::vector<std::string> linkCmds = this->ComputeLinkCmd(config);
@@ -577,8 +584,8 @@ void cmNinjaNormalTargetGenerator::WriteLinkRule(bool useResponseFile,
 
     std::string cmd =
       this->GetMakefile()->GetDefinition("CMAKE_CREATE_TEXT_STUBS");
-    std::unique_ptr<cmRulePlaceholderExpander> rulePlaceholderExpander(
-      this->GetLocalGenerator()->CreateRulePlaceholderExpander());
+    auto rulePlaceholderExpander =
+      this->GetLocalGenerator()->CreateRulePlaceholderExpander();
     cmRulePlaceholderExpander::RuleVariables vars;
     vars.Target = "$in";
     rulePlaceholderExpander->SetTargetImpLib("$out");
@@ -610,7 +617,7 @@ void cmNinjaNormalTargetGenerator::WriteLinkRule(bool useResponseFile,
 
 std::vector<std::string> cmNinjaNormalTargetGenerator::ComputeDeviceLinkCmd()
 {
-  std::vector<std::string> linkCmds;
+  cmList linkCmds;
 
   // this target requires separable cuda compilation
   // now build the correct command depending on if the target is
@@ -619,23 +626,23 @@ std::vector<std::string> cmNinjaNormalTargetGenerator::ComputeDeviceLinkCmd()
     case cmStateEnums::STATIC_LIBRARY:
     case cmStateEnums::SHARED_LIBRARY:
     case cmStateEnums::MODULE_LIBRARY: {
-      this->GetMakefile()->GetDefExpandList("CMAKE_CUDA_DEVICE_LINK_LIBRARY",
-                                            linkCmds);
+      linkCmds.assign(
+        this->GetMakefile()->GetDefinition("CMAKE_CUDA_DEVICE_LINK_LIBRARY"));
     } break;
     case cmStateEnums::EXECUTABLE: {
-      this->GetMakefile()->GetDefExpandList(
-        "CMAKE_CUDA_DEVICE_LINK_EXECUTABLE", linkCmds);
+      linkCmds.assign(this->GetMakefile()->GetDefinition(
+        "CMAKE_CUDA_DEVICE_LINK_EXECUTABLE"));
     } break;
     default:
       break;
   }
-  return linkCmds;
+  return std::move(linkCmds.data());
 }
 
 std::vector<std::string> cmNinjaNormalTargetGenerator::ComputeLinkCmd(
   const std::string& config)
 {
-  std::vector<std::string> linkCmds;
+  cmList linkCmds;
   cmMakefile* mf = this->GetMakefile();
   {
     // If we have a rule variable prefer it. In the case of static libraries
@@ -654,7 +661,7 @@ std::vector<std::string> cmNinjaNormalTargetGenerator::ComputeLinkCmd(
           linkCmdStr += *rule;
         }
       }
-      cmExpandList(linkCmdStr, linkCmds);
+      linkCmds.assign(linkCmdStr);
       if (this->UseLWYU) {
         cmValue lwyuCheck = mf->GetDefinition("CMAKE_LINK_WHAT_YOU_USE_CHECK");
         if (lwyuCheck) {
@@ -673,7 +680,7 @@ std::vector<std::string> cmNinjaNormalTargetGenerator::ComputeLinkCmd(
           linkCmds.push_back(std::move(cmakeCommand));
         }
       }
-      return linkCmds;
+      return std::move(linkCmds.data());
     }
   }
   switch (this->GetGeneratorTarget()->GetType()) {
@@ -694,7 +701,7 @@ std::vector<std::string> cmNinjaNormalTargetGenerator::ComputeLinkCmd(
           linkCmdVar, this->TargetLinkLanguage(config), config);
 
         std::string const& linkCmd = mf->GetRequiredDefinition(linkCmdVar);
-        cmExpandList(linkCmd, linkCmds);
+        linkCmds.append(linkCmd);
       }
       {
         std::string linkCmdVar = cmStrCat(
@@ -704,7 +711,7 @@ std::vector<std::string> cmNinjaNormalTargetGenerator::ComputeLinkCmd(
           linkCmdVar, this->TargetLinkLanguage(config), config);
 
         std::string const& linkCmd = mf->GetRequiredDefinition(linkCmdVar);
-        cmExpandList(linkCmd, linkCmds);
+        linkCmds.append(linkCmd);
       }
 #ifdef __APPLE__
       // On macOS ranlib truncates the fractional part of the static archive
@@ -728,7 +735,7 @@ std::vector<std::string> cmNinjaNormalTargetGenerator::ComputeLinkCmd(
     default:
       assert(false && "Unexpected target type");
   }
-  return linkCmds;
+  return std::move(linkCmds.data());
 }
 
 void cmNinjaNormalTargetGenerator::WriteDeviceLinkStatement(
@@ -1133,6 +1140,14 @@ void cmNinjaNormalTargetGenerator::WriteLinkStatement(
 
   cmNinjaBuild linkBuild(this->LanguageLinkerRule(config));
   cmNinjaVars& vars = linkBuild.Variables;
+
+  if (this->GeneratorTarget->HasLinkDependencyFile(config)) {
+    vars["DEP_FILE"] = this->GetLocalGenerator()->ConvertToOutputFormat(
+      this->ConvertToNinjaPath(
+        this->GetLocalGenerator()->GetLinkDependencyFile(this->GeneratorTarget,
+                                                         config)),
+      cmOutputConverter::SHELL);
+  }
 
   // Compute the comment.
   linkBuild.Comment =
