@@ -2138,12 +2138,10 @@ int cmake::DoPreConfigureChecks()
     std::string cacheStart =
       cmStrCat(*this->State->GetInitializedCacheValue("CMAKE_HOME_DIRECTORY"),
                "/CMakeLists.txt");
-    std::string currentStart =
-      cmStrCat(this->GetHomeDirectory(), "/CMakeLists.txt");
-    if (!cmSystemTools::SameFile(cacheStart, currentStart)) {
+    if (!cmSystemTools::SameFile(cacheStart, srcList)) {
       std::string message =
-        cmStrCat("The source \"", currentStart,
-                 "\" does not match the source \"", cacheStart,
+        cmStrCat("The source \"", srcList, "\" does not match the source \"",
+                 cacheStart,
                  "\" used to generate cache.  Re-run cmake with a different "
                  "source directory.");
       cmSystemTools::Error(message);
@@ -2371,16 +2369,16 @@ int cmake::ActualConfigure()
   cmValue genName = this->State->GetInitializedCacheValue("CMAKE_GENERATOR");
   if (genName) {
     if (!this->GlobalGenerator->MatchesGeneratorName(*genName)) {
-      std::string message =
-        cmStrCat("Error: generator : ", this->GlobalGenerator->GetName(),
-                 "\nDoes not match the generator used previously: ", *genName,
-                 "\nEither remove the CMakeCache.txt file and CMakeFiles "
-                 "directory or choose a different binary directory.");
+      std::string message = cmStrCat(
+        "Error: generator : ", this->GlobalGenerator->GetName(), '\n',
+        "Does not match the generator used previously: ", *genName, '\n',
+        "Either remove the CMakeCache.txt file and CMakeFiles "
+        "directory or choose a different binary directory.");
       cmSystemTools::Error(message);
       return -2;
     }
   }
-  if (!this->State->GetInitializedCacheValue("CMAKE_GENERATOR")) {
+  if (!genName) {
     this->AddCacheEntry("CMAKE_GENERATOR", this->GlobalGenerator->GetName(),
                         "Name of generator.", cmStateEnums::INTERNAL);
     this->AddCacheEntry(
@@ -2401,11 +2399,11 @@ int cmake::ActualConfigure()
   if (cmValue instance =
         this->State->GetInitializedCacheValue("CMAKE_GENERATOR_INSTANCE")) {
     if (this->GeneratorInstanceSet && this->GeneratorInstance != *instance) {
-      std::string message =
-        cmStrCat("Error: generator instance: ", this->GeneratorInstance,
-                 "\nDoes not match the instance used previously: ", *instance,
-                 "\nEither remove the CMakeCache.txt file and CMakeFiles "
-                 "directory or choose a different binary directory.");
+      std::string message = cmStrCat(
+        "Error: generator instance: ", this->GeneratorInstance, '\n',
+        "Does not match the instance used previously: ", *instance, '\n',
+        "Either remove the CMakeCache.txt file and CMakeFiles "
+        "directory or choose a different binary directory.");
       cmSystemTools::Error(message);
       return -2;
     }
@@ -2420,9 +2418,9 @@ int cmake::ActualConfigure()
     if (this->GeneratorPlatformSet &&
         this->GeneratorPlatform != *platformName) {
       std::string message = cmStrCat(
-        "Error: generator platform: ", this->GeneratorPlatform,
-        "\nDoes not match the platform used previously: ", *platformName,
-        "\nEither remove the CMakeCache.txt file and CMakeFiles "
+        "Error: generator platform: ", this->GeneratorPlatform, '\n',
+        "Does not match the platform used previously: ", *platformName, '\n',
+        "Either remove the CMakeCache.txt file and CMakeFiles "
         "directory or choose a different binary directory.");
       cmSystemTools::Error(message);
       return -2;
@@ -2436,9 +2434,9 @@ int cmake::ActualConfigure()
         this->State->GetInitializedCacheValue("CMAKE_GENERATOR_TOOLSET")) {
     if (this->GeneratorToolsetSet && this->GeneratorToolset != *tsName) {
       std::string message =
-        cmStrCat("Error: generator toolset: ", this->GeneratorToolset,
-                 "\nDoes not match the toolset used previously: ", *tsName,
-                 "\nEither remove the CMakeCache.txt file and CMakeFiles "
+        cmStrCat("Error: generator toolset: ", this->GeneratorToolset, '\n',
+                 "Does not match the toolset used previously: ", *tsName, '\n',
+                 "Either remove the CMakeCache.txt file and CMakeFiles "
                  "directory or choose a different binary directory.");
       cmSystemTools::Error(message);
       return -2;
