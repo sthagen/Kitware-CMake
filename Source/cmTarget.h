@@ -174,14 +174,17 @@ public:
    * commands. It is not a full path nor does it have an extension.
    */
   void AddUtility(std::string const& name, bool cross,
-                  cmMakefile* mf = nullptr);
+                  cmMakefile const* mf = nullptr);
   void AddUtility(BT<std::pair<std::string, bool>> util);
   //! Get the utilities used by this target
   std::set<BT<std::pair<std::string, bool>>> const& GetUtilities() const;
 
   //! Set/Get a property of this target file
-  void SetProperty(const std::string& prop, const char* value);
   void SetProperty(const std::string& prop, cmValue value);
+  void SetProperty(const std::string& prop, std::nullptr_t)
+  {
+    this->SetProperty(prop, cmValue{ nullptr });
+  }
   void SetProperty(const std::string& prop, const std::string& value)
   {
     this->SetProperty(prop, cmValue(value));
@@ -293,11 +296,9 @@ public:
 
   cmBTStringRange GetHeaderSetsEntries() const;
   cmBTStringRange GetCxxModuleSetsEntries() const;
-  cmBTStringRange GetCxxModuleHeaderSetsEntries() const;
 
   cmBTStringRange GetInterfaceHeaderSetsEntries() const;
   cmBTStringRange GetInterfaceCxxModuleSetsEntries() const;
-  cmBTStringRange GetInterfaceCxxModuleHeaderSetsEntries() const;
 
   std::string ImportedGetFullPath(const std::string& config,
                                   cmStateEnums::ArtifactType artifact) const;

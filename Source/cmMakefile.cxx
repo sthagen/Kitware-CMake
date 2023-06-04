@@ -68,6 +68,10 @@
 #  include "cmVariableWatch.h"
 #endif
 
+#ifdef CMake_ENABLE_DEBUGGER
+#  include "cmDebuggerAdapter.h"
+#endif
+
 #ifndef __has_feature
 #  define __has_feature(x) 0
 #endif
@@ -424,6 +428,13 @@ public:
           return argsValue;
         });
 #endif
+#ifdef CMake_ENABLE_DEBUGGER
+    if (this->Makefile->GetCMakeInstance()->GetDebugAdapter() != nullptr) {
+      this->Makefile->GetCMakeInstance()
+        ->GetDebugAdapter()
+        ->OnBeginFunctionCall(mf, lfc.FilePath, lff);
+    }
+#endif
   }
 
   ~cmMakefileCall()
@@ -434,6 +445,13 @@ public:
     this->Makefile->ExecutionStatusStack.pop_back();
     --this->Makefile->RecursionDepth;
     this->Makefile->Backtrace = this->Makefile->Backtrace.Pop();
+#ifdef CMake_ENABLE_DEBUGGER
+    if (this->Makefile->GetCMakeInstance()->GetDebugAdapter() != nullptr) {
+      this->Makefile->GetCMakeInstance()
+        ->GetDebugAdapter()
+        ->OnEndFunctionCall();
+    }
+#endif
   }
 
   cmMakefileCall(const cmMakefileCall&) = delete;
@@ -663,11 +681,32 @@ bool cmMakefile::ReadDependentFile(const std::string& filename,
 
   IncludeScope incScope(this, filenametoread, noPolicyScope);
 
+#ifdef CMake_ENABLE_DEBUGGER
+  if (this->GetCMakeInstance()->GetDebugAdapter() != nullptr) {
+    this->GetCMakeInstance()->GetDebugAdapter()->OnBeginFileParse(
+      this, filenametoread);
+  }
+#endif
+
   cmListFile listFile;
   if (!listFile.ParseFile(filenametoread.c_str(), this->GetMessenger(),
                           this->Backtrace)) {
+#ifdef CMake_ENABLE_DEBUGGER
+    if (this->GetCMakeInstance()->GetDebugAdapter() != nullptr) {
+      this->GetCMakeInstance()->GetDebugAdapter()->OnEndFileParse();
+    }
+#endif
+
     return false;
   }
+
+#ifdef CMake_ENABLE_DEBUGGER
+  if (this->GetCMakeInstance()->GetDebugAdapter() != nullptr) {
+    this->GetCMakeInstance()->GetDebugAdapter()->OnEndFileParse();
+    this->GetCMakeInstance()->GetDebugAdapter()->OnFileParsedSuccessfully(
+      filenametoread, listFile.Functions);
+  }
+#endif
 
   this->RunListFile(listFile, filenametoread);
   if (cmSystemTools::GetFatalErrorOccurred()) {
@@ -764,11 +803,32 @@ bool cmMakefile::ReadListFile(const std::string& filename)
 
   ListFileScope scope(this, filenametoread);
 
+#ifdef CMake_ENABLE_DEBUGGER
+  if (this->GetCMakeInstance()->GetDebugAdapter() != nullptr) {
+    this->GetCMakeInstance()->GetDebugAdapter()->OnBeginFileParse(
+      this, filenametoread);
+  }
+#endif
+
   cmListFile listFile;
   if (!listFile.ParseFile(filenametoread.c_str(), this->GetMessenger(),
                           this->Backtrace)) {
+#ifdef CMake_ENABLE_DEBUGGER
+    if (this->GetCMakeInstance()->GetDebugAdapter() != nullptr) {
+      this->GetCMakeInstance()->GetDebugAdapter()->OnEndFileParse();
+    }
+#endif
+
     return false;
   }
+
+#ifdef CMake_ENABLE_DEBUGGER
+  if (this->GetCMakeInstance()->GetDebugAdapter() != nullptr) {
+    this->GetCMakeInstance()->GetDebugAdapter()->OnEndFileParse();
+    this->GetCMakeInstance()->GetDebugAdapter()->OnFileParsedSuccessfully(
+      filenametoread, listFile.Functions);
+  }
+#endif
 
   this->RunListFile(listFile, filenametoread);
   if (cmSystemTools::GetFatalErrorOccurred()) {
@@ -790,6 +850,13 @@ bool cmMakefile::ReadListFileAsString(const std::string& content,
                             this->GetMessenger(), this->Backtrace)) {
     return false;
   }
+
+#ifdef CMake_ENABLE_DEBUGGER
+  if (this->GetCMakeInstance()->GetDebugAdapter() != nullptr) {
+    this->GetCMakeInstance()->GetDebugAdapter()->OnFileParsedSuccessfully(
+      filenametoread, listFile.Functions);
+  }
+#endif
 
   this->RunListFile(listFile, filenametoread);
   if (cmSystemTools::GetFatalErrorOccurred()) {
@@ -1658,11 +1725,33 @@ void cmMakefile::Configure()
   assert(cmSystemTools::FileExists(currentStart, true));
   this->AddDefinition("CMAKE_PARENT_LIST_FILE", currentStart);
 
+#ifdef CMake_ENABLE_DEBUGGER
+  if (this->GetCMakeInstance()->GetDebugAdapter() != nullptr) {
+    this->GetCMakeInstance()->GetDebugAdapter()->OnBeginFileParse(
+      this, currentStart);
+  }
+#endif
+
   cmListFile listFile;
   if (!listFile.ParseFile(currentStart.c_str(), this->GetMessenger(),
                           this->Backtrace)) {
+#ifdef CMake_ENABLE_DEBUGGER
+    if (this->GetCMakeInstance()->GetDebugAdapter() != nullptr) {
+      this->GetCMakeInstance()->GetDebugAdapter()->OnEndFileParse();
+    }
+#endif
+
     return;
   }
+
+#ifdef CMake_ENABLE_DEBUGGER
+  if (this->GetCMakeInstance()->GetDebugAdapter() != nullptr) {
+    this->GetCMakeInstance()->GetDebugAdapter()->OnEndFileParse();
+    this->GetCMakeInstance()->GetDebugAdapter()->OnFileParsedSuccessfully(
+      currentStart, listFile.Functions);
+  }
+#endif
+
   if (this->IsRootMakefile()) {
     bool hasVersion = false;
     // search for the right policy command
@@ -1939,8 +2028,8 @@ void cmMakefile::AddDefinitionBool(const std::string& name, bool value)
   this->AddDefinition(name, value ? "ON" : "OFF");
 }
 
-void cmMakefile::AddCacheDefinition(const std::string& name, const char* value,
-                                    const char* doc,
+void cmMakefile::AddCacheDefinition(const std::string& name, cmValue value,
+                                    cmValue doc,
                                     cmStateEnums::CacheEntryType type,
                                     bool force)
 {
@@ -1954,22 +2043,20 @@ void cmMakefile::AddCacheDefinition(const std::string& name, const char* value,
     // if this is not a force, then use the value from the cache
     // if it is a force, then use the value being passed in
     if (!force) {
-      value = existingValue->c_str();
+      value = existingValue;
     }
     if (type == cmStateEnums::PATH || type == cmStateEnums::FILEPATH) {
-      nvalue = value ? value : "";
-
-      cmList files(nvalue);
+      cmList files(value);
       for (auto& file : files) {
         if (!cmIsOff(file)) {
           file = cmSystemTools::CollapseFullPath(file);
         }
       }
       nvalue = files.to_string();
+      value = cmValue{ nvalue };
 
-      this->GetCMakeInstance()->AddCacheEntry(name, nvalue, doc, type);
-      nvalue = *this->GetState()->GetInitializedCacheValue(name);
-      value = nvalue.c_str();
+      this->GetCMakeInstance()->AddCacheEntry(name, value, doc, type);
+      value = this->GetState()->GetInitializedCacheValue(name);
     }
   }
   this->GetCMakeInstance()->AddCacheEntry(name, value, doc, type);
@@ -3769,6 +3856,12 @@ void cmMakefile::DisplayStatus(const std::string& message, float s) const
     return;
   }
   cm->UpdateProgress(message, s);
+
+#ifdef CMake_ENABLE_DEBUGGER
+  if (cm->GetDebugAdapter() != nullptr) {
+    cm->GetDebugAdapter()->OnMessageOutput(MessageType::MESSAGE, message);
+  }
+#endif
 }
 
 std::string cmMakefile::GetModulesFile(const std::string& filename,
@@ -4044,10 +4137,6 @@ int cmMakefile::ConfigureFile(const std::string& infile,
   return res;
 }
 
-void cmMakefile::SetProperty(const std::string& prop, const char* value)
-{
-  this->StateSnapshot.GetDirectory().SetProperty(prop, value, this->Backtrace);
-}
 void cmMakefile::SetProperty(const std::string& prop, cmValue value)
 {
   this->StateSnapshot.GetDirectory().SetProperty(prop, value, this->Backtrace);

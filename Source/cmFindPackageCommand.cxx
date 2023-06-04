@@ -1728,7 +1728,7 @@ void cmFindPackageCommand::SetConfigDirCacheVariable(const std::string& value)
   std::string const help =
     cmStrCat("The directory containing a CMake configuration file for ",
              this->Name, '.');
-  this->Makefile->AddCacheDefinition(this->Variable, value, help.c_str(),
+  this->Makefile->AddCacheDefinition(this->Variable, value, help,
                                      cmStateEnums::PATH, true);
   if (this->Makefile->GetPolicyStatus(cmPolicies::CMP0126) ==
         cmPolicies::NEW &&
@@ -1804,11 +1804,11 @@ void cmFindPackageCommand::AppendToFoundProperty(const bool found)
     notFoundContents.push_back(this->Name);
   }
 
-  this->Makefile->GetState()->SetGlobalProperty(
-    "PACKAGES_FOUND", foundContents.to_string().c_str());
+  this->Makefile->GetState()->SetGlobalProperty("PACKAGES_FOUND",
+                                                foundContents.to_string());
 
-  this->Makefile->GetState()->SetGlobalProperty(
-    "PACKAGES_NOT_FOUND", notFoundContents.to_string().c_str());
+  this->Makefile->GetState()->SetGlobalProperty("PACKAGES_NOT_FOUND",
+                                                notFoundContents.to_string());
 }
 
 void cmFindPackageCommand::AppendSuccessInformation()
@@ -1845,7 +1845,7 @@ void cmFindPackageCommand::AppendSuccessInformation()
       cmStrCat(this->VersionExact ? "==" : ">=", ' ', this->Version);
   }
   this->Makefile->GetState()->SetGlobalProperty(versionInfoPropName,
-                                                versionInfo.c_str());
+                                                versionInfo);
   if (this->Required) {
     std::string const requiredInfoPropName =
       cmStrCat("_CMAKE_", this->Name, "_TYPE");

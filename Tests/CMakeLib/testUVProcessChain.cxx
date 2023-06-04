@@ -11,6 +11,7 @@
 #include <cm3p/uv.h>
 
 #include "cmGetPipes.h"
+#include "cmStringAlgorithms.h"
 #include "cmUVHandlePtr.h"
 #include "cmUVProcessChain.h"
 #include "cmUVStreambuf.h"
@@ -147,6 +148,10 @@ static bool checkExecution(cmUVProcessChainBuilder& builder,
     printResults(status, status1);
     return false;
   }
+  if (chain->Finished()) {
+    std::cout << "Finished() returned true, should be false" << std::endl;
+    return false;
+  }
 
   if (chain->Wait(6000)) {
     std::cout << "Wait() returned true, should be false" << std::endl;
@@ -158,6 +163,10 @@ static bool checkExecution(cmUVProcessChainBuilder& builder,
     printResults(status, status2);
     return false;
   }
+  if (chain->Finished()) {
+    std::cout << "Finished() returned true, should be false" << std::endl;
+    return false;
+  }
 
   if (!chain->Wait()) {
     std::cout << "Wait() returned false, should be true" << std::endl;
@@ -167,6 +176,10 @@ static bool checkExecution(cmUVProcessChainBuilder& builder,
   if (!resultsMatch(status, status3)) {
     std::cout << "GetStatus() did not produce expected output" << std::endl;
     printResults(status, status3);
+    return false;
+  }
+  if (!chain->Finished()) {
+    std::cout << "Finished() returned false, should be true" << std::endl;
     return false;
   }
 
@@ -222,6 +235,61 @@ bool testUVProcessChainBuiltin(const char* helperCommand)
   }
 
   if (!checkOutput(*chain->OutputStream(), *chain->ErrorStream())) {
+    return false;
+  }
+
+  return true;
+}
+
+bool testUVProcessChainBuiltinMerged(const char* helperCommand)
+{
+  cmUVProcessChainBuilder builder;
+  std::unique_ptr<cmUVProcessChain> chain;
+  builder.AddCommand({ helperCommand, "echo" })
+    .AddCommand({ helperCommand, "capitalize" })
+    .AddCommand({ helperCommand, "dedup" })
+    .SetMergedBuiltinStreams();
+
+  if (!checkExecution(builder, chain)) {
+    return false;
+  }
+
+  if (!chain->OutputStream()) {
+    std::cout << "OutputStream() was null, expecting not null" << std::endl;
+    return false;
+  }
+  if (!chain->ErrorStream()) {
+    std::cout << "ErrorStream() was null, expecting not null" << std::endl;
+    return false;
+  }
+  if (chain->OutputStream() != chain->ErrorStream()) {
+    std::cout << "OutputStream() and ErrorStream() expected to be the same"
+              << std::endl;
+    return false;
+  }
+
+  std::string merged = getInput(*chain->OutputStream());
+  auto qemuErrorPos = merged.find("qemu:");
+  if (qemuErrorPos != std::string::npos) {
+    merged.resize(qemuErrorPos);
+  }
+  if (merged.length() != cmStrLen("HELO WRD!123") ||
+      merged.find('1') == std::string::npos ||
+      merged.find('2') == std::string::npos ||
+      merged.find('3') == std::string::npos) {
+    std::cout << "Expected output to contain '1', '2', and '3', was \""
+              << merged << "\"" << std::endl;
+    return false;
+  }
+  std::string output;
+  for (auto const& c : merged) {
+    if (c != '1' && c != '2' && c != '3') {
+      output += c;
+    }
+  }
+  if (output != "HELO WRD!") {
+    std::cout << "Output was \"" << output << "\", expected \"HELO WRD!\""
+              << std::endl;
     return false;
   }
 
@@ -314,6 +382,57 @@ bool testUVProcessChainNone(const char* helperCommand)
   return true;
 }
 
+bool testUVProcessChainCwdUnchanged(const char* helperCommand)
+{
+  cmUVProcessChainBuilder builder;
+  builder.AddCommand({ helperCommand, "pwd" })
+    .SetBuiltinStream(cmUVProcessChainBuilder::Stream_OUTPUT)
+    .SetBuiltinStream(cmUVProcessChainBuilder::Stream_ERROR);
+
+  auto chain = builder.Start();
+  chain.Wait();
+  if (chain.GetStatus().front()->ExitStatus != 0) {
+    std::cout << "Exit status was " << chain.GetStatus().front()->ExitStatus
+              << ", expecting 0" << std::endl;
+    return false;
+  }
+
+  auto cwd = getInput(*chain.OutputStream());
+  if (!cmHasLiteralSuffix(cwd, "/Tests/CMakeLib")) {
+    std::cout << "Working directory was \"" << cwd
+              << "\", expected to end in \"/Tests/CMakeLib\"" << std::endl;
+    return false;
+  }
+
+  return true;
+}
+
+bool testUVProcessChainCwdChanged(const char* helperCommand)
+{
+  cmUVProcessChainBuilder builder;
+  builder.AddCommand({ helperCommand, "pwd" })
+    .SetBuiltinStream(cmUVProcessChainBuilder::Stream_OUTPUT)
+    .SetBuiltinStream(cmUVProcessChainBuilder::Stream_ERROR)
+    .SetWorkingDirectory("..");
+
+  auto chain = builder.Start();
+  chain.Wait();
+  if (chain.GetStatus().front()->ExitStatus != 0) {
+    std::cout << "Exit status was " << chain.GetStatus().front()->ExitStatus
+              << ", expecting 0" << std::endl;
+    return false;
+  }
+
+  auto cwd = getInput(*chain.OutputStream());
+  if (!cmHasLiteralSuffix(cwd, "/Tests")) {
+    std::cout << "Working directory was \"" << cwd
+              << "\", expected to end in \"/Tests\"" << std::endl;
+    return false;
+  }
+
+  return true;
+}
+
 int testUVProcessChain(int argc, char** const argv)
 {
   if (argc < 2) {
@@ -326,6 +445,11 @@ int testUVProcessChain(int argc, char** const argv)
     return -1;
   }
 
+  if (!testUVProcessChainBuiltinMerged(argv[1])) {
+    std::cout << "While executing testUVProcessChainBuiltinMerged().\n";
+    return -1;
+  }
+
   if (!testUVProcessChainExternal(argv[1])) {
     std::cout << "While executing testUVProcessChainExternal().\n";
     return -1;
@@ -333,6 +457,16 @@ int testUVProcessChain(int argc, char** const argv)
 
   if (!testUVProcessChainNone(argv[1])) {
     std::cout << "While executing testUVProcessChainNone().\n";
+    return -1;
+  }
+
+  if (!testUVProcessChainCwdUnchanged(argv[1])) {
+    std::cout << "While executing testUVProcessChainCwdUnchanged().\n";
+    return -1;
+  }
+
+  if (!testUVProcessChainCwdChanged(argv[1])) {
+    std::cout << "While executing testUVProcessChainCwdChanged().\n";
     return -1;
   }
 
