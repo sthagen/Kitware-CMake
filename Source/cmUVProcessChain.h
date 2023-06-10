@@ -8,6 +8,7 @@
 #include <iosfwd>
 #include <memory>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include <cm3p/uv.h>
@@ -66,10 +67,25 @@ private:
 class cmUVProcessChain
 {
 public:
+  enum class ExceptionCode
+  {
+    None,
+    Fault,
+    Illegal,
+    Interrupt,
+    Numerical,
+    Spawn,
+    Other,
+  };
+
   struct Status
   {
+    int SpawnResult;
+    bool Finished;
     int64_t ExitStatus;
     int TermSignal;
+
+    std::pair<ExceptionCode, std::string> GetException() const;
   };
 
   cmUVProcessChain(const cmUVProcessChain& other) = delete;
@@ -89,7 +105,7 @@ public:
   bool Valid() const;
   bool Wait(int64_t milliseconds = -1);
   std::vector<const Status*> GetStatus() const;
-  const Status* GetStatus(std::size_t index) const;
+  const Status& GetStatus(std::size_t index) const;
   bool Finished() const;
 
 private:

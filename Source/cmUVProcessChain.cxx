@@ -1,10 +1,14 @@
 /* Distributed under the OSI-approved BSD 3-Clause License.  See accompanying
    file Copyright.txt or https://cmake.org/licensing for details.  */
+#include "cmConfigure.h"
+
 #include "cmUVProcessChain.h"
 
-#include <cassert>
+#include <array>
+#include <csignal>
+#include <cstdio>
 #include <istream> // IWYU pragma: keep
-#include <iterator>
+#include <type_traits>
 #include <utility>
 
 #include <cm/memory>
@@ -47,9 +51,11 @@ struct cmUVProcessChain::InternalData
   {
     cmUVProcessChain::InternalData* Data;
     cm::uv_process_ptr Process;
+    cm::uv_pipe_ptr InputPipe;
     cm::uv_pipe_ptr OutputPipe;
-    bool Finished = false;
     Status ProcessStatus;
+
+    void Finish();
   };
 
   const cmUVProcessChainBuilder* Builder = nullptr;
@@ -60,16 +66,18 @@ struct cmUVProcessChain::InternalData
 
   StreamData<std::istream> OutputStreamData;
   StreamData<std::istream> ErrorStreamData;
+  cm::uv_pipe_ptr TempOutputPipe;
+  cm::uv_pipe_ptr TempErrorPipe;
 
   unsigned int ProcessesCompleted = 0;
   std::vector<std::unique_ptr<ProcessData>> Processes;
 
   bool Prepare(const cmUVProcessChainBuilder* builder);
-  bool AddCommand(const cmUVProcessChainBuilder::ProcessConfiguration& config,
-                  bool first, bool last);
-  bool Finish();
-
-  static const Status* GetStatus(const ProcessData& data);
+  void SpawnProcess(
+    std::size_t index,
+    const cmUVProcessChainBuilder::ProcessConfiguration& config, bool first,
+    bool last);
+  void Finish();
 };
 
 cmUVProcessChainBuilder::cmUVProcessChainBuilder()
@@ -161,25 +169,14 @@ cmUVProcessChain cmUVProcessChainBuilder::Start() const
     return chain;
   }
 
-  for (auto it = this->Processes.begin(); it != this->Processes.end(); ++it) {
-    if (!chain.Data->AddCommand(*it, it == this->Processes.begin(),
-                                it == std::prev(this->Processes.end()))) {
-      return chain;
-    }
+  for (std::size_t i = 0; i < this->Processes.size(); i++) {
+    chain.Data->SpawnProcess(i, this->Processes[i], i == 0,
+                             i == this->Processes.size() - 1);
   }
 
   chain.Data->Finish();
 
   return chain;
-}
-
-const cmUVProcessChain::Status* cmUVProcessChain::InternalData::GetStatus(
-  const cmUVProcessChain::InternalData::ProcessData& data)
-{
-  if (data.Finished) {
-    return &data.ProcessStatus;
-  }
-  return nullptr;
 }
 
 bool cmUVProcessChain::InternalData::Prepare(
@@ -201,12 +198,23 @@ bool cmUVProcessChain::InternalData::Prepare(
         return false;
       }
 
-      errorData.BuiltinStream.init(*this->Loop, 0);
+      if (errorData.BuiltinStream.init(*this->Loop, 0) < 0) {
+        return false;
+      }
       if (uv_pipe_open(errorData.BuiltinStream, pipeFd[0]) < 0) {
         return false;
       }
       errorData.Stdio.flags = UV_INHERIT_FD;
       errorData.Stdio.data.fd = pipeFd[1];
+
+      if (this->TempErrorPipe.init(*this->Loop, 0) < 0) {
+        return false;
+      }
+      if (uv_pipe_open(this->TempErrorPipe, errorData.Stdio.data.fd) < 0) {
+        return false;
+      }
+
+      errorData.Streambuf.open(errorData.BuiltinStream);
       break;
     }
 
@@ -229,10 +237,28 @@ bool cmUVProcessChain::InternalData::Prepare(
         outputData.Stdio.flags = UV_INHERIT_FD;
         outputData.Stdio.data.fd = errorData.Stdio.data.fd;
       } else {
-        outputData.BuiltinStream.init(*this->Loop, 0);
-        outputData.Stdio.flags =
-          static_cast<uv_stdio_flags>(UV_CREATE_PIPE | UV_WRITABLE_PIPE);
-        outputData.Stdio.data.stream = outputData.BuiltinStream;
+        int pipeFd[2];
+        if (cmGetPipes(pipeFd) < 0) {
+          return false;
+        }
+
+        if (outputData.BuiltinStream.init(*this->Loop, 0) < 0) {
+          return false;
+        }
+        if (uv_pipe_open(outputData.BuiltinStream, pipeFd[0]) < 0) {
+          return false;
+        }
+        outputData.Stdio.flags = UV_INHERIT_FD;
+        outputData.Stdio.data.fd = pipeFd[1];
+
+        if (this->TempOutputPipe.init(*this->Loop, 0) < 0) {
+          return false;
+        }
+        if (uv_pipe_open(this->TempOutputPipe, outputData.Stdio.data.fd) < 0) {
+          return false;
+        }
+
+        outputData.Streambuf.open(outputData.BuiltinStream);
       }
       break;
 
@@ -242,16 +268,47 @@ bool cmUVProcessChain::InternalData::Prepare(
       break;
   }
 
+  bool first = true;
+  for (std::size_t i = 0; i < this->Builder->Processes.size(); i++) {
+    this->Processes.emplace_back(cm::make_unique<ProcessData>());
+    auto& process = *this->Processes.back();
+    process.Data = this;
+    process.ProcessStatus.Finished = false;
+
+    if (!first) {
+      auto& prevProcess = *this->Processes[i - 1];
+
+      int pipeFd[2];
+      if (cmGetPipes(pipeFd) < 0) {
+        return false;
+      }
+
+      if (prevProcess.OutputPipe.init(*this->Loop, 0) < 0) {
+        return false;
+      }
+      if (uv_pipe_open(prevProcess.OutputPipe, pipeFd[1]) < 0) {
+        return false;
+      }
+      if (process.InputPipe.init(*this->Loop, 0) < 0) {
+        return false;
+      }
+      if (uv_pipe_open(process.InputPipe, pipeFd[0]) < 0) {
+        return false;
+      }
+    }
+
+    first = false;
+  }
+
   return true;
 }
 
-bool cmUVProcessChain::InternalData::AddCommand(
+void cmUVProcessChain::InternalData::SpawnProcess(
+  std::size_t index,
   const cmUVProcessChainBuilder::ProcessConfiguration& config, bool first,
   bool last)
 {
-  this->Processes.emplace_back(cm::make_unique<ProcessData>());
-  auto& process = *this->Processes.back();
-  process.Data = this;
+  auto& process = *this->Processes[index];
 
   auto options = uv_process_options_t();
 
@@ -275,20 +332,14 @@ bool cmUVProcessChain::InternalData::AddCommand(
   if (first) {
     stdio[0].flags = UV_IGNORE;
   } else {
-    assert(this->Processes.size() >= 2);
-    auto& prev = *this->Processes[this->Processes.size() - 2];
     stdio[0].flags = UV_INHERIT_STREAM;
-    stdio[0].data.stream = prev.OutputPipe;
+    stdio[0].data.stream = process.InputPipe;
   }
   if (last) {
     stdio[1] = this->OutputStreamData.Stdio;
   } else {
-    if (process.OutputPipe.init(*this->Loop, 0) < 0) {
-      return false;
-    }
     stdio[1] = uv_stdio_container_t();
-    stdio[1].flags =
-      static_cast<uv_stdio_flags>(UV_CREATE_PIPE | UV_WRITABLE_PIPE);
+    stdio[1].flags = UV_INHERIT_STREAM;
     stdio[1].data.stream = process.OutputPipe;
   }
   stdio[2] = this->ErrorStreamData.Stdio;
@@ -298,40 +349,24 @@ bool cmUVProcessChain::InternalData::AddCommand(
   options.exit_cb = [](uv_process_t* handle, int64_t exitStatus,
                        int termSignal) {
     auto* processData = static_cast<ProcessData*>(handle->data);
-    processData->Finished = true;
     processData->ProcessStatus.ExitStatus = exitStatus;
     processData->ProcessStatus.TermSignal = termSignal;
-    processData->Data->ProcessesCompleted++;
+    processData->Finish();
   };
 
-  return process.Process.spawn(*this->Loop, options, &process) >= 0;
+  if ((process.ProcessStatus.SpawnResult =
+         process.Process.spawn(*this->Loop, options, &process)) < 0) {
+    process.Finish();
+  }
+  process.InputPipe.reset();
+  process.OutputPipe.reset();
 }
 
-bool cmUVProcessChain::InternalData::Finish()
+void cmUVProcessChain::InternalData::Finish()
 {
-  if (this->Builder->Stdio[cmUVProcessChainBuilder::Stream_OUTPUT].Type ==
-        cmUVProcessChainBuilder::Builtin &&
-      !this->Builder->MergedBuiltinStreams) {
-    this->OutputStreamData.Streambuf.open(
-      this->OutputStreamData.BuiltinStream);
-  }
-
-  if (this->Builder->Stdio[cmUVProcessChainBuilder::Stream_ERROR].Type ==
-      cmUVProcessChainBuilder::Builtin) {
-    cm::uv_pipe_ptr tmpPipe;
-    if (tmpPipe.init(*this->Loop, 0) < 0) {
-      return false;
-    }
-    if (uv_pipe_open(tmpPipe, this->ErrorStreamData.Stdio.data.fd) < 0) {
-      return false;
-    }
-    tmpPipe.reset();
-
-    this->ErrorStreamData.Streambuf.open(this->ErrorStreamData.BuiltinStream);
-  }
-
+  this->TempOutputPipe.reset();
+  this->TempErrorPipe.reset();
   this->Valid = true;
-  return true;
 }
 
 cmUVProcessChain::cmUVProcessChain()
@@ -406,22 +441,269 @@ std::vector<const cmUVProcessChain::Status*> cmUVProcessChain::GetStatus()
   std::vector<const cmUVProcessChain::Status*> statuses(
     this->Data->Processes.size(), nullptr);
   for (std::size_t i = 0; i < statuses.size(); i++) {
-    statuses[i] = this->GetStatus(i);
+    statuses[i] = &this->GetStatus(i);
   }
   return statuses;
 }
 
-const cmUVProcessChain::Status* cmUVProcessChain::GetStatus(
+const cmUVProcessChain::Status& cmUVProcessChain::GetStatus(
   std::size_t index) const
 {
-  auto const& process = *this->Data->Processes[index];
-  if (process.Finished) {
-    return &process.ProcessStatus;
-  }
-  return nullptr;
+  return this->Data->Processes[index]->ProcessStatus;
 }
 
 bool cmUVProcessChain::Finished() const
 {
   return this->Data->ProcessesCompleted >= this->Data->Processes.size();
+}
+
+std::pair<cmUVProcessChain::ExceptionCode, std::string>
+cmUVProcessChain::Status::GetException() const
+{
+  if (this->SpawnResult) {
+    return std::make_pair(ExceptionCode::Spawn,
+                          uv_strerror(this->SpawnResult));
+  }
+#ifdef _WIN32
+  if (this->Finished && (this->ExitStatus & 0xF0000000) == 0xC0000000) {
+    // Child terminated due to exceptional behavior.
+    switch (this->ExitStatus) {
+      case STATUS_CONTROL_C_EXIT:
+        return std::make_pair(ExceptionCode::Interrupt, "User interrupt");
+
+      case STATUS_FLOAT_DENORMAL_OPERAND:
+        return std::make_pair(ExceptionCode::Numerical,
+                              "Floating-point exception (denormal operand)");
+      case STATUS_FLOAT_DIVIDE_BY_ZERO:
+        return std::make_pair(ExceptionCode::Numerical, "Divide-by-zero");
+      case STATUS_FLOAT_INEXACT_RESULT:
+        return std::make_pair(ExceptionCode::Numerical,
+                              "Floating-point exception (inexact result)");
+      case STATUS_FLOAT_INVALID_OPERATION:
+        return std::make_pair(ExceptionCode::Numerical,
+                              "Invalid floating-point operation");
+      case STATUS_FLOAT_OVERFLOW:
+        return std::make_pair(ExceptionCode::Numerical,
+                              "Floating-point overflow");
+      case STATUS_FLOAT_STACK_CHECK:
+        return std::make_pair(ExceptionCode::Numerical,
+                              "Floating-point stack check failed");
+      case STATUS_FLOAT_UNDERFLOW:
+        return std::make_pair(ExceptionCode::Numerical,
+                              "Floating-point underflow");
+#  ifdef STATUS_FLOAT_MULTIPLE_FAULTS
+      case STATUS_FLOAT_MULTIPLE_FAULTS:
+        return std::make_pair(ExceptionCode::Numerical,
+                              "Floating-point exception (multiple faults)");
+#  endif
+#  ifdef STATUS_FLOAT_MULTIPLE_TRAPS
+      case STATUS_FLOAT_MULTIPLE_TRAPS:
+        return std::make_pair(ExceptionCode::Numerical,
+                              "Floating-point exception (multiple traps)");
+#  endif
+      case STATUS_INTEGER_DIVIDE_BY_ZERO:
+        return std::make_pair(ExceptionCode::Numerical,
+                              "Integer divide-by-zero");
+      case STATUS_INTEGER_OVERFLOW:
+        return std::make_pair(ExceptionCode::Numerical, "Integer overflow");
+
+      case STATUS_DATATYPE_MISALIGNMENT:
+        return std::make_pair(ExceptionCode::Fault, "Datatype misalignment");
+      case STATUS_ACCESS_VIOLATION:
+        return std::make_pair(ExceptionCode::Fault, "Access violation");
+      case STATUS_IN_PAGE_ERROR:
+        return std::make_pair(ExceptionCode::Fault, "In-page error");
+      case STATUS_INVALID_HANDLE:
+        return std::make_pair(ExceptionCode::Fault, "Invalid handle");
+      case STATUS_NONCONTINUABLE_EXCEPTION:
+        return std::make_pair(ExceptionCode::Fault,
+                              "Noncontinuable exception");
+      case STATUS_INVALID_DISPOSITION:
+        return std::make_pair(ExceptionCode::Fault, "Invalid disposition");
+      case STATUS_ARRAY_BOUNDS_EXCEEDED:
+        return std::make_pair(ExceptionCode::Fault, "Array bounds exceeded");
+      case STATUS_STACK_OVERFLOW:
+        return std::make_pair(ExceptionCode::Fault, "Stack overflow");
+
+      case STATUS_ILLEGAL_INSTRUCTION:
+        return std::make_pair(ExceptionCode::Illegal, "Illegal instruction");
+      case STATUS_PRIVILEGED_INSTRUCTION:
+        return std::make_pair(ExceptionCode::Illegal,
+                              "Privileged instruction");
+
+      case STATUS_NO_MEMORY:
+      default: {
+        char buf[256];
+        snprintf(buf, sizeof(buf), "Exit code 0x%x\n",
+                 static_cast<unsigned int>(this->ExitStatus));
+        return std::make_pair(ExceptionCode::Other, buf);
+      }
+    }
+  }
+#else
+  if (this->Finished && this->TermSignal) {
+    switch (this->TermSignal) {
+#  ifdef SIGSEGV
+      case SIGSEGV:
+        return std::make_pair(ExceptionCode::Fault, "Segmentation fault");
+#  endif
+#  ifdef SIGBUS
+#    if !defined(SIGSEGV) || SIGBUS != SIGSEGV
+      case SIGBUS:
+        return std::make_pair(ExceptionCode::Fault, "Bus error");
+#    endif
+#  endif
+#  ifdef SIGFPE
+      case SIGFPE:
+        return std::make_pair(ExceptionCode::Numerical,
+                              "Floating-point exception");
+#  endif
+#  ifdef SIGILL
+      case SIGILL:
+        return std::make_pair(ExceptionCode::Illegal, "Illegal instruction");
+#  endif
+#  ifdef SIGINT
+      case SIGINT:
+        return std::make_pair(ExceptionCode::Interrupt, "User interrupt");
+#  endif
+#  ifdef SIGABRT
+      case SIGABRT:
+        return std::make_pair(ExceptionCode::Other, "Subprocess aborted");
+#  endif
+#  ifdef SIGKILL
+      case SIGKILL:
+        return std::make_pair(ExceptionCode::Other, "Subprocess killed");
+#  endif
+#  ifdef SIGTERM
+      case SIGTERM:
+        return std::make_pair(ExceptionCode::Other, "Subprocess terminated");
+#  endif
+#  ifdef SIGHUP
+      case SIGHUP:
+        return std::make_pair(ExceptionCode::Other, "SIGHUP");
+#  endif
+#  ifdef SIGQUIT
+      case SIGQUIT:
+        return std::make_pair(ExceptionCode::Other, "SIGQUIT");
+#  endif
+#  ifdef SIGTRAP
+      case SIGTRAP:
+        return std::make_pair(ExceptionCode::Other, "SIGTRAP");
+#  endif
+#  ifdef SIGIOT
+#    if !defined(SIGABRT) || SIGIOT != SIGABRT
+      case SIGIOT:
+        return std::make_pair(ExceptionCode::Other, "SIGIOT");
+#    endif
+#  endif
+#  ifdef SIGUSR1
+      case SIGUSR1:
+        return std::make_pair(ExceptionCode::Other, "SIGUSR1");
+#  endif
+#  ifdef SIGUSR2
+      case SIGUSR2:
+        return std::make_pair(ExceptionCode::Other, "SIGUSR2");
+#  endif
+#  ifdef SIGPIPE
+      case SIGPIPE:
+        return std::make_pair(ExceptionCode::Other, "SIGPIPE");
+#  endif
+#  ifdef SIGALRM
+      case SIGALRM:
+        return std::make_pair(ExceptionCode::Other, "SIGALRM");
+#  endif
+#  ifdef SIGSTKFLT
+      case SIGSTKFLT:
+        return std::make_pair(ExceptionCode::Other, "SIGSTKFLT");
+#  endif
+#  ifdef SIGCHLD
+      case SIGCHLD:
+        return std::make_pair(ExceptionCode::Other, "SIGCHLD");
+#  elif defined(SIGCLD)
+      case SIGCLD:
+        return std::make_pair(ExceptionCode::Other, "SIGCLD");
+#  endif
+#  ifdef SIGCONT
+      case SIGCONT:
+        return std::make_pair(ExceptionCode::Other, "SIGCONT");
+#  endif
+#  ifdef SIGSTOP
+      case SIGSTOP:
+        return std::make_pair(ExceptionCode::Other, "SIGSTOP");
+#  endif
+#  ifdef SIGTSTP
+      case SIGTSTP:
+        return std::make_pair(ExceptionCode::Other, "SIGTSTP");
+#  endif
+#  ifdef SIGTTIN
+      case SIGTTIN:
+        return std::make_pair(ExceptionCode::Other, "SIGTTIN");
+#  endif
+#  ifdef SIGTTOU
+      case SIGTTOU:
+        return std::make_pair(ExceptionCode::Other, "SIGTTOU");
+#  endif
+#  ifdef SIGURG
+      case SIGURG:
+        return std::make_pair(ExceptionCode::Other, "SIGURG");
+#  endif
+#  ifdef SIGXCPU
+      case SIGXCPU:
+        return std::make_pair(ExceptionCode::Other, "SIGXCPU");
+#  endif
+#  ifdef SIGXFSZ
+      case SIGXFSZ:
+        return std::make_pair(ExceptionCode::Other, "SIGXFSZ");
+#  endif
+#  ifdef SIGVTALRM
+      case SIGVTALRM:
+        return std::make_pair(ExceptionCode::Other, "SIGVTALRM");
+#  endif
+#  ifdef SIGPROF
+      case SIGPROF:
+        return std::make_pair(ExceptionCode::Other, "SIGPROF");
+#  endif
+#  ifdef SIGWINCH
+      case SIGWINCH:
+        return std::make_pair(ExceptionCode::Other, "SIGWINCH");
+#  endif
+#  ifdef SIGPOLL
+      case SIGPOLL:
+        return std::make_pair(ExceptionCode::Other, "SIGPOLL");
+#  endif
+#  ifdef SIGIO
+#    if !defined(SIGPOLL) || SIGIO != SIGPOLL
+      case SIGIO:
+        return std::make_pair(ExceptionCode::Other, "SIGIO");
+#    endif
+#  endif
+#  ifdef SIGPWR
+      case SIGPWR:
+        return std::make_pair(ExceptionCode::Other, "SIGPWR");
+#  endif
+#  ifdef SIGSYS
+      case SIGSYS:
+        return std::make_pair(ExceptionCode::Other, "SIGSYS");
+#  endif
+#  ifdef SIGUNUSED
+#    if !defined(SIGSYS) || SIGUNUSED != SIGSYS
+      case SIGUNUSED:
+        return std::make_pair(ExceptionCode::Other, "SIGUNUSED");
+#    endif
+#  endif
+      default: {
+        char buf[256];
+        snprintf(buf, sizeof(buf), "Signal %d", this->TermSignal);
+        return std::make_pair(ExceptionCode::Other, buf);
+      }
+    }
+  }
+#endif
+  return std::make_pair(ExceptionCode::None, "");
+}
+
+void cmUVProcessChain::InternalData::ProcessData::Finish()
+{
+  this->ProcessStatus.Finished = true;
+  this->Data->ProcessesCompleted++;
 }
