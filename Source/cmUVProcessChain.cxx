@@ -17,34 +17,13 @@
 
 #include "cmGetPipes.h"
 #include "cmUVHandlePtr.h"
-#include "cmUVStreambuf.h"
 
 struct cmUVProcessChain::InternalData
 {
-  struct BasicStreamData
+  struct StreamData
   {
-    cmUVStreambuf Streambuf;
-    cm::uv_pipe_ptr BuiltinStream;
+    int BuiltinStream = -1;
     uv_stdio_container_t Stdio;
-  };
-
-  template <typename IOStream>
-  struct StreamData : public BasicStreamData
-  {
-    StreamData()
-      : BuiltinIOStream(&this->Streambuf)
-    {
-    }
-
-    IOStream BuiltinIOStream;
-
-    IOStream* GetBuiltinStream()
-    {
-      if (this->BuiltinStream.get()) {
-        return &this->BuiltinIOStream;
-      }
-      return nullptr;
-    }
   };
 
   struct ProcessData
@@ -64,8 +43,9 @@ struct cmUVProcessChain::InternalData
 
   cm::uv_loop_ptr Loop;
 
-  StreamData<std::istream> OutputStreamData;
-  StreamData<std::istream> ErrorStreamData;
+  StreamData InputStreamData;
+  StreamData OutputStreamData;
+  StreamData ErrorStreamData;
   cm::uv_pipe_ptr TempOutputPipe;
   cm::uv_pipe_ptr TempErrorPipe;
 
@@ -134,9 +114,6 @@ cmUVProcessChainBuilder& cmUVProcessChainBuilder::SetExternalStream(
 {
   switch (stdio) {
     case Stream_INPUT:
-      // FIXME
-      break;
-
     case Stream_OUTPUT:
     case Stream_ERROR: {
       auto& streamData = this->Stdio[stdio];
@@ -184,6 +161,25 @@ bool cmUVProcessChain::InternalData::Prepare(
 {
   this->Builder = builder;
 
+  auto const& input =
+    this->Builder->Stdio[cmUVProcessChainBuilder::Stream_INPUT];
+  auto& inputData = this->InputStreamData;
+  switch (input.Type) {
+    case cmUVProcessChainBuilder::None:
+      inputData.Stdio.flags = UV_IGNORE;
+      break;
+
+    case cmUVProcessChainBuilder::Builtin: {
+      // FIXME
+      break;
+    }
+
+    case cmUVProcessChainBuilder::External:
+      inputData.Stdio.flags = UV_INHERIT_FD;
+      inputData.Stdio.data.fd = input.FileDescriptor;
+      break;
+  }
+
   auto const& error =
     this->Builder->Stdio[cmUVProcessChainBuilder::Stream_ERROR];
   auto& errorData = this->ErrorStreamData;
@@ -198,12 +194,7 @@ bool cmUVProcessChain::InternalData::Prepare(
         return false;
       }
 
-      if (errorData.BuiltinStream.init(*this->Loop, 0) < 0) {
-        return false;
-      }
-      if (uv_pipe_open(errorData.BuiltinStream, pipeFd[0]) < 0) {
-        return false;
-      }
+      errorData.BuiltinStream = pipeFd[0];
       errorData.Stdio.flags = UV_INHERIT_FD;
       errorData.Stdio.data.fd = pipeFd[1];
 
@@ -214,7 +205,6 @@ bool cmUVProcessChain::InternalData::Prepare(
         return false;
       }
 
-      errorData.Streambuf.open(errorData.BuiltinStream);
       break;
     }
 
@@ -234,6 +224,7 @@ bool cmUVProcessChain::InternalData::Prepare(
 
     case cmUVProcessChainBuilder::Builtin:
       if (this->Builder->MergedBuiltinStreams) {
+        outputData.BuiltinStream = errorData.BuiltinStream;
         outputData.Stdio.flags = UV_INHERIT_FD;
         outputData.Stdio.data.fd = errorData.Stdio.data.fd;
       } else {
@@ -242,12 +233,7 @@ bool cmUVProcessChain::InternalData::Prepare(
           return false;
         }
 
-        if (outputData.BuiltinStream.init(*this->Loop, 0) < 0) {
-          return false;
-        }
-        if (uv_pipe_open(outputData.BuiltinStream, pipeFd[0]) < 0) {
-          return false;
-        }
+        outputData.BuiltinStream = pipeFd[0];
         outputData.Stdio.flags = UV_INHERIT_FD;
         outputData.Stdio.data.fd = pipeFd[1];
 
@@ -257,8 +243,6 @@ bool cmUVProcessChain::InternalData::Prepare(
         if (uv_pipe_open(this->TempOutputPipe, outputData.Stdio.data.fd) < 0) {
           return false;
         }
-
-        outputData.Streambuf.open(outputData.BuiltinStream);
       }
       break;
 
@@ -328,10 +312,10 @@ void cmUVProcessChain::InternalData::SpawnProcess(
   }
 
   std::array<uv_stdio_container_t, 3> stdio;
-  stdio[0] = uv_stdio_container_t();
   if (first) {
-    stdio[0].flags = UV_IGNORE;
+    stdio[0] = this->InputStreamData.Stdio;
   } else {
+    stdio[0] = uv_stdio_container_t();
     stdio[0].flags = UV_INHERIT_STREAM;
     stdio[0].data.stream = process.InputPipe;
   }
@@ -394,17 +378,14 @@ uv_loop_t& cmUVProcessChain::GetLoop()
   return *this->Data->Loop;
 }
 
-std::istream* cmUVProcessChain::OutputStream()
+int cmUVProcessChain::OutputStream()
 {
-  if (this->Data->Builder->MergedBuiltinStreams) {
-    return this->Data->ErrorStreamData.GetBuiltinStream();
-  }
-  return this->Data->OutputStreamData.GetBuiltinStream();
+  return this->Data->OutputStreamData.BuiltinStream;
 }
 
-std::istream* cmUVProcessChain::ErrorStream()
+int cmUVProcessChain::ErrorStream()
 {
-  return this->Data->ErrorStreamData.GetBuiltinStream();
+  return this->Data->ErrorStreamData.BuiltinStream;
 }
 
 bool cmUVProcessChain::Valid() const
