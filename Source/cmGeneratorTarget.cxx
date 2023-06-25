@@ -190,7 +190,7 @@ public:
     }
 
     static std::string filesStr;
-    filesStr = cmJoin(files, ";");
+    filesStr = cmList::to_string(files);
     return filesStr;
   }
 
@@ -322,8 +322,7 @@ cmValue cmGeneratorTarget::GetSourcesProperty() const
     values.push_back(se->GetInput());
   }
   static std::string value;
-  value.clear();
-  value = cmJoin(values, ";");
+  value = cmList::to_string(values);
   return cmValue(value);
 }
 
@@ -1493,9 +1492,9 @@ std::string AddLangSpecificInterfaceIncludeDirectories(
   }
 
   std::string directories;
-  if (const auto* interface = target->GetLinkInterfaceLibraries(
+  if (const auto* link_interface = target->GetLinkInterfaceLibraries(
         config, root, LinkInterfaceFor::Usage)) {
-    for (const cmLinkItem& library : interface->Libraries) {
+    for (const cmLinkItem& library : link_interface->Libraries) {
       if (const cmGeneratorTarget* dependency = library.Target) {
         if (cm::contains(dependency->GetAllConfigCompileLanguages(), lang)) {
           auto* lg = dependency->GetLocalGenerator();
