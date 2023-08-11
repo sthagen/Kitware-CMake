@@ -69,7 +69,7 @@
 ### Fedora
 
 .fedora38:
-    image: "kitware/cmake:ci-fedora38-x86_64-2023-05-22"
+    image: "kitware/cmake:ci-fedora38-x86_64-2023-08-07"
 
     variables:
         GIT_CLONE_PATH: "$CI_BUILDS_DIR/cmake ci/long file name for testing purposes"
@@ -366,6 +366,13 @@
         CMAKE_CONFIGURATION: debian12_hip_radeon
         CTEST_LABELS: "HIP"
 
+.fedora38_hip_radeon:
+    extends: .fedora38
+
+    variables:
+        CMAKE_CONFIGURATION: fedora38_hip_radeon
+        CTEST_LABELS: "HIP"
+
 ### C++ modules
 
 .gcc_cxx_modules_x86_64:
@@ -645,3 +652,5 @@
           -DCMake_SPHINX_CMAKE_ORG_OUTDATED=$CMAKE_CI_SPHINX_OUTDATED
           -DCMake_VERSION_NO_GIT=$CMAKE_CI_VERSION_NO_GIT
         - ninja
+        # FIXME(#25175): non-main index entries are scored too high.
+        - sed -i '/search for explicit entries in index directives/,/^$/d' html/_static/searchtools.js
