@@ -274,6 +274,7 @@ if(CMake_TEST_Qt6 AND Qt6Widgets_FOUND)
   cmake_path(GET base_dir PARENT_PATH base_dir)  # <base>
   add_RunCMake_test(AutogenQt6 TEST_DIR Autogen
     -Dwith_qt_version=6
+    -DQtCore_VERSION=${Qt6Core_VERSION}
     "-DQt6_DIR:PATH=${Qt6_DIR}"
     "-DCMAKE_PREFIX_PATH:STRING=${base_dir}"
     -DPSEUDO_TIDY=$<TARGET_FILE:pseudo_tidy>
@@ -286,6 +287,7 @@ endif ()
 if(CMake_TEST_Qt5 AND Qt5Widgets_FOUND)
   add_RunCMake_test(AutogenQt5 TEST_DIR Autogen
     -Dwith_qt_version=5
+    -DQtCore_VERSION=${Qt5Core_VERSION}
     "-DQt5_DIR:PATH=${Qt5_DIR}"
   )
   set(want_NoQt_test FALSE)
@@ -474,6 +476,9 @@ if(NOT CMake_TEST_EXTERNAL_CMAKE)
 endif()
 add_RunCMake_test(execute_process)
 add_RunCMake_test(export)
+if(CMake_TEST_MSYSTEM_PREFIX)
+  list(APPEND cmake_host_system_information_ARGS -DCMake_TEST_MSYSTEM_PREFIX=${CMake_TEST_MSYSTEM_PREFIX})
+endif()
 add_RunCMake_test(cmake_host_system_information)
 add_RunCMake_test(cmake_language)
 add_RunCMake_test(cmake_minimum_required)
@@ -515,10 +520,10 @@ foreach(var
 endforeach()
 add_RunCMake_test(file-DOWNLOAD)
 add_RunCMake_test(file-RPATH -DCMAKE_SYSTEM_NAME=${CMAKE_SYSTEM_NAME})
-add_RunCMake_test(find_file)
-add_RunCMake_test(find_library -DCYGWIN=${CYGWIN} -DMSYS=${MSYS})
-add_RunCMake_test(find_package -DMSYS=${MSYS})
-add_RunCMake_test(find_path)
+add_RunCMake_test(find_file -DMINGW=${MINGW})
+add_RunCMake_test(find_library -DMINGW=${MINGW} -DCYGWIN=${CYGWIN} -DMSYS=${MSYS})
+add_RunCMake_test(find_package -DMINGW=${MINGW} -DMSYS=${MSYS})
+add_RunCMake_test(find_path -DMINGW=${MINGW})
 add_RunCMake_test(find_program -DCMAKE_SYSTEM_NAME=${CMAKE_SYSTEM_NAME})
 add_RunCMake_test(foreach)
 add_RunCMake_test(function)
