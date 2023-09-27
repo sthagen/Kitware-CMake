@@ -201,6 +201,7 @@ elseif(CMake_TEST_Qt5)
 endif()
 if(CMAKE_GENERATOR MATCHES "Ninja")
   set(Ninja_ARGS
+    -DCMAKE_C_COMPILER_ID=${CMAKE_C_COMPILER_ID}
     -DCMAKE_C_OUTPUT_EXTENSION=${CMAKE_C_OUTPUT_EXTENSION}
     -DCMAKE_SHARED_LIBRARY_PREFIX=${CMAKE_SHARED_LIBRARY_PREFIX}
     -DCMAKE_SHARED_LIBRARY_SUFFIX=${CMAKE_SHARED_LIBRARY_SUFFIX})
@@ -398,6 +399,7 @@ add_RunCMake_test(GenEx-PATH)
 add_RunCMake_test(GenEx-PATH_EQUAL)
 add_RunCMake_test(GenEx-LIST)
 add_RunCMake_test(GeneratorExpression)
+add_RunCMake_test(GeneratorExpressionShortCircuit)
 add_RunCMake_test(GeneratorInstance)
 add_RunCMake_test(GeneratorPlatform)
 if(XCODE_VERSION)
