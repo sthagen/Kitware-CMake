@@ -404,6 +404,7 @@ TargetProperty const StaticTargetProperties[] = {
   { "VS_DEBUGGER_COMMAND_ARGUMENTS"_s, IC::ExecutableTarget },
   { "VS_DEBUGGER_ENVIRONMENT"_s, IC::ExecutableTarget },
   { "VS_DEBUGGER_WORKING_DIRECTORY"_s, IC::ExecutableTarget },
+  { "VS_USE_DEBUG_LIBRARIES"_s, IC::NonImportedTarget },
   // ---- OpenWatcom
   { "WATCOM_RUNTIME_LIBRARY"_s, IC::CanCompileSources },
   // -- Language
@@ -1788,7 +1789,7 @@ void cmTarget::CopyImportedCxxModulesEntries(cmTarget const* tgt)
     cmMakeRange(tgt->impl->ImportedCxxModulesCompileOptions.Entries));
   this->impl->LinkLibraries.Entries.clear();
   this->impl->LinkLibraries.CopyFromEntries(
-    cmMakeRange(tgt->impl->LinkLibraries.Entries));
+    cmMakeRange(tgt->impl->ImportedCxxModulesLinkLibraries.Entries));
 
   // Copy the C++ module fileset entries from `tgt`'s `INTERFACE` to this
   // target's `PRIVATE`.
