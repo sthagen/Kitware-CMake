@@ -208,7 +208,7 @@ endfunction()
 run_SkipRegexFoundTest()
 
 
-function(run_TestsFromFileTest arg)
+function(run_TestsFromFileTest case)
   set(RunCMake_TEST_BINARY_DIR ${RunCMake_BINARY_DIR}/TestsFromFile)
   set(RunCMake_TEST_NO_CLEAN 1)
   file(REMOVE_RECURSE "${RunCMake_TEST_BINARY_DIR}")
@@ -219,10 +219,12 @@ add_test(Test1 \"${CMAKE_COMMAND}\" -E echo \"test1\")
 add_test(Test2 \"${CMAKE_COMMAND}\" -E echo \"test2\")
 add_test(Test11 \"${CMAKE_COMMAND}\" -E echo \"test11\")
 ")
-  run_cmake_command(TestsFromFile-${arg} ${CMAKE_CTEST_COMMAND} --${arg} ${RunCMake_SOURCE_DIR}/TestsFromFile-TestList.txt )
+  run_cmake_command(TestsFromFile-${case} ${CMAKE_CTEST_COMMAND} ${ARGN})
 endfunction()
-run_TestsFromFileTest(tests-from-file)
-run_TestsFromFileTest(exclude-from-file)
+run_TestsFromFileTest(include --tests-from-file ${RunCMake_SOURCE_DIR}/TestsFromFile-TestList.txt)
+run_TestsFromFileTest(exclude --exclude-from-file ${RunCMake_SOURCE_DIR}/TestsFromFile-TestList.txt)
+run_TestsFromFileTest(include-missing --tests-from-file ${RunCMake_SOURCE_DIR}/TestsFromFile-TestList-missing.txt)
+run_TestsFromFileTest(exclude-missing --exclude-from-file ${RunCMake_SOURCE_DIR}/TestsFromFile-TestList-missing.txt)
 
 
 function(run_SerialFailed)
@@ -391,6 +393,8 @@ function(run_ShowOnly)
       RESOURCE_GROUPS \"2,threads:2,gpus:4;gpus:2,threads:4\"
       REQUIRED_FILES RequiredFileDoesNotExist
       _BACKTRACE_TRIPLES \"file1;1;add_test;file0;;\"
+      USER_DEFINED_A \"User defined property A value\"
+      USER_DEFINED_B \"User defined property B value\"
       )
     add_test(ShowOnlyNotAvailable NOT_AVAILABLE)
 ")

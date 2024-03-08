@@ -145,6 +145,7 @@ public:
     std::vector<std::pair<cmsys::RegularExpression, std::string>>
       TimeoutRegularExpressions;
     std::map<std::string, std::string> Measurements;
+    std::map<std::string, std::string> CustomProperties;
     bool IsInBasedOnREOptions = true;
     bool WillFail = false;
     bool Disabled = false;
@@ -341,8 +342,8 @@ private:
   std::string GetTestStatus(cmCTestTestResult const&);
   void ExpandTestsToRunInformation(size_t numPossibleTests);
   void ExpandTestsToRunInformationForRerunFailed();
-  std::set<std::string> ReadTestListFile(
-    const std::string& testListFileName) const;
+  bool ReadTestListFile(std::string const& testListFileName,
+                        std::set<std::string>& testNames) const;
 
   std::vector<std::string> CustomPreTest;
   std::vector<std::string> CustomPostTest;
