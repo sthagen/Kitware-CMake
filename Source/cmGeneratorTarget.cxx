@@ -4370,6 +4370,20 @@ std::vector<BT<std::string>> cmGeneratorTarget::GetPrecompileHeaders(
   return list;
 }
 
+std::vector<std::string> cmGeneratorTarget::GetPchArchs(
+  std::string const& config, std::string const& lang) const
+{
+  std::vector<std::string> pchArchs;
+  if (!this->GetGlobalGenerator()->IsXcode()) {
+    pchArchs = this->GetAppleArchs(config, lang);
+  }
+  if (pchArchs.size() < 2) {
+    // We do not need per-arch PCH files when building for one architecture.
+    pchArchs = { {} };
+  }
+  return pchArchs;
+}
+
 std::string cmGeneratorTarget::GetPchHeader(const std::string& config,
                                             const std::string& language,
                                             const std::string& arch) const
@@ -9693,11 +9707,25 @@ bool cmGeneratorTarget::NeedDyndepForSource(std::string const& lang,
     return true;
   }
 
+  auto targetDyndep = this->NeedCxxDyndep(config);
+  if (targetDyndep == CxxModuleSupport::Unavailable) {
+    return false;
+  }
+  auto const sfProp = sf->GetProperty("CXX_SCAN_FOR_MODULES");
+  if (sfProp.IsSet()) {
+    return sfProp.IsOn();
+  }
+  return targetDyndep == CxxModuleSupport::Enabled;
+}
+
+cmGeneratorTarget::CxxModuleSupport cmGeneratorTarget::NeedCxxDyndep(
+  std::string const& config) const
+{
   bool haveRule = false;
   switch (this->HaveCxxModuleSupport(config)) {
     case Cxx20SupportLevel::MissingCxx:
     case Cxx20SupportLevel::NoCxx20:
-      return false;
+      return CxxModuleSupport::Unavailable;
     case Cxx20SupportLevel::MissingRule:
       break;
     case Cxx20SupportLevel::Supported:
@@ -9707,28 +9735,29 @@ bool cmGeneratorTarget::NeedDyndepForSource(std::string const& lang,
   bool haveGeneratorSupport =
     this->GetGlobalGenerator()->CheckCxxModuleSupport(
       cmGlobalGenerator::CxxModuleSupportQuery::Inspect);
-  auto const sfProp = sf->GetProperty("CXX_SCAN_FOR_MODULES");
-  if (sfProp.IsSet()) {
-    return sfProp.IsOn();
-  }
   auto const tgtProp = this->GetProperty("CXX_SCAN_FOR_MODULES");
   if (tgtProp.IsSet()) {
-    return tgtProp.IsOn();
+    return tgtProp.IsOn() ? CxxModuleSupport::Enabled
+                          : CxxModuleSupport::Disabled;
   }
 
-  bool policyAnswer = false;
+  CxxModuleSupport policyAnswer = CxxModuleSupport::Unavailable;
   switch (this->GetPolicyStatusCMP0155()) {
     case cmPolicies::WARN:
     case cmPolicies::OLD:
       // The OLD behavior is to not scan the source.
-      policyAnswer = false;
+      policyAnswer = CxxModuleSupport::Disabled;
       break;
     case cmPolicies::REQUIRED_ALWAYS:
     case cmPolicies::REQUIRED_IF_USED:
     case cmPolicies::NEW:
       // The NEW behavior is to scan the source if the compiler supports
       // scanning and the generator supports it.
-      policyAnswer = haveRule && haveGeneratorSupport;
+      if (haveRule && haveGeneratorSupport) {
+        policyAnswer = CxxModuleSupport::Enabled;
+      } else {
+        policyAnswer = CxxModuleSupport::Disabled;
+      }
       break;
   }
   return policyAnswer;

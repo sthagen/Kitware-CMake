@@ -599,6 +599,8 @@ public:
   std::vector<BT<std::string>> GetPrecompileHeaders(
     const std::string& config, const std::string& language) const;
 
+  std::vector<std::string> GetPchArchs(std::string const& config,
+                                       std::string const& lang) const;
   std::string GetPchHeader(const std::string& config,
                            const std::string& language,
                            const std::string& arch = std::string()) const;
@@ -1355,6 +1357,13 @@ public:
                                        cmSourceFile const* sf) const;
   bool NeedDyndepForSource(std::string const& lang, std::string const& config,
                            cmSourceFile const* sf) const;
+  enum class CxxModuleSupport
+  {
+    Unavailable,
+    Enabled,
+    Disabled,
+  };
+  CxxModuleSupport NeedCxxDyndep(std::string const& config) const;
 
 private:
   void BuildFileSetInfoCache(std::string const& config) const;
