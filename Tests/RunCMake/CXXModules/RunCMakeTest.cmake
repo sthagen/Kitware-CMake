@@ -97,6 +97,13 @@ if ("cxx_std_23" IN_LIST CMAKE_CXX_COMPILE_FEATURES AND
   run_cmake(NoCXX23TargetRequired)
 endif ()
 
+if ("cxx_std_26" IN_LIST CMAKE_CXX_COMPILE_FEATURES AND
+    NOT have_cxx26_import_std)
+  run_cmake(NoCXX26TargetUnset)
+  run_cmake(NoCXX26TargetNotRequired)
+  run_cmake(NoCXX26TargetRequired)
+endif ()
+
 run_cmake(InstallBMI)
 run_cmake(InstallBMIGenericArgs)
 run_cmake(InstallBMIIgnore)
@@ -305,6 +312,7 @@ if ("export_bmi" IN_LIST CMake_TEST_MODULE_COMPILATION)
   run_cxx_module_test(export-include-directories-old-cmake-build)
   run_cxx_module_test(export-usage-build)
   run_cxx_module_test(export-bmi-and-interface-build)
+  run_cxx_module_test(export-command-sepdir-build)
   run_cxx_module_test(export-transitive-targets-build)
   run_cxx_module_test(export-transitive-modules1-build)
   run_cxx_module_test(export-transitive-modules-build export-transitive-modules-build "-DCMAKE_PREFIX_PATH=${RunCMake_BINARY_DIR}/examples/export-transitive-modules1-build-build" )
@@ -323,6 +331,9 @@ if ("export_bmi" IN_LIST CMake_TEST_MODULE_COMPILATION)
 
     set(test_suffix export-bmi-and-interface-build)
     run_cxx_module_test(import-modules "import-modules-${test_suffix}" "-DCMAKE_PREFIX_PATH=${RunCMake_BINARY_DIR}/examples/${test_suffix}-build" -DWITH_BMIS=1)
+
+    set(test_suffix export-command-sepdir-build)
+    run_cxx_module_test(import-modules "import-modules-${test_suffix}" "-DCMAKE_PREFIX_PATH=${RunCMake_BINARY_DIR}/examples/${test_suffix}-build" -DEXPORT_COMMAND_SEPDIR=1)
 
     set(test_suffix export-transitive-targets-build)
     run_cxx_module_test(import-modules "import-modules-${test_suffix}" "-DCMAKE_PREFIX_PATH=${RunCMake_BINARY_DIR}/examples/${test_suffix}-build" -DTRANSITIVE_TARGETS=1)
@@ -350,6 +361,7 @@ if ("install_bmi" IN_LIST CMake_TEST_MODULE_COMPILATION)
     run_cxx_module_test(export-include-directories-old-cmake-install)
     run_cxx_module_test(export-usage-install)
     run_cxx_module_test(export-bmi-and-interface-install)
+    run_cxx_module_test(export-command-sepdir-install)
     run_cxx_module_test(export-transitive-targets-install)
     run_cxx_module_test(export-transitive-modules1-install)
     run_cxx_module_test(export-transitive-modules-install export-transitive-modules-install "-DCMAKE_PREFIX_PATH=${RunCMake_BINARY_DIR}/examples/export-transitive-modules1-install-install" )
@@ -369,6 +381,9 @@ if ("install_bmi" IN_LIST CMake_TEST_MODULE_COMPILATION)
 
       set(test_suffix export-bmi-and-interface-install)
       run_cxx_module_test(import-modules "import-modules-${test_suffix}" "-DCMAKE_PREFIX_PATH=${RunCMake_BINARY_DIR}/examples/${test_suffix}-install" -DWITH_BMIS=1)
+
+      set(test_suffix export-command-sepdir-install)
+      run_cxx_module_test(import-modules "import-modules-${test_suffix}" "-DCMAKE_PREFIX_PATH=${RunCMake_BINARY_DIR}/examples/${test_suffix}-install" -DEXPORT_COMMAND_SEPDIR=1)
 
       set(test_suffix export-transitive-targets-install)
       run_cxx_module_test(import-modules "import-modules-${test_suffix}" "-DCMAKE_PREFIX_PATH=${RunCMake_BINARY_DIR}/examples/${test_suffix}-install" -DTRANSITIVE_TARGETS=1)
