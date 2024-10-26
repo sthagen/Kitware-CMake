@@ -31,7 +31,7 @@ public:
    */
   int ProcessHandler() override;
 
-  void Initialize() override;
+  void Initialize(cmCTest* ctest) override;
 
   /** Specify a set of parts (by name) to submit.  */
   void SelectParts(std::set<cmCTest::Part> const& parts);
@@ -88,4 +88,14 @@ private:
   std::set<std::string> Files;
   std::vector<std::string> CommandLineHttpHeaders;
   std::vector<std::string> HttpHeaders;
+
+  bool CDashUpload = false;
+  bool InternalTest = false;
+
+  std::string CDashUploadFile;
+  std::string CDashUploadType;
+  std::string RetryCount;
+  std::string RetryDelay;
+
+  friend class cmCTestSubmitCommand;
 };
