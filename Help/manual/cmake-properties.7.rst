@@ -226,7 +226,7 @@ Properties on Targets
    /prop_tgt/EXPORT_NO_SYSTEM
    /prop_tgt/EXPORT_PROPERTIES
    /prop_tgt/FOLDER
-   /prop_tgt/Fortran_BUILDING_INSTRINSIC_MODULES
+   /prop_tgt/Fortran_BUILDING_INTRINSIC_MODULES
    /prop_tgt/Fortran_FORMAT
    /prop_tgt/Fortran_MODULE_DIRECTORY
    /prop_tgt/Fortran_PREPROCESS
@@ -494,6 +494,7 @@ Properties on Targets
    /prop_tgt/XCODE_SCHEME_EXECUTABLE
    /prop_tgt/XCODE_SCHEME_GUARD_MALLOC
    /prop_tgt/XCODE_SCHEME_LAUNCH_CONFIGURATION
+   /prop_tgt/XCODE_SCHEME_TEST_CONFIGURATION
    /prop_tgt/XCODE_SCHEME_LAUNCH_MODE
    /prop_tgt/XCODE_SCHEME_LLDB_INIT_FILE
    /prop_tgt/XCODE_SCHEME_MAIN_THREAD_CHECKER_STOP
@@ -661,6 +662,7 @@ Deprecated Properties on Targets
    :maxdepth: 1
 
    /prop_tgt/COMPILE_DEFINITIONS_CONFIG
+   /prop_tgt/Fortran_BUILDING_INSTRINSIC_MODULES
    /prop_tgt/IMPORTED_NO_SYSTEM
    /prop_tgt/IOS_INSTALL_COMBINED
    /prop_tgt/POST_INSTALL_SCRIPT
