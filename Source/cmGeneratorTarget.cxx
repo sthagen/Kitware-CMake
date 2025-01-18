@@ -2041,6 +2041,14 @@ std::vector<std::string> cmGeneratorTarget::GetAppleArchs(
   return std::move(archList.data());
 }
 
+const std::string& cmGeneratorTarget::GetTargetLabelsString()
+{
+  this->targetLabelsString = this->GetSafeProperty("LABELS");
+  std::replace(this->targetLabelsString.begin(),
+               this->targetLabelsString.end(), ';', ',');
+  return this->targetLabelsString;
+}
+
 namespace {
 
 bool IsSupportedClassifiedFlagsLanguage(std::string const& lang)
@@ -2305,6 +2313,7 @@ cmGeneratorTarget::GetClassifiedFlagsForSource(cmSourceFile const* sf,
   cmRulePlaceholderExpander::RuleVariables vars;
   vars.CMTargetName = this->GetName().c_str();
   vars.CMTargetType = cmState::GetTargetTypeName(this->GetType()).c_str();
+  vars.CMTargetLabels = this->GetTargetLabelsString().c_str();
   vars.Language = lang.c_str();
 
   auto const sfPath = this->LocalGenerator->ConvertToOutputFormat(
@@ -4744,27 +4753,11 @@ std::string cmGeneratorTarget::CheckCMP0004(std::string const& item) const
   }
   if (lib != item) {
     cmake* cm = this->LocalGenerator->GetCMakeInstance();
-    switch (this->GetPolicyStatusCMP0004()) {
-      case cmPolicies::WARN: {
-        std::ostringstream w;
-        w << cmPolicies::GetPolicyWarning(cmPolicies::CMP0004) << "\n"
-          << "Target \"" << this->GetName() << "\" links to item \"" << item
-          << "\" which has leading or trailing whitespace.";
-        cm->IssueMessage(MessageType::AUTHOR_WARNING, w.str(),
-                         this->GetBacktrace());
-      }
-        CM_FALLTHROUGH;
-      case cmPolicies::OLD:
-        break;
-      case cmPolicies::NEW: {
-        std::ostringstream e;
-        e << "Target \"" << this->GetName() << "\" links to item \"" << item
-          << "\" which has leading or trailing whitespace.  "
-          << "This is now an error according to policy CMP0004.";
-        cm->IssueMessage(MessageType::FATAL_ERROR, e.str(),
-                         this->GetBacktrace());
-      } break;
-    }
+    std::ostringstream e;
+    e << "Target \"" << this->GetName() << "\" links to item \"" << item
+      << "\" which has leading or trailing whitespace.  "
+      << "This is now an error according to policy CMP0004.";
+    cm->IssueMessage(MessageType::FATAL_ERROR, e.str(), this->GetBacktrace());
   }
   return lib;
 }
