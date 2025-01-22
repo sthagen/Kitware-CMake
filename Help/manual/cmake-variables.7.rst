@@ -78,6 +78,7 @@ Variables that Provide Information
    /variable/CMAKE_LANG_COMPILER_LINKER_ID
    /variable/CMAKE_LANG_COMPILER_LINKER_VERSION
    /variable/CMAKE_LANG_COMPILER_RANLIB
+   /variable/CMAKE_LANG_DEVICE_LINK_MODE
    /variable/CMAKE_LANG_LINK_LIBRARY_SUFFIX
    /variable/CMAKE_LANG_LINK_MODE
    /variable/CMAKE_LINK_LIBRARY_SUFFIX
@@ -725,6 +726,7 @@ Variables for CTest
    /variable/CTEST_DROP_SITE_PASSWORD
    /variable/CTEST_DROP_SITE_USER
    /variable/CTEST_EXTRA_COVERAGE_GLOB
+   /variable/CTEST_EXTRA_SUBMIT_FILES
    /variable/CTEST_GIT_COMMAND
    /variable/CTEST_GIT_INIT_SUBMODULES
    /variable/CTEST_GIT_UPDATE_CUSTOM
@@ -738,6 +740,7 @@ Variables for CTest
    /variable/CTEST_MEMORYCHECK_SUPPRESSIONS_FILE
    /variable/CTEST_MEMORYCHECK_TYPE
    /variable/CTEST_NIGHTLY_START_TIME
+   /variable/CTEST_NOTES_FILES
    /variable/CTEST_P4_CLIENT
    /variable/CTEST_P4_COMMAND
    /variable/CTEST_P4_OPTIONS
