@@ -1,7 +1,10 @@
 .git*            export-ignore
 .hooks*          export-ignore
+.clang-format    export-ignore
+.clang-tidy      export-ignore
 .codespellrc     export-ignore
 .editorconfig    export-ignore
+.typos.toml      export-ignore
 
 # Custom attribute to mark sources as using our C code style.
 [attr]our-c-style  whitespace=tab-in-indent  format.clang-format=18
@@ -52,6 +55,7 @@ coverage.xml.in  tab-indent
 *.cpp            our-c-style
 *.cu             our-c-style
 *.cxx            our-c-style
+*.H              our-c-style
 *.h              our-c-style
 *.hh             our-c-style
 *.hpp            our-c-style
