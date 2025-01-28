@@ -21,6 +21,8 @@ This command has two signatures.  The recommended signature is:
     For each cache ``<entry>``, a local variable is created using the specified
     ``<prefix>`` followed by the entry name.
 
+  This signature can be also used in :option:`cmake -P` script mode.
+
 The following signature of this command is strongly discouraged, but it is
 provided for backward compatibility:
 
@@ -41,6 +43,18 @@ provided for backward compatibility:
   ``INCLUDE_INTERNALS <entry>...``
     This option can be used to provide a list of internal cache entries to
     include in addition to the non-internal cache entries.
+
+  This signature can be used only in CMake projects.  Script mode is not
+  supported.
+
+.. note::
+
+  Instead of loading the outside project's cache file and manually accessing
+  variables, a more robust and convenient approach is to use the
+  :command:`export` command in the outside project, when available.  This allows
+  the project to provide its targets, configuration, or features in a
+  structured and maintainable way, making integration simpler and less
+  error-prone.
 
 Examples
 ^^^^^^^^
