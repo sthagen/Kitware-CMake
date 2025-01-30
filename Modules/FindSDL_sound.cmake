@@ -217,8 +217,8 @@ if(SDL_FOUND AND SDL_SOUND_INCLUDE_DIR AND SDL_SOUND_LIBRARY)
       )
       if(MIKMOD_LIBRARY)
         set(SDL_SOUND_LIBRARIES_TMP ${SDL_SOUND_LIBRARIES_TMP} ${MIKMOD_LIBRARY})
-      endif(MIKMOD_LIBRARY)
-    endif("${MY_OUTPUT}" MATCHES "MikMod_")
+      endif()
+    endif()
 
     # Find ModPlug
     if("${MY_OUTPUT}" MATCHES "MODPLUG_")
@@ -371,7 +371,7 @@ endif()
 
 include(${CMAKE_CURRENT_LIST_DIR}/FindPackageHandleStandardArgs.cmake)
 
-FIND_PACKAGE_HANDLE_STANDARD_ARGS(SDL_sound
+find_package_handle_standard_args(SDL_sound
                                   REQUIRED_VARS SDL_SOUND_LIBRARY SDL_SOUND_INCLUDE_DIR
                                   VERSION_VAR SDL_SOUND_VERSION_STRING)
 
