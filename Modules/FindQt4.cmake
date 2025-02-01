@@ -203,7 +203,7 @@ more-manual way. Several macros are available to add targets for such uses.
         same argument to the target_link_libraries call.
 
 
-IMPORTED Targets
+Imported Targets
 ^^^^^^^^^^^^^^^^
 
 A particular Qt library may be used by using the corresponding
@@ -334,7 +334,7 @@ endif()
 
 include(${CMAKE_CURRENT_LIST_DIR}/CheckCXXSymbolExists.cmake)
 include(${CMAKE_CURRENT_LIST_DIR}/MacroAddFileDependencies.cmake)
-include(${CMAKE_CURRENT_LIST_DIR}/FindPackageHandleStandardArgs.cmake)
+include(FindPackageHandleStandardArgs)
 include(${CMAKE_CURRENT_LIST_DIR}/CMakePushCheckState.cmake)
 
 set(QT_USE_FILE ${CMAKE_ROOT}/Modules/UseQt4.cmake)

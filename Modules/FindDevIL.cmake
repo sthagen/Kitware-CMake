@@ -8,7 +8,7 @@ FindDevIL
 This module locates the Developer's Image Library,
 `DevIL <https://openil.sourceforge.net/>`_.
 
-IMPORTED Targets
+Imported Targets
 ^^^^^^^^^^^^^^^^
 
 .. versionadded:: 3.21
@@ -64,7 +64,7 @@ This module sets:
 # TODO: Add version support.
 # Tested under Linux and Windows (MSVC)
 
-include(${CMAKE_CURRENT_LIST_DIR}/FindPackageHandleStandardArgs.cmake)
+include(FindPackageHandleStandardArgs)
 
 find_path(IL_INCLUDE_DIR il.h
   PATH_SUFFIXES include IL

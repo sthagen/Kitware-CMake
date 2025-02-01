@@ -44,7 +44,7 @@ There are corresponding imported targets for each of these.
 The ``glslc`` and ``glslangValidator`` components are provided even
 if not explicitly requested (for backward compatibility).
 
-IMPORTED Targets
+Imported Targets
 ^^^^^^^^^^^^^^^^
 
 This module defines :prop_tgt:`IMPORTED` targets if Vulkan has been found:
@@ -590,7 +590,7 @@ if(Vulkan_MoltenVK_FOUND)
   endif()
 endif()
 
-include(${CMAKE_CURRENT_LIST_DIR}/FindPackageHandleStandardArgs.cmake)
+include(FindPackageHandleStandardArgs)
 find_package_handle_standard_args(Vulkan
   REQUIRED_VARS
     Vulkan_LIBRARY

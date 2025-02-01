@@ -10,7 +10,7 @@ Find the Common UNIX Printing System (CUPS).
 Set ``CUPS_REQUIRE_IPP_DELETE_ATTRIBUTE`` to ``TRUE`` if you need a version which
 features this function (i.e. at least ``1.1.19``)
 
-Imported targets
+Imported Targets
 ^^^^^^^^^^^^^^^^
 
 .. versionadded:: 3.15
@@ -78,7 +78,7 @@ if (CUPS_INCLUDE_DIR AND EXISTS "${CUPS_INCLUDE_DIR}/cups/cups.h")
     endforeach()
 endif ()
 
-include(${CMAKE_CURRENT_LIST_DIR}/FindPackageHandleStandardArgs.cmake)
+include(FindPackageHandleStandardArgs)
 
 if (CUPS_REQUIRE_IPP_DELETE_ATTRIBUTE)
     find_package_handle_standard_args(Cups

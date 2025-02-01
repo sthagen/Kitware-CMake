@@ -13,7 +13,7 @@ Find Geospatial Data Abstraction Library (GDAL).
   find module.  For further details, see `GDAL's documentation on CMake
   integration <https://gdal.org/en/latest/development/cmake.html>`_.
 
-IMPORTED Targets
+Imported Targets
 ^^^^^^^^^^^^^^^^
 
 .. versionadded:: 3.14
@@ -202,7 +202,7 @@ if (GDAL_FIND_VERSION VERSION_GREATER_EQUAL 3.5)
    )
 endif()
 
-include(${CMAKE_CURRENT_LIST_DIR}/FindPackageHandleStandardArgs.cmake)
+include(FindPackageHandleStandardArgs)
 find_package_handle_standard_args(GDAL
     VERSION_VAR GDAL_VERSION
     REQUIRED_VARS GDAL_LIBRARY GDAL_INCLUDE_DIR)

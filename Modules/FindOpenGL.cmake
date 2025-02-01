@@ -39,7 +39,7 @@ This module respects several optional COMPONENTS:
 
   A subset of OpenGL API for embedded systems with more capabilities.
 
-IMPORTED Targets
+Imported Targets
 ^^^^^^^^^^^^^^^^
 
 .. versionadded:: 3.8
@@ -569,7 +569,7 @@ if(OPENGL_EGL_INCLUDE_DIR)
   set(OPENGL_EGL_INCLUDE_DIRS ${OPENGL_EGL_INCLUDE_DIR})
 endif()
 
-include(${CMAKE_CURRENT_LIST_DIR}/FindPackageHandleStandardArgs.cmake)
+include(FindPackageHandleStandardArgs)
 if (CMAKE_FIND_PACKAGE_NAME STREQUAL "GLU")
   # FindGLU include()'s this module. It's an old pattern, but rather than
   # trying to suppress this from outside the module (which is then sensitive to

@@ -114,7 +114,7 @@ If wxWidgets is required (i.e., not an optional part):
    # and for each of your dependent executable/library targets:
    target_link_libraries(<YourTarget> ${wxWidgets_LIBRARIES})
 
-Imported targets
+Imported Targets
 ^^^^^^^^^^^^^^^^
 
 .. versionadded:: 3.27
@@ -1000,7 +1000,7 @@ DBG_MSG("wxWidgets_USE_FILE        : ${wxWidgets_USE_FILE}")
 #=====================================================================
 #=====================================================================
 
-include(${CMAKE_CURRENT_LIST_DIR}/FindPackageHandleStandardArgs.cmake)
+include(FindPackageHandleStandardArgs)
 
 # FIXME: set wxWidgets_<comp>_FOUND for wx-config branch
 #        and use HANDLE_COMPONENTS on Unix too

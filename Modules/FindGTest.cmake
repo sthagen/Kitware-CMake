@@ -10,7 +10,7 @@ Locate the Google C++ Testing Framework.
 .. versionadded:: 3.20
   Upstream ``GTestConfig.cmake`` is used if possible.
 
-Imported targets
+Imported Targets
 ^^^^^^^^^^^^^^^^
 
 .. versionadded:: 3.20
@@ -191,7 +191,7 @@ endfunction()
 
 #
 
-include(${CMAKE_CURRENT_LIST_DIR}/FindPackageHandleStandardArgs.cmake)
+include(FindPackageHandleStandardArgs)
 
 # first specifically look for the CMake version of GTest
 find_package(GTest QUIET NO_MODULE)
