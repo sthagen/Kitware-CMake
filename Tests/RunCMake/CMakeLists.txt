@@ -1,5 +1,5 @@
 # Distributed under the OSI-approved BSD 3-Clause License.  See accompanying
-# file Copyright.txt or https://cmake.org/licensing for details.
+# file LICENSE.rst or https://cmake.org/licensing for details.
 
 # See adjacent README.rst for documentation of this test infrastructure.
 
@@ -1195,6 +1195,9 @@ set(cpack_tests
   RPM.EXTRA_SLASH_IN_PATH
   RPM.SOURCE_PACKAGE
   RPM.SUGGESTS
+  RPM.ENHANCES
+  RPM.RECOMMENDS
+  RPM.SUPPLEMENTS
   RPM.SYMLINKS
   RPM.USER_FILELIST
   RPM.PROJECT_META
