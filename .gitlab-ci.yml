@@ -792,6 +792,20 @@ t:oneapi2024.2.0-makefiles:
         CMAKE_CI_BUILD_NAME: oneapi2024.2.0_makefiles
         CMAKE_CI_INTELCOMPILER_IMAGE_TAG: 2024.2.0-rocky9
 
+t:oneapi2025.0.0-makefiles:
+    extends:
+        - .cmake_test_linux_inteloneapi_makefiles
+    variables:
+        CMAKE_CI_BUILD_NAME: oneapi2025.0.0_makefiles
+        CMAKE_CI_INTELCOMPILER_IMAGE_TAG: 2025.0.0-rocky9
+
+t:oneapi2025.1.0-makefiles:
+    extends:
+        - .cmake_test_linux_inteloneapi_makefiles
+    variables:
+        CMAKE_CI_BUILD_NAME: oneapi2025.1.0_makefiles
+        CMAKE_CI_INTELCOMPILER_IMAGE_TAG: 2025.1.0-rocky9
+
 b:linux-x86_64-package:
     extends:
         - .linux_package
@@ -1314,7 +1328,7 @@ t:windows-intel2021.9.0-ninja:
     extends:
         - .windows_intelclassic_ninja
         - .cmake_test_windows_external
-        - .windows_x86_64_tags_concurrent_vs2022
+        - .windows_x86_64_tags_concurrent_vs2022_msvc14.43
         - .cmake_junit_artifacts
         - .run_dependent
     needs:
@@ -1327,7 +1341,7 @@ t:windows-oneapi2024.1.0-ninja:
     extends:
         - .windows_inteloneapi_ninja
         - .cmake_test_windows_external
-        - .windows_x86_64_tags_concurrent_vs2022
+        - .windows_x86_64_tags_concurrent_vs2022_msvc14.43
         - .cmake_junit_artifacts
         - .run_dependent
     needs:
