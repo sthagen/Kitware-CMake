@@ -102,7 +102,7 @@ foreach(
     ICOTOOL
     JASPER
     LIBLZMA LIBXML2 LIBXSLT LTTNGUST
-    PERL PKG_CONFIG PostgreSQL
+    PERL PKG_CONFIG PNG PostgreSQL
     TIFF
     ZLIB
 )
@@ -111,16 +111,18 @@ endforeach()
 
 foreach(
   VTEST
+    ALSA
     BISON Boost BZip2 BZIP2
     CUDA
     DOXYGEN
-    FLEX
+    EXPAT
+    FLEX Freetype
     GIF GTK2
     HDF5
-    JPEG
-    LibArchive LIBLZMA
+    Jasper JPEG
+    LibArchive LIBLZMA LibXml2 LibXslt LTTngUST
     OPENSCENEGRAPH
-    Protobuf
+    PNG PostgreSQL Protobuf
     Ruby RUBY
     SWIG
     ZLIB

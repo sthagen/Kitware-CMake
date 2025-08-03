@@ -1050,8 +1050,7 @@ cmGlobalVisualStudio10Generator::GenerateBuildCommand(
   std::string const& makeProgram, std::string const& projectName,
   std::string const& projectDir, std::vector<std::string> const& targetNames,
   std::string const& config, int jobs, bool verbose,
-  cmBuildOptions const& buildOptions,
-  std::vector<std::string> const& makeOptions)
+  cmBuildOptions buildOptions, std::vector<std::string> const& makeOptions)
 {
   std::vector<GeneratedMakeCommand> makeCommands;
   // Select the caller- or user-preferred make program, else MSBuild.
@@ -1563,6 +1562,12 @@ bool cmGlobalVisualStudio10Generator::IsBuildInParallelSupported() const
   return (vsVer &&
           cmSystemTools::VersionCompareGreaterEq(*vsVer, vsVer15_8_0));
 }
+
+bool cmGlobalVisualStudio10Generator::SupportsShortObjectNames() const
+{
+  return true;
+}
+
 std::string cmGlobalVisualStudio10Generator::GetClFlagTableName() const
 {
   std::string const& toolset = this->GetPlatformToolsetString();
