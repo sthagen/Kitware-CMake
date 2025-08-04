@@ -103,6 +103,7 @@ foreach(
     JASPER
     LIBLZMA LIBXML2 LIBXSLT LTTNGUST
     PERL PKG_CONFIG PNG PostgreSQL
+    SDL
     TIFF
     ZLIB
 )
@@ -113,18 +114,18 @@ foreach(
   VTEST
     ALSA
     BISON Boost BZip2 BZIP2
-    CUDA
+    CUDA Cups
     DOXYGEN
     EXPAT
     FLEX Freetype
     GIF GTK2
     HDF5
     Jasper JPEG
-    LibArchive LIBLZMA LibXml2 LibXslt LTTngUST
+    LibArchive LibLZMA LIBLZMA LibXml2 LibXslt LTTngUST
     OPENSCENEGRAPH
     PNG PostgreSQL Protobuf
     Ruby RUBY
-    SWIG
+    SDL SWIG
     ZLIB
 )
   check_version_string(${VTEST} ${VTEST}_VERSION)

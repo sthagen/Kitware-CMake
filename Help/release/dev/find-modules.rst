@@ -7,6 +7,9 @@ Find Modules
 * The :module:`FindBZip2` module now provides a ``BZip2_VERSION`` result
   variable.  The ``BZIP2_VERSION`` result variable is deprecated.
 
+* The :module:`FindCups` module now provides a ``Cups_VERSION`` result
+  variable.  The ``CUPS_VERSION_STRING`` result variable is deprecated.
+
 * The :module:`FindEXPAT` module now provides a ``EXPAT_VERSION`` result
   variable.  The ``EXPAT_VERSION_STRING`` result variable is deprecated.
 
@@ -15,6 +18,9 @@ Find Modules
 
 * The :module:`FindJasper` module now provides a ``Jasper_VERSION`` result
   variable.  The ``JASPER_VERSION_STRING`` result variable is deprecated.
+
+* The :module:`FindLibLZMA` module now provides a ``LibLZMA_VERSION`` result
+  variable.  The ``LIBLZMA_VERSION`` result variable is deprecated.
 
 * The :module:`FindLibXml2` module now provides a ``LibXml2_VERSION`` result
   variable.  The ``LIBXML2_VERSION_STRING`` result variable is deprecated.
@@ -31,3 +37,9 @@ Find Modules
 * The :module:`FindPostgreSQL` module now provides a ``PostgreSQL_VERSION``
   result variable.  The ``PostgreSQL_VERSION_STRING`` result variable is
   deprecated.
+
+* The :module:`FindSDL_gfx`, :module:`FindSDL_image`, :module:`FindSDL_mixer`,
+  :module:`FindSDL_net`, :module:`FindSDL_sound`, and :module:`FindSDL_ttf`
+  modules now provide their respective ``<PackageName>_VERSION`` result
+  variables. Previous ``<PACKAGENAME>_VERSION_STRING`` result variables
+  are deprecated.
