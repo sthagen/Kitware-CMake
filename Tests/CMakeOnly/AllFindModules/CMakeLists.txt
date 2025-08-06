@@ -112,20 +112,21 @@ endforeach()
 
 foreach(
   VTEST
-    ALSA
+    ALSA Armadillo
     BISON Boost BZip2 BZIP2
     CUDA Cups
-    DOXYGEN
+    Doxygen DOXYGEN
     EXPAT
     FLEX Freetype
-    GIF GTK2
+    Gettext GIF GTK2
     HDF5
     Jasper JPEG
     LibArchive LibLZMA LIBLZMA LibXml2 LibXslt LTTngUST
-    OPENSCENEGRAPH
+    OPENSCENEGRAPH OpenSSL OPENSSL
     PNG PostgreSQL Protobuf
     Ruby RUBY
     SDL SWIG
+    TIFF
     ZLIB
 )
   check_version_string(${VTEST} ${VTEST}_VERSION)
