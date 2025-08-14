@@ -36,6 +36,8 @@ include(${CMAKE_CURRENT_SOURCE_DIR}/CheckSwift.cmake)
 set(TEST_HOME "${CMake_BINARY_DIR}/Tests/CMakeFiles/TestHome")
 set(TEST_CONFIG_ENV_CODE "# Isolate tests from user-wide configuration.
 set(ENV{CMAKE_CONFIG_DIR} \"${TEST_HOME}/.config/cmake\")\n")
+set(TEST_INSTRUMENTATION_ENV_CODE "# Isolate tests from CTEST_USE_INSTRUMENTATION var
+unset(ENV{CTEST_USE_INSTRUMENTATION})\n")
 file(MAKE_DIRECTORY "${TEST_HOME}/.config/cmake")
 
 # Fake a user home directory to avoid polluting the real one.
@@ -593,11 +595,11 @@ if(BUILD_TESTING)
   if(NOT DEFINED CMake_TEST_Qt4)
     set(CMake_TEST_Qt4 1)
   endif()
-  if(CMake_TEST_Qt4 AND NOT QT4_FOUND)
+  if(CMake_TEST_Qt4 AND NOT Qt4_FOUND)
     find_package(Qt4 QUIET)
   endif()
 
-  if(CMake_TEST_Qt4 AND QT4_FOUND)
+  if(CMake_TEST_Qt4 AND Qt4_FOUND)
     # test whether the Qt4 which has been found works, on some machines
     # which run nightly builds there were errors like "wrong file format"
     # for libQtCore.so. So first check it works, and only if it does add

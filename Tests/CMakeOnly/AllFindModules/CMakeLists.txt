@@ -44,7 +44,7 @@ foreach(FIND_MODULE IN LISTS FIND_MODULES)
 endforeach()
 
 # Qt4 is not present, so we can check Qt3
-if (NOT QT4_FOUND)
+if (NOT Qt4_FOUND)
     set(DESIRED_QT_VERSION 3)
     foreach(FIND_MODULE ${NO_QT4_MODULES} "Qt")
         do_find(${FIND_MODULE})
@@ -97,7 +97,7 @@ foreach(
     CUPS CURL
     EXPAT
     FREETYPE
-    GETTEXT GIT
+    GETTEXT GIT GNUTLS
     HG HSPELL
     ICOTOOL
     JASPER
@@ -115,15 +115,15 @@ foreach(
     ALSA Armadillo
     BISON Boost BZip2 BZIP2
     CUDA Cups
-    Doxygen DOXYGEN
+    DevIL Doxygen DOXYGEN
     EXPAT
     FLEX Freetype
-    Gettext GIF GTK2
+    Gettext GIF GnuTLS GNUTLS GTK2
     HDF5
     Jasper JPEG
     LibArchive LibLZMA LIBLZMA LibXml2 LibXslt LTTngUST
     OpenSceneGraph OPENSCENEGRAPH OpenSSL OPENSSL
-    PNG PostgreSQL Protobuf
+    Perl PerlLibs PNG PostgreSQL Protobuf
     Ruby RUBY
     SDL SWIG
     TIFF
