@@ -73,6 +73,10 @@ Find Modules
 * The :module:`FindPerlLibs` module now provides a ``PerlLibs_VERSION``
   result variable.
 
+* The :module:`FindPkgConfig` module now provides a ``PkgConfig_VERSION``
+  result variable.  The ``PKG_CONFIG_VERSION_STRING`` result variable is
+  deprecated.
+
 * The :module:`FindPNG` module now provides a ``PNG_VERSION`` result
   variable.  The ``PNG_VERSION_STRING`` result variable is deprecated.
 
@@ -97,3 +101,7 @@ Find Modules
 
 * The :module:`FindTIFF` module now provides a ``TIFF_VERSION`` result
   variable.  The ``TIFF_VERSION_STRING`` result variable is deprecated.
+
+* The :module:`FindwxWidgets` module now provides a ``wxWidgets_VERSION``
+  result variable.  The ``wxWidgets_VERSION_STRING`` result variable is
+  deprecated.

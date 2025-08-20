@@ -105,6 +105,7 @@ foreach(
     PERL PKG_CONFIG PNG PostgreSQL
     SDL
     TIFF
+    wxWidgets
     ZLIB
 )
   check_version_string(${VTEST} ${VTEST}_VERSION_STRING)
@@ -123,10 +124,11 @@ foreach(
     Jasper JPEG
     LibArchive LibLZMA LIBLZMA LibXml2 LibXslt LTTngUST
     OpenSceneGraph OPENSCENEGRAPH OpenSSL OPENSSL
-    Perl PerlLibs PNG PostgreSQL Protobuf
+    Perl PerlLibs PkgConfig PNG PostgreSQL Protobuf
     Ruby RUBY
     SDL SWIG
     TIFF
+    wxWidgets
     ZLIB
 )
   check_version_string(${VTEST} ${VTEST}_VERSION)
