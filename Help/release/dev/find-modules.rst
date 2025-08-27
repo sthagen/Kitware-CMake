@@ -77,12 +77,19 @@ Find Modules
   result variable.  The ``PKG_CONFIG_VERSION_STRING`` result variable is
   deprecated.
 
+* The :module:`FindPkgConfig` module's result variable ``PKG_CONFIG_FOUND``
+  is deprecated in favor of ``PkgConfig_FOUND``, which is available since
+  CMake 3.3 and has the same value.
+
 * The :module:`FindPNG` module now provides a ``PNG_VERSION`` result
   variable.  The ``PNG_VERSION_STRING`` result variable is deprecated.
 
 * The :module:`FindPostgreSQL` module now provides a ``PostgreSQL_VERSION``
   result variable.  The ``PostgreSQL_VERSION_STRING`` result variable is
   deprecated.
+
+* The :module:`FindQt3` module now provides a ``Qt3_VERSION`` result
+  variable.  The ``QT_VERSION_STRING`` result variable is deprecated.
 
 * The :module:`FindSDL_gfx`, :module:`FindSDL_image`, :module:`FindSDL_mixer`,
   :module:`FindSDL_net`, :module:`FindSDL_sound`, and :module:`FindSDL_ttf`
@@ -99,9 +106,16 @@ Find Modules
   result variable.  The ``Subversion_VERSION_SVN`` result variable is
   deprecated.
 
+* The :module:`FindTclsh` module now provides a ``Tclsh_VERSION`` result
+  variable.  The ``TCLSH_VERSION_STRING`` result variable is deprecated.
+
 * The :module:`FindTIFF` module now provides a ``TIFF_VERSION`` result
   variable.  The ``TIFF_VERSION_STRING`` result variable is deprecated.
 
 * The :module:`FindwxWidgets` module now provides a ``wxWidgets_VERSION``
   result variable.  The ``wxWidgets_VERSION_STRING`` result variable is
   deprecated.
+
+* The :module:`FindwxWidgets` module's result variable
+  ``wxWidgets_USE_FILE`` is now deprecated in favor of including the
+  :module:`UsewxWidgets` module directly.
