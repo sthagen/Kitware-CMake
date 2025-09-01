@@ -37,6 +37,12 @@ Find Modules
 * The :module:`FindHg` module now provides a ``Hg_VERSION`` result
   variable.  The ``HG_VERSION_STRING`` result variable is deprecated.
 
+* The :module:`FindHSPELL` module now provides a ``HSPELL_VERSION`` result
+  variable.  The ``HSPELL_VERSION_STRING`` result variable is deprecated.
+
+* The :module:`FindIcotool` module now provides a ``Icotool_VERSION`` result
+  variable.  The ``ICOTOOL_VERSION_STRING`` result variable is deprecated.
+
 * The :module:`FindJasper` module now provides a ``Jasper_VERSION`` result
   variable.  The ``JASPER_VERSION_STRING`` result variable is deprecated.
 
@@ -59,6 +65,9 @@ Find Modules
   deprecated.  The :module:`FindLua51` module now similarly provides a
   ``Lua_VERSION`` instead of the now deprecated ``LUA_VERSION_STRING`` result
   variable.
+
+* The :module:`FindOpenCL` module now provides an ``OpenCL_VERSION`` result
+  variable.  The ``OpenCL_VERSION_STRING`` result variable is deprecated.
 
 * The :module:`FindOpenSceneGraph` module now provides an
   ``OpenSceneGraph_VERSION`` result variable.  The ``OPENSCENEGRAPH_VERSION``
