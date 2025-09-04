@@ -213,6 +213,9 @@ elseif(CMake_TEST_Qt5)
     set(ninja_test_with_qt_version 5)
   endif()
 endif()
+if(CMAKE_GENERATOR MATCHES "FASTBuild")
+  add_RunCMake_test(FASTBuild)
+endif()
 if(CMAKE_GENERATOR MATCHES "Ninja")
   set(Ninja_ARGS
     -DCMAKE_C_COMPILER_ID=${CMAKE_C_COMPILER_ID}
@@ -422,7 +425,7 @@ endif()
 add_RunCMake_test(FileAPI -DPython_EXECUTABLE=${Python_EXECUTABLE}
                           -DCMAKE_CXX_COMPILER_ID=${CMAKE_CXX_COMPILER_ID}
                           -DCMake_TEST_JSON_SCHEMA=${CMake_TEST_JSON_SCHEMA})
-if(CMAKE_GENERATOR MATCHES "Make|Ninja")
+if(CMAKE_GENERATOR MATCHES "Make|Ninja|FASTBuild")
   add_RunCMake_test(Instrumentation)
 endif()
 add_RunCMake_test(ConfigDir)

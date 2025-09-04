@@ -250,6 +250,9 @@ bool cmFastbuildNormalTargetGenerator::DetectBaseLinkerCommand(
   cmRulePlaceholderExpander::RuleVariables vars;
   vars.CMTargetName = this->GeneratorTarget->GetName().c_str();
   vars.CMTargetType = cmState::GetTargetTypeName(targetType).c_str();
+  vars.CMTargetLabels =
+    this->GetGeneratorTarget()->GetTargetLabelsString().c_str();
+  vars.Config = Config.c_str();
   vars.Language = linkLanguage.c_str();
   std::string const manifests =
     cmJoin(this->GetManifestsAsFastbuildPath(), " ");
@@ -1209,6 +1212,13 @@ cmFastbuildNormalTargetGenerator::GenerateObjects()
 
     std::string const staticCheckOptions = ComputeCodeCheckOptions(srcFile);
 
+    auto const isDisabled = [this](char const* prop) {
+      auto const propValue = this->GeneratorTarget->GetProperty(prop);
+      return propValue && propValue.IsOff();
+    };
+    bool const disableCaching = isDisabled("FASTBUILD_CACHING");
+    bool const disableDistribution = isDisabled("FASTBUILD_DISTRIBUTION");
+
     for (auto const& arch : this->GetArches()) {
       std::string const compileOptions = GetCompileOptions(srcFile, arch);
 
@@ -1249,6 +1259,12 @@ cmFastbuildNormalTargetGenerator::GenerateObjects()
       // (.CompilerOptions, .PCH*, etc.). Short circuit this iteration.
       if (!objectListNode.CompilerOptions.empty()) {
         continue;
+      }
+      if (disableCaching) {
+        objectListNode.AllowCaching = false;
+      }
+      if (disableDistribution) {
+        objectListNode.AllowDistribution = false;
       }
 
       objectListNode.CompilerOutputPath = objOutDirWithPossibleSubdir;
