@@ -404,6 +404,7 @@ Properties on Targets
    /prop_tgt/RUNTIME_OUTPUT_NAME
    /prop_tgt/RUNTIME_OUTPUT_NAME_CONFIG
    /prop_tgt/SKIP_BUILD_RPATH
+   /prop_tgt/SKIP_LINTING
    /prop_tgt/SOURCE_DIR
    /prop_tgt/SOURCES
    /prop_tgt/SOVERSION
@@ -578,12 +579,14 @@ Properties on Source Files
    /prop_sf/GENERATED
    /prop_sf/HEADER_FILE_ONLY
    /prop_sf/INCLUDE_DIRECTORIES
+   /prop_sf/INSTALL_OBJECT_NAME
    /prop_sf/KEEP_EXTENSION
    /prop_sf/LABELS
    /prop_sf/LANGUAGE
    /prop_sf/LOCATION
    /prop_sf/MACOSX_PACKAGE_LOCATION
    /prop_sf/OBJECT_DEPENDS
+   /prop_sf/OBJECT_NAME
    /prop_sf/OBJECT_OUTPUTS
    /prop_sf/JOB_POOL_COMPILE
    /prop_sf/SKIP_AUTOGEN

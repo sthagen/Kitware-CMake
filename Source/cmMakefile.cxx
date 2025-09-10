@@ -3147,6 +3147,7 @@ void cmMakefile::AddTargetObject(std::string const& tgtName,
 {
   cmSourceFile* sf =
     this->GetOrCreateSource(objFile, true, cmSourceFileLocationKind::Known);
+  sf->SetSpecialSourceType(cmSourceFile::SpecialSourceType::Object);
   sf->SetObjectLibrary(tgtName);
   sf->SetProperty("EXTERNAL_OBJECT", "1");
   // TODO: Compute a language for this object based on the associated source
@@ -3236,6 +3237,14 @@ int cmMakefile::TryCompile(std::string const& srcdir,
     cmSystemTools::SetFatalErrorOccurred();
     this->IsSourceFileTryCompile = false;
     return 1;
+  }
+
+  // unset the NINJA_STATUS environment variable while running try compile.
+  // since we parse the output, we need to ensure there aren't any unexpected
+  // characters that will cause issues, such as ANSI color escape codes.
+  cm::optional<cmSystemTools::ScopedEnv> maybeNinjaStatus;
+  if (this->GetGlobalGenerator()->IsNinja()) {
+    maybeNinjaStatus.emplace("NINJA_STATUS=");
   }
 
   // make sure the same generator is used
