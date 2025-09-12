@@ -425,7 +425,7 @@ void cmGlobalFastbuildGenerator::AppendDirectoryForConfig(
 cmDocumentationEntry cmGlobalFastbuildGenerator::GetDocumentation()
 {
   return { cmGlobalFastbuildGenerator::GetActualName(),
-           "Generates build.bff files." };
+           "Generates fbuild.bff files." };
 }
 
 void cmGlobalFastbuildGenerator::Generate()
@@ -538,12 +538,8 @@ void cmGlobalFastbuildGenerator::WriteSettings()
   auto val = this->GetSafeGlobalSetting(FASTBUILD_CACHE_PATH);
   if (!val.empty()) {
     cacheDir = std::move(val);
-  } else {
-    // Default value.
-    cacheDir =
-      this->GetCMakeInstance()->GetHomeOutputDirectory() + "/fbuild.cache";
+    cmSystemTools::ConvertToOutputSlashes(cacheDir);
   }
-  cmSystemTools::ConvertToOutputSlashes(cacheDir);
 
   WriteDivider();
   *this->BuildFileStream << "// Settings\n\n";
