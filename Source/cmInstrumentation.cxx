@@ -104,15 +104,15 @@ cmInstrumentation::cmInstrumentation(std::string const& binary_dir,
 
 void cmInstrumentation::LoadQueries()
 {
-  if (cmSystemTools::FileExists(cmStrCat(this->timingDirv1, "/query"))) {
-    this->hasQuery =
-      this->ReadJSONQueries(cmStrCat(this->timingDirv1, "/query")) ||
-      this->ReadJSONQueries(cmStrCat(this->timingDirv1, "/query/generated"));
-  }
-  if (!this->userTimingDirv1.empty() &&
-      cmSystemTools::FileExists(cmStrCat(this->userTimingDirv1, "/query"))) {
-    this->hasQuery = this->hasQuery ||
-      this->ReadJSONQueries(cmStrCat(this->userTimingDirv1, "/query"));
+  auto const readJSONQueries = [this](std::string const& dir) {
+    if (cmSystemTools::FileIsDirectory(dir) && this->ReadJSONQueries(dir)) {
+      this->hasQuery = true;
+    }
+  };
+  readJSONQueries(cmStrCat(this->timingDirv1, "/query"));
+  readJSONQueries(cmStrCat(this->timingDirv1, "/query/generated"));
+  if (!this->userTimingDirv1.empty()) {
+    readJSONQueries(cmStrCat(this->userTimingDirv1, "/query"));
   }
 }
 
@@ -159,12 +159,11 @@ cmsys::SystemInformation& cmInstrumentation::GetSystemInformation()
 bool cmInstrumentation::ReadJSONQueries(std::string const& directory)
 {
   cmsys::Directory d;
-  std::string json = ".json";
   bool result = false;
   if (d.Load(directory)) {
     for (unsigned int i = 0; i < d.GetNumberOfFiles(); i++) {
       std::string fpath = d.GetFilePath(i);
-      if (fpath.rfind(json) == (fpath.size() - json.size())) {
+      if (cmHasLiteralSuffix(fpath, ".json")) {
         result = true;
         this->ReadJSONQuery(fpath);
       }
@@ -637,7 +636,8 @@ int cmInstrumentation::InstrumentCommand(
 
   // Create empty config entry if config not found
   if (!root.isMember("config") &&
-      (command_type == "compile" || command_type == "link")) {
+      (command_type == "compile" || command_type == "link" ||
+       command_type == "custom" || command_type == "install")) {
     root["config"] = "";
   }
 
@@ -791,7 +791,7 @@ int cmInstrumentation::CollectTimingAfterBuild(int ppid)
   };
   int ret = this->InstrumentCommand(
     "build", {}, [waitForBuild]() { return waitForBuild(); }, cm::nullopt,
-    cm::nullopt, LoadQueriesAfter::No);
+    cm::nullopt, LoadQueriesAfter::Yes);
   this->CollectTimingData(cmInstrumentationQuery::Hook::PostBuild);
   return ret;
 }
@@ -944,21 +944,25 @@ void cmInstrumentation::AppendTraceEvent(Json::Value& trace,
 
   // Provide a useful trace event name depending on what data is available
   // from the snippet.
-  std::string name = cmStrCat(snippetData["role"].asString(), ": ");
+  std::string nameSuffix;
   if (snippetData["role"] == "compile") {
-    name.append(snippetData["source"].asString());
+    nameSuffix = snippetData["source"].asString();
   } else if (snippetData["role"] == "link") {
-    name.append(snippetData["target"].asString());
+    nameSuffix = snippetData["target"].asString();
   } else if (snippetData["role"] == "install") {
     cmCMakePath workingDir(snippetData["workingDir"].asCString());
-    std::string lastDirName = workingDir.GetFileName().String();
-    name.append(lastDirName);
+    nameSuffix = workingDir.GetFileName().String();
   } else if (snippetData["role"] == "custom") {
-    name.append(snippetData["command"].asString());
+    nameSuffix = snippetData["command"].asString();
   } else if (snippetData["role"] == "test") {
-    name.append(snippetData["testName"].asString());
+    nameSuffix = snippetData["testName"].asString();
   }
-  snippetTraceEvent["name"] = name;
+  if (!nameSuffix.empty()) {
+    snippetTraceEvent["name"] =
+      cmStrCat(snippetData["role"].asString(), ": ", nameSuffix);
+  } else {
+    snippetTraceEvent["name"] = snippetData["role"].asString();
+  }
 
   snippetTraceEvent["cat"] = snippetData["role"];
   snippetTraceEvent["ph"] = "X";
