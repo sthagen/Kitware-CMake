@@ -70,6 +70,7 @@ public:
   bool IsImported() const;
   bool IsImportedGloballyVisible() const;
   bool IsForeign() const;
+  bool IsSymbolic() const;
   bool CanCompileSources() const;
   bool HasKnownRuntimeArtifactLocation(std::string const& config) const;
   std::string const& GetLocation(std::string const& config) const;
@@ -534,8 +535,6 @@ public:
 
   std::vector<std::string> GetAppleArchs(std::string const& config,
                                          cm::optional<std::string> lang) const;
-
-  std::string const& GetTargetLabelsString();
 
   // The classification of the flag.
   enum class FlagClassification
