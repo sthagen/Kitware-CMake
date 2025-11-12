@@ -1335,6 +1335,7 @@ add_RunCMake_test(AutoExportDll
 add_RunCMake_test(AndroidMK)
 add_RunCMake_test(ExportPackageInfo)
 add_RunCMake_test(InstallPackageInfo)
+add_RunCMake_test(InstallExportsAsPackageInfo)
 
 if(CMake_TEST_ANDROID_NDK OR CMake_TEST_ANDROID_STANDALONE_TOOLCHAIN)
   if(NOT "${CMAKE_GENERATOR}" MATCHES "Make|Ninja|Visual Studio 1[456]")
@@ -1369,6 +1370,7 @@ add_RunCMake_test("CTestCommandExpandLists")
 add_RunCMake_test(PrecompileHeaders -DCMAKE_C_COMPILER_ID=${CMAKE_C_COMPILER_ID}
   -DCMAKE_C_SIMULATE_ID=${CMAKE_C_SIMULATE_ID}
   -DCMAKE_C_COMPILER_VERSION=${CMAKE_C_COMPILER_VERSION})
+add_RunCMake_test(PrecompileHeaders-Reuse -DCMAKE_C_COMPILER_ID=${CMAKE_C_COMPILER_ID})
 
 # This test can take a long time due to the number of test cases.
 # Provide an option to customize it.
