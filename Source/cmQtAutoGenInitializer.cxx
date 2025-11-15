@@ -5,6 +5,7 @@
 #include <array>
 #include <cstddef>
 #include <deque>
+#include <functional>
 #include <initializer_list>
 #include <limits>
 #include <map>
@@ -1394,7 +1395,7 @@ bool cmQtAutoGenInitializer::InitAutogenTarget()
   if (this->Uic.Enabled) {
     for (auto const& file : this->Uic.UiHeaders) {
       this->AddGeneratedSource(file.first, this->Uic);
-      if (this->GlobalGen && !GlobalGen->IsFastbuild()) {
+      if (!this->GlobalGen->IsFastbuild()) {
         autogenByproducts.push_back(file.second);
       }
     }
