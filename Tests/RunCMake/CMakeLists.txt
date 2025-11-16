@@ -523,6 +523,7 @@ add_RunCMake_test(GenEx-TARGET_IMPORT_FILE)
 add_RunCMake_test(GenEx-GENEX_EVAL)
 add_RunCMake_test(GenEx-TARGET_PROPERTY)
 add_RunCMake_test(GenEx-TARGET_RUNTIME_DLLS)
+add_RunCMake_test(GenEx-STRING)
 add_RunCMake_test(GenEx-PATH)
 add_RunCMake_test(GenEx-PATH_EQUAL)
 add_RunCMake_test(GenEx-LIST)
@@ -833,11 +834,14 @@ set_property(TEST RunCMake.DependencyGraph APPEND PROPERTY LABELS "Fortran")
 
 # Add C++ Module tests.
 add_RunCMake_test(CXXModules
+  -DCMake_TEST_CXX_STDLIB_MODULES_JSON=${CMake_TEST_CXX_STDLIB_MODULES_JSON}
+)
+add_RunCMake_test(CXXModulesCompile
   -DCMake_TEST_MODULE_COMPILATION=${CMake_TEST_MODULE_COMPILATION}
   -DCMake_TEST_MODULE_COMPILATION_RULES=${CMake_TEST_MODULE_COMPILATION_RULES}
   -DCMake_TEST_CXX_STDLIB_MODULES_JSON=${CMake_TEST_CXX_STDLIB_MODULES_JSON}
 )
-set_property(TEST RunCMake.CXXModules APPEND
+set_property(TEST RunCMake.CXXModules RunCMake.CXXModulesCompile APPEND
   PROPERTY LABELS "CXXModules")
 
 # ctresalloc links against CMakeLib and CTestLib, which means it can't be built
