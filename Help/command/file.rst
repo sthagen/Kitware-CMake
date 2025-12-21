@@ -915,6 +915,7 @@ Archiving
     [COMPRESSION <compression>
     [COMPRESSION_LEVEL <compression-level>]]
     [MTIME <mtime>]
+    [THREADS <number>]
     [WORKING_DIRECTORY <dir>]
     [VERBOSE])
   :target: ARCHIVE_CREATE
@@ -933,16 +934,54 @@ Archiving
     ``7zip``, ``gnutar``, ``pax``, ``paxr``, ``raw`` and ``zip``.
     If ``FORMAT`` is not given, the default format is ``paxr``.
 
+    The default compression method depends on the format:
+
+    * ``7zip`` uses ``LZMA`` compression
+    * ``zip`` uses ``Deflate`` compression
+    * others uses no compression by default
+
   ``COMPRESSION <compression>``
     Some archive formats allow the type of compression to be specified.
     The ``7zip`` and ``zip`` archive formats already imply a specific type of
     compression.  The other formats use no compression by default, but can be
     directed to do so with the ``COMPRESSION`` option.  Valid values for
-    ``<compression>`` are ``None``, ``BZip2``, ``GZip``, ``XZ``, and ``Zstd``.
+    ``<compression>`` are:
+
+    * ``None``
+    * ``BZip2``
+    * ``Deflate``
+
+      .. versionadded:: 4.3
+
+      This is an alias for ``GZip``.
+
+    * ``GZip``
+    * ``LZMA``
+
+      .. versionadded:: 4.3
+
+    * ``LZMA2``
+
+      .. versionadded:: 4.3
+
+      This is an alias for ``XZ``.
+
+    * ``PPMd``
+
+      .. versionadded:: 4.3
+
+      This compression method is only supported by the ``7zip`` archive format.
+
+    * ``XZ``
+    * ``Zstd``
 
     .. note::
       With ``FORMAT`` set to ``raw``, only one file will be compressed
       with the compression type specified by ``COMPRESSION``.
+
+    .. versionadded:: 4.3
+
+      The ``7zip`` and ``zip`` formats support changing the default compression.
 
   ``COMPRESSION_LEVEL <compression-level>``
     .. versionadded:: 3.19
@@ -952,12 +991,29 @@ Archiving
     default being 0.  The ``COMPRESSION`` option must be present when
     ``COMPRESSION_LEVEL`` is given.
 
+    The value ``0`` is used to specify the default compression level.
+    It is selected automatically by the archive library backend and
+    not directly set by CMake itself. The default compression level
+    may vary between archive formats, platforms, etc.
+
     .. versionadded:: 3.26
       The ``<compression-level>`` of the ``Zstd`` algorithm can be set
       between 0-19.
 
+    .. versionadded:: 4.3
+      The ``<compression-level>`` can be specified for the ``7zip`` and ``zip``
+      formats too. The ``Zstd`` algorithm compression level can be set between 0-19, except for ``zip`` format.
+
   ``MTIME <mtime>``
     Specify the modification time recorded in tarball entries.
+
+  ``THREADS <number>``
+    .. versionadded:: 4.3
+
+    Use the ``<number>`` threads to operate on the archive.
+
+    The number of available cores on the machine will be used if set to ``0``.
+    Note that not all compression modes support threading in all environments.
 
   ``WORKING_DIRECTORY <dir>``
     .. versionadded:: 3.31

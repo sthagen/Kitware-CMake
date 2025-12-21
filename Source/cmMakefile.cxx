@@ -3330,7 +3330,7 @@ int cmMakefile::TryCompile(std::string const& srcdir,
 
   // finally call the generator to actually build the resulting project
   int ret = this->GetGlobalGenerator()->TryCompile(
-    jobs, srcdir, bindir, projectName, targetName, fast, output, this);
+    jobs, bindir, projectName, targetName, fast, output, this);
 
   this->IsSourceFileTryCompile = false;
   return ret;
@@ -4085,7 +4085,7 @@ bool cmMakefile::SetPolicy(cmPolicies::PolicyID id,
   }
 
   // Deprecate old policies.
-  if (status == cmPolicies::OLD && id <= cmPolicies::CMP0143 &&
+  if (status == cmPolicies::OLD && id <= cmPolicies::CMP0151 &&
       !(this->GetCMakeInstance()->GetIsInTryCompile() &&
         (
           // Policies set by cmCoreTryCompile::TryCompileCode.

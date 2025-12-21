@@ -5,6 +5,7 @@
 #include <functional>
 #include <iomanip>
 #include <iterator>
+#include <limits>
 
 #include <cm/optional>
 #include <cmext/algorithm>
@@ -1582,10 +1583,13 @@ int cmcmd::ExecuteCMakeCommand(std::vector<std::string> const& args,
       std::vector<std::string> files;
       std::string mtime;
       std::string format;
+      int numThreads = 1;
+      int compressionLevel = 0;
+      bool compressionLevelFlagPassed = false;
       cmSystemTools::cmTarExtractTimestamps extractTimestamps =
         cmSystemTools::cmTarExtractTimestamps::Yes;
       cmSystemTools::cmTarCompression compress =
-        cmSystemTools::TarCompressNone;
+        cmSystemTools::TarCompressAuto;
       int nCompress = 0;
       bool doing_options = true;
       for (auto const& arg : cmMakeRange(args).advance(4)) {
@@ -1595,8 +1599,64 @@ int cmcmd::ExecuteCMakeCommand(std::vector<std::string> const& args,
           } else if (arg == "--zstd") {
             compress = cmSystemTools::TarCompressZstd;
             ++nCompress;
+          } else if (arg == "--lzma") {
+            compress = cmSystemTools::TarCompressLZMA;
+            ++nCompress;
           } else if (cmHasLiteralPrefix(arg, "--mtime=")) {
             mtime = arg.substr(8);
+          } else if (cmHasLiteralPrefix(arg, "--cmake-tar-threads=")) {
+            std::string const& numThreadsStr = arg.substr(20);
+            long numThreadsLong = 0;
+            if (!cmStrToLong(numThreadsStr, &numThreadsLong)) {
+              cmSystemTools::Error(
+                cmStrCat("Invalid --cmake-tar-threads value: '", numThreadsStr,
+                         "' - not a number"));
+              return 1;
+            }
+            if (numThreadsLong >
+                std::numeric_limits<decltype(numThreads)>::max()) {
+              cmSystemTools::Error(
+                cmStrCat("Invalid --cmake-tar-threads value: '", numThreadsStr,
+                         "' - too large"));
+              return 1;
+            }
+            if (numThreadsLong <
+                std::numeric_limits<decltype(numThreads)>::min()) {
+              cmSystemTools::Error(
+                cmStrCat("Invalid --cmake-tar-threads value: '", numThreadsStr,
+                         "' - too small"));
+              return 1;
+            }
+
+            numThreads = static_cast<decltype(numThreads)>(numThreadsLong);
+          } else if (cmHasLiteralPrefix(arg,
+                                        "--cmake-tar-compression-level=")) {
+            std::string const& compressionLevelStr = arg.substr(30);
+            long compressionLevelLong = 0;
+            if (!cmStrToLong(compressionLevelStr, &compressionLevelLong)) {
+              cmSystemTools::Error(
+                cmStrCat("Invalid --cmake-tar-compression-level value: '",
+                         compressionLevelStr, "' - not a number"));
+              return 1;
+            }
+            if (compressionLevelLong >
+                std::numeric_limits<decltype(compressionLevel)>::max()) {
+              cmSystemTools::Error(
+                cmStrCat("Invalid --cmake-tar-compression-level value: '",
+                         compressionLevelStr, "' - too large"));
+              return 1;
+            }
+            if (compressionLevelLong <
+                std::numeric_limits<decltype(compressionLevel)>::min()) {
+              cmSystemTools::Error(
+                cmStrCat("Invalid --cmake-tar-compression-level value: '",
+                         compressionLevelStr, "' - too small"));
+              return 1;
+            }
+
+            compressionLevel =
+              static_cast<decltype(compressionLevel)>(compressionLevelLong);
+            compressionLevelFlagPassed = true;
           } else if (cmHasLiteralPrefix(arg, "--files-from=")) {
             std::string const& files_from = arg.substr(13);
             if (!cmTarFilesFrom(files_from, files)) {
@@ -1657,16 +1717,33 @@ int cmcmd::ExecuteCMakeCommand(std::vector<std::string> const& args,
           }
         }
       }
-      if ((format == "7zip" || format == "zip") && nCompress > 0) {
-        cmSystemTools::Error("Can not use compression flags with format: " +
-                             format);
-        return 1;
-      }
       if (nCompress > 1) {
         cmSystemTools::Error("Can only compress a tar file one way; "
                              "at most one flag of z, j, or J may be used");
         return 1;
       }
+      if (compressionLevelFlagPassed) {
+        if (nCompress == 0 && format != "zip" && format != "7zip") {
+          cmSystemTools::Error("Can not use --cmake-tar-compression-level "
+                               "without compression algorithm selection");
+          return 1;
+        }
+
+        constexpr int minCompressionLevel = 0;
+        int maxCompressionLevel = 9;
+        if (compress == cmSystemTools::TarCompressZstd && format != "zip") {
+          maxCompressionLevel = 19;
+        }
+
+        if (compressionLevel < minCompressionLevel ||
+            compressionLevel > maxCompressionLevel) {
+          cmSystemTools::Error(cmStrCat(
+            "Compression level must be between ", minCompressionLevel, " and ",
+            maxCompressionLevel, ". Got ", compressionLevel));
+          return 1;
+        }
+      }
+
       if (action == cmSystemTools::TarActionList) {
         if (!cmSystemTools::ListTar(outFile, files, verbose)) {
           cmSystemTools::Error("Problem listing tar: " + outFile);
@@ -1677,7 +1754,8 @@ int cmcmd::ExecuteCMakeCommand(std::vector<std::string> const& args,
           std::cerr << "tar: No files or directories specified\n";
         }
         if (!cmSystemTools::CreateTar(outFile, files, {}, compress, verbose,
-                                      mtime, format)) {
+                                      mtime, format, compressionLevel,
+                                      numThreads)) {
           cmSystemTools::Error("Problem creating tar: " + outFile);
           return 1;
         }
@@ -2132,7 +2210,7 @@ int cmcmd::RunPreprocessor(std::vector<std::string> const& command,
     return 1;
   }
   if (process.GetStatus(0).ExitStatus != 0) {
-    cmUVPipeIStream errorStream(process.GetLoop(), process.ErrorStream());
+    cmUVIStream errorStream(process.ErrorStream());
     std::cerr << errorStream.rdbuf();
 
     return 1;
@@ -2257,7 +2335,7 @@ int cmcmd::RunLLVMRC(std::vector<std::string> const& args)
     return result;
   }
   if (process.GetStatus(0).ExitStatus != 0) {
-    cmUVPipeIStream errorStream(process.GetLoop(), process.ErrorStream());
+    cmUVIStream errorStream(process.ErrorStream());
     std::cerr << errorStream.rdbuf();
     return 1;
   }

@@ -374,13 +374,11 @@ public:
     None,
     STDOUT,
     STDERR,
-    Timeout,
   };
 
   /** a general output handler for libuv  */
   static WaitForLineResult WaitForLine(uv_loop_t* loop, uv_stream_t* outPipe,
                                        uv_stream_t* errPipe, std::string& line,
-                                       cmDuration timeout,
                                        std::vector<char>& out,
                                        std::vector<char>& err);
 
@@ -547,8 +545,11 @@ public:
   {
     TarCompressGZip,
     TarCompressBZip2,
+    TarCompressLZMA,
     TarCompressXZ,
     TarCompressZstd,
+    TarCompressPPMd,
+    TarCompressAuto,
     TarCompressNone
   };
 
@@ -566,7 +567,7 @@ public:
                         cmTarCompression compressType, bool verbose,
                         std::string const& mtime = std::string(),
                         std::string const& format = std::string(),
-                        int compressionLevel = 0);
+                        int compressionLevel = 0, int numThreads = 1);
   static bool ExtractTar(std::string const& inFileName,
                          std::vector<std::string> const& files,
                          cmTarExtractTimestamps extractTimestamps,

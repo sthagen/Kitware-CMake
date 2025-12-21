@@ -157,24 +157,38 @@ if(BUILD_TESTING)
   # Look for git to use for tests.
   find_program(GIT_EXECUTABLE NAMES git)
 
-  # Look for rpmbuild to use for tests.
-  # The tool does not work with spaces in the path.
-  if(NOT CMAKE_CURRENT_BINARY_DIR MATCHES " ")
-    find_program(RPMBUILD_EXECUTABLE NAMES rpmbuild)
-  else()
-    set(RPMBUILD_EXECUTABLE "RPMBUILD_EXECUTABLE-NOTFOUND")
+  if(NOT DEFINED CMake_TEST_CPACK_RPM)
+    # Look for rpmbuild to use for tests.
+    # The tool does not work with spaces in the path.
+    if(NOT CMAKE_CURRENT_BINARY_DIR MATCHES " ")
+      find_program(RPMBUILD_EXECUTABLE NAMES rpmbuild)
+    else()
+      set(RPMBUILD_EXECUTABLE "RPMBUILD_EXECUTABLE-NOTFOUND")
+    endif()
+    if(RPMBUILD_EXECUTABLE)
+      set(CMake_TEST_CPACK_RPM 1)
+    else()
+      set(CMake_TEST_CPACK_RPM 0)
+    endif()
   endif()
 
-  if(RPMBUILD_EXECUTABLE)
+  if(CMake_TEST_CPACK_RPM)
     set(CPACK_BINARY_RPM ON)
   else()
     set(CPACK_BINARY_RPM OFF)
   endif()
 
-  # Look for dpkg to use for tests.
-  find_program(DPKG_EXECUTABLE NAMES dpkg)
+  if(NOT DEFINED CMake_TEST_CPACK_DEB)
+    # Look for dpkg to use for tests.
+    find_program(DPKG_EXECUTABLE NAMES dpkg)
+    if(DPKG_EXECUTABLE)
+      set(CMake_TEST_CPACK_DEB 1)
+    else()
+      set(CMake_TEST_CPACK_DEB 0)
+    endif()
+  endif()
 
-  if(DPKG_EXECUTABLE)
+  if(CMake_TEST_CPACK_DEB)
     set(CPACK_BINARY_DEB ON)
   else()
     set(CPACK_BINARY_DEB OFF)
@@ -1205,7 +1219,7 @@ if(BUILD_TESTING)
     endforeach()
 
     # debian specific
-    if(DPKG_EXECUTABLE)
+    if(CMake_TEST_CPACK_DEB)
       unset(CPackRun_CPackDEBConfiguration_ALL_CONFIGS)
       set(DEB_TEST_NAMES "CPackComponentsDEB")
       set(DEB_CONFIGURATIONS_TO_TEST "components-lintian-dpkgdeb-checks"
@@ -3036,25 +3050,6 @@ if(BUILD_TESTING)
     PASS_REGULAR_EXPRESSION "0 tests failed out of 3")
 
   configure_file(
-    "${CMake_SOURCE_DIR}/Tests/CTestTestTimeout/test.cmake.in"
-    "${CMake_BINARY_DIR}/Tests/CTestTestTimeout/test.cmake"
-    @ONLY ESCAPE_QUOTES)
-  add_test(CTestTestTimeout ${CMAKE_CTEST_COMMAND}
-    -C "\${CTestTest_CONFIG}"
-    -S "${CMake_BINARY_DIR}/Tests/CTestTestTimeout/test.cmake" -V
-    --output-log "${CMake_BINARY_DIR}/Tests/CTestTestTimeout/testOutput.log"
-    )
-  set_tests_properties(CTestTestTimeout PROPERTIES
-    PASS_REGULAR_EXPRESSION "TestTimeout *\\.+ *\\*\\*\\*Timeout.*TestSleep *\\.+ *Passed.*timeout correctly killed child")
-
-  add_test(
-    NAME CTestTestRerunFailed
-    COMMAND ${CMAKE_CTEST_COMMAND} --rerun-failed)
-  set_tests_properties(CTestTestRerunFailed PROPERTIES
-    PASS_REGULAR_EXPRESSION "1/1 Test #1: TestTimeout" DEPENDS CTestTestTimeout
-    WORKING_DIRECTORY ${CMake_BINARY_DIR}/Tests/CTestTestTimeout)
-
-  configure_file(
     "${CMake_SOURCE_DIR}/Tests/CTestTestDepends/test.cmake.in"
     "${CMake_BINARY_DIR}/Tests/CTestTestDepends/test.cmake"
     @ONLY ESCAPE_QUOTES)
@@ -3356,75 +3351,6 @@ if(BUILD_TESTING)
         endif()
       endif()
     endif()
-  endif()
-
-  # add some cross compiler tests, for now only with makefile based generators
-  if(CMAKE_GENERATOR MATCHES "Makefiles")
-
-    # if sdcc is found, build the SimpleCOnly project with sdcc
-    find_program(SDCC_EXECUTABLE sdcc)
-    mark_as_advanced(SDCC_EXECUTABLE)
-    if(SDCC_EXECUTABLE)
-      add_test(SimpleCOnly_sdcc ${CMAKE_CTEST_COMMAND}
-        --build-and-test
-        "${CMake_SOURCE_DIR}/Tests/SimpleCOnly"
-        "${CMake_BINARY_DIR}/Tests/SimpleCOnly_sdcc"
-        ${build_generator_args}
-        --build-project SimpleC
-        --build-options
-          "-DCMAKE_SYSTEM_NAME=Generic"
-          "-DCMAKE_C_COMPILER=${SDCC_EXECUTABLE}")
-      list(APPEND TEST_BUILD_DIRS "${CMake_BINARY_DIR}/Tests/SimpleCOnly_sdcc")
-    endif()
-
-    # If a Linux -> MinGW cross compiler is found then try it
-    find_program(MINGW_CC_LINUX2WIN_EXECUTABLE i586-mingw32msvc-gcc)
-    find_program(MINGW_CXX_LINUX2WIN_EXECUTABLE i586-mingw32msvc-g++)
-    find_program(MINGW_RC_LINUX2WIN_EXECUTABLE i586-mingw32msvc-windres)
-    mark_as_advanced(MINGW_CC_LINUX2WIN_EXECUTABLE MINGW_CXX_LINUX2WIN_EXECUTABLE MINGW_RC_LINUX2WIN_EXECUTABLE)
-    if(MINGW_CC_LINUX2WIN_EXECUTABLE AND MINGW_CXX_LINUX2WIN_EXECUTABLE AND MINGW_RC_LINUX2WIN_EXECUTABLE)
-      add_test(Simple_Mingw_Linux2Win ${CMAKE_CTEST_COMMAND}
-        --build-and-test
-        "${CMake_SOURCE_DIR}/Tests/Simple"
-        "${CMake_BINARY_DIR}/Tests/Simple_Mingw_Linux2Win"
-        ${build_generator_args}
-        --build-project Simple
-        --build-options
-          "-DCMAKE_SYSTEM_NAME=Windows"
-          "-DCMAKE_C_COMPILER=${MINGW_CC_LINUX2WIN_EXECUTABLE}"
-          "-DCMAKE_CXX_COMPILER=${MINGW_CXX_LINUX2WIN_EXECUTABLE}"
-          "-DCMAKE_RC_COMPILER=${MINGW_RC_LINUX2WIN_EXECUTABLE}"
-        )
-      list(APPEND TEST_BUILD_DIRS "${CMake_BINARY_DIR}/Tests/Simple_Mingw_Linux2Win")
-    endif()
-  endif()
-
-  if(CMAKE_TEST_PROJECT_CSE_DIR)
-    set(script "${CMAKE_TEST_PROJECT_CSE_DIR}/BuildProjectCSE.cmake")
-    if(NOT EXISTS "${script}")
-      set(script "${CMAKE_TEST_PROJECT_CSE_DIR}/cse_build.cmake")
-    endif()
-    if(NOT EXISTS "${script}")
-      message("warning: CMAKE_TEST_PROJECT_CSE_DIR set, but no build script found...")
-    endif()
-
-    add_test(BuildCSE ${CMAKE_CTEST_COMMAND} -V -S "${script}")
-    set_tests_properties(BuildCSE PROPERTIES TIMEOUT 5400)
-  endif()
-
-  if(CMAKE_TEST_PLPLOT_DIR)
-    add_test(plplot ${CMAKE_CTEST_COMMAND} -V -S ${CMAKE_TEST_PLPLOT_DIR}/../../EasyDashboardScripts/plplot.cmake)
-    set_tests_properties ( plplot PROPERTIES TIMEOUT 5400)
-  endif()
-
-  if(CMAKE_TEST_CHICKEN_DIR)
-    add_test(Chicken ${CMAKE_CTEST_COMMAND} -V -S ${CMAKE_TEST_CHICKEN_DIR}/../../EasyDashboardScripts/Chicken.cmake)
-    set_tests_properties(Chicken PROPERTIES TIMEOUT 5400)
-  endif()
-
-  if(CMAKE_TEST_KDELIBS_ALPHA_1_DIR)
-    add_test(KDELibsAlpha1 ${CMAKE_CTEST_COMMAND} -V -S ${CMAKE_TEST_KDELIBS_ALPHA_1_DIR}/../../EasyDashboardScripts/kdelibs.cmake)
-    set_tests_properties(KDELibsAlpha1 PROPERTIES TIMEOUT 5400)
   endif()
 
   # Define a set of "contract" tests, each activated by a cache entry

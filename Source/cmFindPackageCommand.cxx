@@ -86,7 +86,7 @@ std::size_t collectPathsForDebug(std::string& buffer,
     return 0;
   }
   for (auto i = startIndex; i < paths.size(); i++) {
-    buffer += "  " + paths[i].Path + "\n";
+    buffer += cmStrCat("  ", paths[i].Path, '\n');
   }
   return paths.size();
 }
@@ -1671,6 +1671,12 @@ bool cmFindPackageCommand::HandlePackageMode(
         "fileFound is true but FileFound is empty!");
       fileFound = false;
     }
+
+    if (fileFound) {
+      this->CurrentPackageInfo->Directory =
+        cmSystemTools::GetFilenamePath(this->FileFound);
+      this->CurrentPackageInfo->Version = this->VersionFound;
+    }
   }
 
   std::string const foundVar = cmStrCat(this->Name, "_FOUND");
@@ -1975,8 +1981,6 @@ bool cmFindPackageCommand::FindConfig()
   std::string init;
   if (found) {
     init = cmSystemTools::GetFilenamePath(this->FileFound);
-    this->CurrentPackageInfo->Directory = init;
-    this->CurrentPackageInfo->Version = this->VersionFound;
   } else {
     init = this->Variable + "-NOTFOUND";
   }
@@ -2238,7 +2242,7 @@ bool cmFindPackageCommand::ImportPackageTargets(cmPackageState& packageState,
   }
 
   // Import base file.
-  if (!reader.ImportTargets(this->Makefile, this->Status)) {
+  if (!reader.ImportTargets(this->Makefile, this->Status, this->GlobalScope)) {
     return false;
   }
 

@@ -663,7 +663,7 @@ bool cmCTest::OpenOutputFile(std::string const& path, std::string const& name,
       return false;
     }
   }
-  std::string filename = testingDir + "/" + name;
+  std::string filename = cmStrCat(testingDir, '/', name);
   stream.Open(filename);
   if (!stream) {
     cmCTestLog(this, ERROR_MESSAGE,
@@ -695,8 +695,8 @@ bool cmCTest::AddIfExists(Part part, std::string const& file)
 
 bool cmCTest::CTestFileExists(std::string const& filename)
 {
-  std::string testingDir = this->Impl->BinaryDir + "/Testing/" +
-    this->Impl->CurrentTag + "/" + filename;
+  std::string testingDir = cmStrCat(this->Impl->BinaryDir, "/Testing/",
+                                    this->Impl->CurrentTag, '/', filename);
   return cmSystemTools::FileExists(testingDir);
 }
 
@@ -821,7 +821,7 @@ int cmCTest::ProcessSteps()
     unsigned long kk;
     for (kk = 0; kk < d.GetNumberOfFiles(); kk++) {
       char const* file = d.GetFile(kk);
-      std::string fullname = notes_dir + "/" + file;
+      std::string fullname = cmStrCat(notes_dir, '/', file);
       if (cmSystemTools::FileExists(fullname, true)) {
         if (!this->Impl->NotesFiles.empty()) {
           this->Impl->NotesFiles += ";";
@@ -921,9 +921,7 @@ bool cmCTest::RunMakeCommand(std::string const& command, std::string& output,
     builder.SetWorkingDirectory(dir);
   }
   auto chain = builder.Start();
-  cm::uv_pipe_ptr outputStream;
-  outputStream.init(chain.GetLoop(), 0);
-  uv_pipe_open(outputStream, chain.OutputStream());
+  uv_stream_t* outputStream = chain.OutputStream();
 
   // Initialize tick's
   std::string::size_type tick = 0;
@@ -1032,8 +1030,8 @@ void cmCTest::StartXML(cmXMLWriter& xml, cmake* cm, bool append)
 
   std::string buildname =
     cmCTest::SafeBuildIdField(this->GetCTestConfiguration("BuildName"));
-  std::string stamp = cmCTest::SafeBuildIdField(this->Impl->CurrentTag + "-" +
-                                                this->GetTestGroupString());
+  std::string stamp = cmCTest::SafeBuildIdField(
+    cmStrCat(this->Impl->CurrentTag, '-', this->GetTestGroupString()));
   std::string site =
     cmCTest::SafeBuildIdField(this->GetCTestConfiguration("Site"));
 
@@ -1150,8 +1148,9 @@ int cmCTest::GenerateCTestNotesOutput(cmXMLWriter& xml, cmake* cm,
                             "<file:///Dart/Source/Server/XSL/Build.xsl> \"");
   xml.StartElement("Site");
   xml.Attribute("BuildName", buildname);
-  xml.Attribute("BuildStamp",
-                this->Impl->CurrentTag + "-" + this->GetTestGroupString());
+  xml.Attribute(
+    "BuildStamp",
+    cmStrCat(this->Impl->CurrentTag, '-', this->GetTestGroupString()));
   xml.Attribute("Name", this->GetCTestConfiguration("Site"));
   xml.Attribute("Generator",
                 std::string("ctest-") + cmVersion::GetCMakeVersion());
@@ -1175,7 +1174,7 @@ int cmCTest::GenerateCTestNotesOutput(cmXMLWriter& xml, cmake* cm,
       }
       ifs.close();
     } else {
-      xml.Content("Problem reading file: " + file + "\n");
+      xml.Content(cmStrCat("Problem reading file: ", file, '\n'));
       cmCTestLog(this, ERROR_MESSAGE,
                  "Problem reading file: " << file << " while creating notes"
                                           << std::endl);
@@ -1667,12 +1666,12 @@ bool cmCTest::SetArgsFromPreset(std::string const& presetName,
           auto const& start = expandedPreset->Filter->Include->Index->Start;
           auto const& end = expandedPreset->Filter->Include->Index->End;
           auto const& stride = expandedPreset->Filter->Include->Index->Stride;
-          std::string indexOptions;
-          indexOptions += (start ? std::to_string(*start) : "") + ",";
-          indexOptions += (end ? std::to_string(*end) : "") + ",";
-          indexOptions += (stride ? std::to_string(*stride) : "") + ",";
-          indexOptions +=
-            cmJoin(expandedPreset->Filter->Include->Index->SpecificTests, ",");
+          std::string indexOptions = cmStrCat(
+            (start ? std::to_string(*start) : std::string{}), ',',
+            (end ? std::to_string(*end) : std::string{}), ',',
+            (stride ? std::to_string(*stride) : std::string{}), ',',
+            cmJoin(expandedPreset->Filter->Include->Index->SpecificTests,
+                   ","));
 
           this->Impl->TestOptions.TestsToRunInformation = indexOptions;
         } else {
@@ -3293,19 +3292,14 @@ bool cmCTest::RunCommand(std::vector<std::string> const& args,
 
   std::vector<char> tempOutput;
   bool outFinished = false;
-  cm::uv_pipe_ptr outStream;
   std::vector<char> tempError;
   bool errFinished = false;
-  cm::uv_pipe_ptr errStream;
   cmProcessOutput processOutput(encoding);
-  auto startRead = [this, &chain, &processOutput](
-                     cm::uv_pipe_ptr& pipe, int stream,
-                     std::vector<char>& temp,
+  auto startRead = [this, &processOutput](
+                     uv_stream_t* stream, std::vector<char>& temp,
                      bool& finished) -> std::unique_ptr<cmUVStreamReadHandle> {
-    pipe.init(chain.GetLoop(), 0);
-    uv_pipe_open(pipe, stream);
     return cmUVStreamRead(
-      pipe,
+      stream,
       [this, &temp, &processOutput](std::vector<char> data) {
         cm::append(temp, data);
         if (this->Impl->ExtraVerbose) {
@@ -3316,10 +3310,8 @@ bool cmCTest::RunCommand(std::vector<std::string> const& args,
       },
       [&finished]() { finished = true; });
   };
-  auto outputHandle =
-    startRead(outStream, chain.OutputStream(), tempOutput, outFinished);
-  auto errorHandle =
-    startRead(errStream, chain.ErrorStream(), tempError, errFinished);
+  auto outputHandle = startRead(chain.OutputStream(), tempOutput, outFinished);
+  auto errorHandle = startRead(chain.ErrorStream(), tempError, errFinished);
   while (!timedOut && !(outFinished && errFinished)) {
     uv_run(&chain.GetLoop(), UV_RUN_ONCE);
   }

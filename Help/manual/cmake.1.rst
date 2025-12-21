@@ -1450,7 +1450,7 @@ Available commands are:
 
   .. option:: z
 
-    Compress the resulting archive with gzip.
+    Compress the resulting archive with gzip (Deflate).
 
   .. option:: j
 
@@ -1467,6 +1467,12 @@ Available commands are:
     .. versionadded:: 3.15
 
     Compress the resulting archive with Zstandard.
+
+  .. option:: --lzma
+
+    .. versionadded:: 4.3
+
+    Compress the resulting archive with LZMA algorithm.
 
   .. option:: --files-from=<file>
 
@@ -1485,11 +1491,50 @@ Available commands are:
     Supported formats are: ``7zip``, ``gnutar``, ``pax``,
     ``paxr`` (restricted pax, default), and ``zip``.
 
+    If the compression method is not specified, the compression method
+    depends on the format:
+
+    * ``7zip`` uses ``LZMA`` compression
+    * ``zip`` uses ``Deflate`` compression
+    * others uses no compression by default
+
+    .. versionadded:: 4.3
+
+      The ``7zip`` and ``zip`` formats support changing the default compression
+      method and compression level.
+
   .. option:: --mtime=<date>
 
     .. versionadded:: 3.1
 
     Specify modification time recorded in tarball entries.
+
+  .. option:: --cmake-tar-compression-level=<compression-level>
+
+    .. versionadded:: 4.3
+
+    The ``<compression-level>`` should be between ``0`` and ``9``, with the
+    default being ``0``.  The compression algorithm must be selected when
+    the ``--cmake-tar-compression-level`` option is given.
+
+    The ``<compression-level>`` of the ``Zstd`` algorithm can be set
+    between ``0`` and ``19``, except for the ``zip`` format.
+
+    The value ``0`` is used to specify the default compression level.
+    It is selected automatically by the archive library backend and
+    not directly set by CMake itself. The default compression level
+    may vary between archive formats, platforms, etc.
+
+  .. option:: --cmake-tar-threads=<number>
+
+    .. versionadded:: 4.3
+
+    Use the ``<number>`` threads to operate on the archive. Currently only
+    multi-threaded compression is supported.
+
+    If set to ``0``, the number of available cores on the machine will be
+    used instead. Note that not all compression modes support threading
+    in all environments.
 
   .. option:: --touch
 

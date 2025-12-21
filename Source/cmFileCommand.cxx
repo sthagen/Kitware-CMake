@@ -93,8 +93,8 @@ bool HandleWriteImpl(std::vector<std::string> const& args, bool append,
   i++;
 
   if (!status.GetMakefile().CanIWriteThisFile(fileName)) {
-    std::string e =
-      "attempted to write a file: " + fileName + " into a source directory.";
+    std::string e = cmStrCat("attempted to write a file: ", fileName,
+                             " into a source directory.");
     status.SetError(e);
     cmSystemTools::SetFatalErrorOccurred();
     return false;
@@ -770,13 +770,13 @@ bool HandleGlobImpl(std::vector<std::string> const& args, bool recurse,
           if (globMessage.type == cmsys::Glob::cyclicRecursion) {
             status.GetMakefile().IssueMessage(
               MessageType::AUTHOR_WARNING,
-              "Cyclic recursion detected while globbing for '" + *i + "':\n" +
-                globMessage.content);
+              cmStrCat("Cyclic recursion detected while globbing for '", *i,
+                       "':\n", globMessage.content));
           } else if (globMessage.type == cmsys::Glob::error) {
             status.GetMakefile().IssueMessage(
               MessageType::FATAL_ERROR,
-              "Error has occurred while globbing for '" + *i + "' - " +
-                globMessage.content);
+              cmStrCat("Error has occurred while globbing for '", *i, "' - ",
+                       globMessage.content));
             shouldExit = true;
           } else if (cm->GetDebugOutput() || cm->GetTrace()) {
             status.GetMakefile().IssueMessage(
@@ -929,8 +929,8 @@ bool HandleTouchImpl(std::vector<std::string> const& args, bool create,
         cmStrCat(status.GetMakefile().GetCurrentSourceDirectory(), '/', arg);
     }
     if (!status.GetMakefile().CanIWriteThisFile(tfile)) {
-      std::string e =
-        "attempted to touch a file: " + tfile + " in a source directory.";
+      std::string e = cmStrCat("attempted to touch a file: ", tfile,
+                               " in a source directory.");
       status.SetError(e);
       cmSystemTools::SetFatalErrorOccurred();
       return false;
@@ -3017,7 +3017,7 @@ bool HandleLockCommand(std::vector<std::string> const& args,
     cmSystemTools::SetFatalErrorOccurred();
     return false;
   }
-  FILE* file = cmsys::SystemTools::Fopen(path, "w");
+  FILE* file = cmsys::SystemTools::Fopen(path, "a");
   if (!file) {
     status.GetMakefile().IssueMessage(
       MessageType::FATAL_ERROR,
@@ -3106,8 +3106,9 @@ bool HandleTimestampCommand(std::vector<std::string> const& args,
     if (args[argsIndex] == "UTC") {
       utcFlag = true;
     } else {
-      std::string e = " TIMESTAMP sub-command does not recognize option " +
-        args[argsIndex] + ".";
+      std::string e =
+        cmStrCat(" TIMESTAMP sub-command does not recognize option ",
+                 args[argsIndex], '.');
       status.SetError(e);
       return false;
     }
@@ -3227,7 +3228,8 @@ bool HandleCreateLinkCommand(std::vector<std::string> const& args,
   if (!arguments.Symbolic &&
       (!cmSystemTools::PathExists(fileName) ||
        (cmp0205 != cmPolicies::NEW && !cmSystemTools::FileExists(fileName)))) {
-    result = "Cannot hard link \'" + fileName + "\' as it does not exist.";
+    result =
+      cmStrCat("Cannot hard link \'", fileName, "\' as it does not exist.");
     if (!arguments.Result.empty()) {
       status.GetMakefile().AddDefinition(arguments.Result, result);
       return true;
@@ -3469,7 +3471,7 @@ bool HandleGetRuntimeDependenciesCommand(std::vector<std::string> const& args,
       deps.push_back(firstPath);
       if (!parsedArgs.RPathPrefix.empty()) {
         status.GetMakefile().AddDefinition(
-          parsedArgs.RPathPrefix + "_" + firstPath,
+          cmStrCat(parsedArgs.RPathPrefix, '_', firstPath),
           cmList::to_string(archive.GetRPaths().at(firstPath)));
       }
     } else if (!parsedArgs.ConflictingDependenciesPrefix.empty()) {
@@ -3477,7 +3479,7 @@ bool HandleGetRuntimeDependenciesCommand(std::vector<std::string> const& args,
       std::vector<std::string> paths;
       paths.insert(paths.begin(), val.second.begin(), val.second.end());
       std::string varName =
-        parsedArgs.ConflictingDependenciesPrefix + "_" + val.first;
+        cmStrCat(parsedArgs.ConflictingDependenciesPrefix, '_', val.first);
       std::string pathsStr = cmList::to_string(paths);
       status.GetMakefile().AddDefinition(varName, pathsStr);
     } else {
@@ -3666,6 +3668,7 @@ bool HandleArchiveCreateCommand(std::vector<std::string> const& args,
     // accepted without one and treated as if an empty value were given.
     // Fixing this would require a policy.
     ArgumentParser::Maybe<std::string> MTime;
+    std::string Threads;
     std::string WorkingDirectory;
     bool Verbose = false;
     // "PATHS" requires at least one value, but use a custom check below.
@@ -3679,6 +3682,7 @@ bool HandleArchiveCreateCommand(std::vector<std::string> const& args,
       .Bind("COMPRESSION"_s, &Arguments::Compression)
       .Bind("COMPRESSION_LEVEL"_s, &Arguments::CompressionLevel)
       .Bind("MTIME"_s, &Arguments::MTime)
+      .Bind("THREADS"_s, &Arguments::Threads)
       .Bind("WORKING_DIRECTORY"_s, &Arguments::WorkingDirectory)
       .Bind("VERBOSE"_s, &Arguments::Verbose)
       .Bind("PATHS"_s, &Arguments::Paths);
@@ -3710,23 +3714,18 @@ bool HandleArchiveCreateCommand(std::vector<std::string> const& args,
     return false;
   }
 
-  char const* zipFileFormats[] = { "7zip", "zip" };
-  if (!parsedArgs.Compression.empty() &&
-      cm::contains(zipFileFormats, parsedArgs.Format)) {
-    status.SetError(cmStrCat("archive format ", parsedArgs.Format,
-                             " does not support COMPRESSION arguments"));
-    cmSystemTools::SetFatalErrorOccurred();
-    return false;
-  }
-
   static std::map<std::string, cmSystemTools::cmTarCompression>
     compressionTypeMap = { { "None", cmSystemTools::TarCompressNone },
                            { "BZip2", cmSystemTools::TarCompressBZip2 },
+                           { "Deflate", cmSystemTools::TarCompressGZip },
                            { "GZip", cmSystemTools::TarCompressGZip },
+                           { "LZMA", cmSystemTools::TarCompressLZMA },
+                           { "LZMA2", cmSystemTools::TarCompressXZ },
+                           { "PPMd", cmSystemTools::TarCompressPPMd },
                            { "XZ", cmSystemTools::TarCompressXZ },
                            { "Zstd", cmSystemTools::TarCompressZstd } };
 
-  cmSystemTools::cmTarCompression compress = cmSystemTools::TarCompressNone;
+  cmSystemTools::cmTarCompression compress = cmSystemTools::TarCompressAuto;
   auto typeIt = compressionTypeMap.find(parsedArgs.Compression);
   if (typeIt != compressionTypeMap.end()) {
     compress = typeIt->second;
@@ -3737,10 +3736,19 @@ bool HandleArchiveCreateCommand(std::vector<std::string> const& args,
     return false;
   }
 
+  if (compress == cmSystemTools::TarCompressPPMd &&
+      parsedArgs.Format != "7zip") {
+    status.SetError(cmStrCat("PPMd compression is not supported for ",
+                             parsedArgs.Format, " format"));
+    cmSystemTools::SetFatalErrorOccurred();
+    return false;
+  }
+
   int compressionLevel = 0;
-  int minCompressionLevel = 0;
+  constexpr int minCompressionLevel = 0;
   int maxCompressionLevel = 9;
-  if (compress == cmSystemTools::TarCompressZstd) {
+  if (compress == cmSystemTools::TarCompressZstd &&
+      parsedArgs.Format != "zip") {
     maxCompressionLevel = 19;
   }
 
@@ -3765,9 +3773,30 @@ bool HandleArchiveCreateCommand(std::vector<std::string> const& args,
       return false;
     }
     if (compress == cmSystemTools::TarCompressNone) {
-      status.SetError(cmStrCat("compression level is not supported for "
-                               "compression \"None\"",
-                               parsedArgs.Compression));
+      status.SetError(
+        cmStrCat("compression level is not supported for "
+                 "compression \"None\". Provided compression level: ",
+                 parsedArgs.CompressionLevel));
+      cmSystemTools::SetFatalErrorOccurred();
+      return false;
+    }
+  }
+
+  // Use the single thread by default for backward compatibility
+  int threads = 1;
+  constexpr int minThreads = 0;
+  if (!parsedArgs.Threads.empty()) {
+    if (parsedArgs.Threads.size() != 1 &&
+        !std::isdigit(parsedArgs.Threads[0])) {
+      status.SetError(cmStrCat("number of threads ", parsedArgs.Threads,
+                               " should be at least ", minThreads));
+      cmSystemTools::SetFatalErrorOccurred();
+      return false;
+    }
+    threads = std::stoi(parsedArgs.Threads);
+    if (threads < minThreads) {
+      status.SetError(cmStrCat("number of threads ", parsedArgs.Threads,
+                               " should be at least ", minThreads));
       cmSystemTools::SetFatalErrorOccurred();
       return false;
     }
@@ -3779,10 +3808,10 @@ bool HandleArchiveCreateCommand(std::vector<std::string> const& args,
     return false;
   }
 
-  if (!cmSystemTools::CreateTar(parsedArgs.Output, parsedArgs.Paths,
-                                parsedArgs.WorkingDirectory, compress,
-                                parsedArgs.Verbose, parsedArgs.MTime,
-                                parsedArgs.Format, compressionLevel)) {
+  if (!cmSystemTools::CreateTar(
+        parsedArgs.Output, parsedArgs.Paths, parsedArgs.WorkingDirectory,
+        compress, parsedArgs.Verbose, parsedArgs.MTime, parsedArgs.Format,
+        compressionLevel, threads)) {
     status.SetError(cmStrCat("failed to compress: ", parsedArgs.Output));
     cmSystemTools::SetFatalErrorOccurred();
     return false;

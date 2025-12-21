@@ -896,9 +896,7 @@ bool cmSystemTools::RunSingleCommand(std::vector<std::string> const& command,
 
   std::vector<char> tempStdOut;
   std::vector<char> tempStdErr;
-  cm::uv_pipe_ptr outStream;
   bool outFinished = true;
-  cm::uv_pipe_ptr errStream;
   bool errFinished = true;
   cmProcessOutput processOutput(encoding);
   std::unique_ptr<cmUVStreamReadHandle> outputHandle;
@@ -906,21 +904,14 @@ bool cmSystemTools::RunSingleCommand(std::vector<std::string> const& command,
   if (outputflag != OUTPUT_PASSTHROUGH &&
       (captureStdOut || captureStdErr || outputflag != OUTPUT_NONE)) {
     auto startRead =
-      [&outputflag, &processOutput,
-       &chain](cm::uv_pipe_ptr& pipe, int stream, std::string* captureStd,
-               std::vector<char>& tempStd, int id,
-               void (*outputFunc)(std::string const&),
-               bool& finished) -> std::unique_ptr<cmUVStreamReadHandle> {
-      if (stream < 0) {
-        return nullptr;
-      }
-
-      pipe.init(chain.GetLoop(), 0);
-      uv_pipe_open(pipe, stream);
-
+      [&outputflag, &processOutput](
+        uv_stream_t* stream, std::string* captureStd,
+        std::vector<char>& tempStd, int id,
+        void (*outputFunc)(std::string const&),
+        bool& finished) -> std::unique_ptr<cmUVStreamReadHandle> {
       finished = false;
       return cmUVStreamRead(
-        pipe,
+        stream,
         [outputflag, &processOutput, captureStd, &tempStd, id,
          outputFunc](std::vector<char> data) {
           // Translate NULL characters in the output into valid text.
@@ -951,13 +942,11 @@ bool cmSystemTools::RunSingleCommand(std::vector<std::string> const& command,
         });
     };
 
-    outputHandle =
-      startRead(outStream, chain.OutputStream(), captureStdOut, tempStdOut, 1,
-                cmSystemTools::Stdout, outFinished);
-    if (chain.OutputStream() != chain.ErrorStream()) {
-      errorHandle =
-        startRead(errStream, chain.ErrorStream(), captureStdErr, tempStdErr, 2,
-                  cmSystemTools::Stderr, errFinished);
+    outputHandle = startRead(chain.OutputStream(), captureStdOut, tempStdOut,
+                             1, cmSystemTools::Stdout, outFinished);
+    if (chain.ErrorStream()) {
+      errorHandle = startRead(chain.ErrorStream(), captureStdErr, tempStdErr,
+                              2, cmSystemTools::Stderr, errFinished);
     }
   }
 
@@ -2378,7 +2367,8 @@ bool cmSystemTools::CreateTar(std::string const& outFileName,
                               std::string const& workingDirectory,
                               cmTarCompression compressType, bool verbose,
                               std::string const& mtime,
-                              std::string const& format, int compressionLevel)
+                              std::string const& format, int compressionLevel,
+                              int numThreads)
 {
 #if !defined(CMAKE_BOOTSTRAP)
   cmWorkingDirectory workdir(cmSystemTools::GetLogicalWorkingDirectory());
@@ -2408,13 +2398,29 @@ bool cmSystemTools::CreateTar(std::string const& outFileName,
     case TarCompressZstd:
       compress = cmArchiveWrite::CompressZstd;
       break;
+    case TarCompressLZMA:
+      compress = cmArchiveWrite::CompressLZMA;
+      break;
+    case TarCompressPPMd:
+      compress = cmArchiveWrite::CompressPPMd;
+      break;
+    case TarCompressAuto:
+      // Kept for backwards compatibility with pre-4.3 versions of CMake
+      if (format == "zip") {
+        compress = cmArchiveWrite::CompressGZip;
+      } else if (format == "7zip") {
+        compress = cmArchiveWrite::CompressLZMA;
+      } else {
+        compress = cmArchiveWrite::CompressNone;
+      }
+      break;
     case TarCompressNone:
       compress = cmArchiveWrite::CompressNone;
       break;
   }
 
   cmArchiveWrite a(fout, compress, format.empty() ? "paxr" : format,
-                   compressionLevel);
+                   compressionLevel, numThreads);
 
   if (!a.Open()) {
     cmSystemTools::Error(a.GetError());
@@ -2771,8 +2777,7 @@ bool cmSystemTools::ListTar(std::string const& outFileName,
 
 cmSystemTools::WaitForLineResult cmSystemTools::WaitForLine(
   uv_loop_t* loop, uv_stream_t* outPipe, uv_stream_t* errPipe,
-  std::string& line, cmDuration timeout, std::vector<char>& out,
-  std::vector<char>& err)
+  std::string& line, std::vector<char>& out, std::vector<char>& err)
 {
   line.clear();
   auto outiter = out.begin();
@@ -2842,22 +2847,7 @@ cmSystemTools::WaitForLineResult cmSystemTools::WaitForLine(
     ReadData errData;
     auto errHandle = startRead(errPipe, errData);
 
-    cm::uv_timer_ptr timer;
-    bool timedOut = false;
-    timer.init(*loop, &timedOut);
-    timer.start(
-      [](uv_timer_t* handle) {
-        auto* timedOutPtr = static_cast<bool*>(handle->data);
-        *timedOutPtr = true;
-      },
-      static_cast<uint64_t>(timeout.count() * 1000.0), 0,
-      cm::uv_update_time::no);
-
     uv_run(loop, UV_RUN_ONCE);
-    if (timedOut) {
-      // Timeout has been exceeded.
-      return WaitForLineResult::Timeout;
-    }
     if (outData.Read) {
       processOutput.DecodeText(outData.Buffer.data(), outData.Buffer.size(),
                                strdata, 1);
