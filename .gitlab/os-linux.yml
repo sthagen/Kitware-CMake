@@ -11,7 +11,7 @@
         GIT_CLONE_PATH: "$CI_BUILDS_DIR/cmake ci"
 
 .linux_release_x86_64:
-    image: "kitware/cmake:build-linux-x86_64-deps-2023-08-16@sha256:aa0ebdbd90a51cc83d31f393c5c48ec4599a28f7ccdc288558522c6265b24fae"
+    image: "kitware/cmake:build-linux-x86_64-deps-2026-01-13@sha256:eae18d032e8d7be3caa97d2e5754ae2b7196d7a3d375b7b4d1ba9034f1229317"
 
     variables:
         GIT_CLONE_PATH: "$CI_BUILDS_DIR/cmake ci"
@@ -19,11 +19,10 @@
         CMAKE_ARCH: x86_64
 
 .linux_release_aarch64:
-    image: "kitware/cmake:build-linux-aarch64-deps-2020-12-21@sha256:0bd7dfe4e45593b04e39cd21e44011034610cfd376900558c5ef959bb1af15af"
+    image: "kitware/cmake:build-linux-aarch64-deps-2026-01-13@sha256:7373fe775ea571a3113251b3e8b5857ef321f6e9b5dfa5963f6e44d062349244"
 
     variables:
         GIT_CLONE_PATH: "$CI_BUILDS_DIR/cmake ci"
-        LAUNCHER: "scl enable devtoolset-7 --"
         CMAKE_ARCH: aarch64
 
 .linux_package:
@@ -52,9 +51,9 @@
     needs:
         - b:centos7-x86_64
 
-.needs_centos7_aarch64:
+.needs_centos8_aarch64:
     needs:
-        - b:centos7-aarch64
+        - b:centos8-aarch64
 
 ### Debian
 
