@@ -310,6 +310,7 @@ if(CMake_TEST_Qt6 AND Qt6Widgets_FOUND)
       "-DCMAKE_PREFIX_PATH:STRING=${base_dir}"
       -DPSEUDO_TIDY=$<TARGET_FILE:pseudo_tidy>
       -DPSEUDO_IWYU=$<TARGET_FILE:pseudo_iwyu>
+      -DPSEUDO_PVS=$<TARGET_FILE:pseudo_pvs>
       -DPSEUDO_CPPLINT=$<TARGET_FILE:pseudo_cpplint>
       -DPSEUDO_CPPCHECK=$<TARGET_FILE:pseudo_cppcheck>
     )
@@ -979,7 +980,7 @@ endif()
 
 add_RunCMake_test(LinkLibrariesProcessing)
 add_RunCMake_test(LinkLibrariesStrategy)
-add_RunCMake_test(File_Archive)
+add_RunCMake_test(File_Archive -DPython_EXECUTABLE=${Python_EXECUTABLE})
 add_RunCMake_test(File_Configure)
 add_RunCMake_test(File_Generate)
 add_RunCMake_test(ExportWithoutLanguage)
@@ -1075,6 +1076,7 @@ add_RunCMake_test(CommandLine -DLLVM_RC=$<TARGET_FILE:pseudo_llvm-rc> -DCMAKE_SY
 if(CMake_TEST_LibArchive_VERSION)
   list(APPEND CommandLineTar_ARGS -DCMake_TEST_LibArchive_VERSION=${CMake_TEST_LibArchive_VERSION})
 endif()
+list(APPEND CommandLineTar_ARGS -DPython_EXECUTABLE=${Python_EXECUTABLE})
 add_RunCMake_test(CommandLineTar)
 
 if(CMAKE_PLATFORM_NO_VERSIONED_SONAME OR (NOT CMAKE_SHARED_LIBRARY_SONAME_FLAG AND NOT CMAKE_SHARED_LIBRARY_SONAME_C_FLAG))
@@ -1166,6 +1168,13 @@ add_executable(pseudo_tidy pseudo_tidy.c)
 add_executable(pseudo_iwyu pseudo_iwyu.c)
 add_executable(pseudo_cpplint pseudo_cpplint.c)
 add_executable(pseudo_cppcheck pseudo_cppcheck.c)
+add_executable(pseudo_pvs pseudo_pvs.c)
+add_executable(pseudo_plog_converter pseudo_plog_converter.c)
+if (WIN32)
+  set_target_properties(pseudo_plog_converter PROPERTIES OUTPUT_NAME HtmlGenerator)
+else()
+  set_target_properties(pseudo_plog_converter PROPERTIES OUTPUT_NAME plog-converter)
+endif()
 
 if("${CMAKE_GENERATOR}" MATCHES "Make|Ninja|FASTBuild")
   if(UNIX AND NOT CYGWIN)
@@ -1179,11 +1188,13 @@ if("${CMAKE_GENERATOR}" MATCHES "Make|Ninja|FASTBuild")
   endif()
   add_RunCMake_test(ClangTidy -DPSEUDO_TIDY=$<TARGET_FILE:pseudo_tidy>)
   add_RunCMake_test(IncludeWhatYouUse -DPSEUDO_IWYU=$<TARGET_FILE:pseudo_iwyu>)
+  add_RunCMake_test(PVSStudio -DPSEUDO_PVS=$<TARGET_FILE:pseudo_pvs>)
   add_RunCMake_test(Cpplint -DPSEUDO_CPPLINT=$<TARGET_FILE:pseudo_cpplint>)
   add_RunCMake_test(Cppcheck -DPSEUDO_CPPCHECK=$<TARGET_FILE:pseudo_cppcheck>)
   add_RunCMake_test(MultiLint
     -DPSEUDO_TIDY=$<TARGET_FILE:pseudo_tidy>
     -DPSEUDO_IWYU=$<TARGET_FILE:pseudo_iwyu>
+    -DPSEUDO_PVS=$<TARGET_FILE:pseudo_pvs>
     -DPSEUDO_CPPLINT=$<TARGET_FILE:pseudo_cpplint>
     -DPSEUDO_CPPCHECK=$<TARGET_FILE:pseudo_cppcheck>
     )
