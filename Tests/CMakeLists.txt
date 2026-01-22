@@ -80,6 +80,11 @@ endif()
 configure_file(${CMake_SOURCE_DIR}/Tests/EnforceConfig.cmake.in
                ${CMake_BINARY_DIR}/Tests/EnforceConfig.cmake @ONLY)
 
+# Fuzzing targets (outside BUILD_TESTING for OSS-Fuzz compatibility)
+if(CMake_BUILD_FUZZING AND NOT CMake_TEST_EXTERNAL_CMAKE)
+  add_subdirectory(Fuzzing)
+endif()
+
 # Testing
 if(BUILD_TESTING)
   set(CMake_TEST_DEVENV "")
@@ -1578,10 +1583,6 @@ if(BUILD_TESTING)
 
   if(CMake_TEST_UseSWIG)
     add_subdirectory(UseSWIG)
-  endif()
-
-  if(CMake_TEST_FindRuby)
-    add_subdirectory(FindRuby)
   endif()
 
   add_subdirectory(FindThreads)

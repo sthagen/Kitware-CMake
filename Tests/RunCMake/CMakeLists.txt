@@ -499,6 +499,13 @@ if(CMake_TEST_FindPython2 OR CMake_TEST_FindPython2_SABIModule OR CMake_TEST_Fin
 endif()
 add_RunCMake_test(FindBoost)
 add_RunCMake_test(FindLua)
+if(CMake_TEST_FindRuby)
+  add_RunCMake_test(FindRuby
+    -DCMake_TEST_FindRuby_RBENV=${CMake_TEST_FindRuby_RBENV}
+    -DCMake_TEST_FindRuby_RVM=${CMake_TEST_FindRuby_RVM}
+    -DRBENV_ROOT=$ENV{RBENV_ROOT}
+    -DMY_RUBY_HOME=$ENV{MY_RUBY_HOME})
+endif()
 add_RunCMake_test(FindOpenGL)
 add_RunCMake_test(InitialFlags)
 if(CMake_TEST_FindOpenSSL)
@@ -523,6 +530,8 @@ add_RunCMake_test(GenEx-LINK_GROUP)
 add_RunCMake_test(GenEx-TARGET_FILE -DLINKER_SUPPORTS_PDB=${LINKER_SUPPORTS_PDB})
 add_RunCMake_test(GenEx-TARGET_IMPORT_FILE)
 add_RunCMake_test(GenEx-GENEX_EVAL)
+add_RunCMake_test(GenEx-SOURCE_EXISTS)
+add_RunCMake_test(GenEx-SOURCE_PROPERTY)
 add_RunCMake_test(GenEx-TARGET_PROPERTY)
 add_RunCMake_test(GenEx-TARGET_RUNTIME_DLLS)
 add_RunCMake_test(GenEx-STRING)
