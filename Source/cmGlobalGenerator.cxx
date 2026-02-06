@@ -25,6 +25,7 @@
 #include "cm_codecvt_Encoding.hxx"
 
 #include "cmAlgorithms.h"
+#include "cmArgumentParserTypes.h"
 #include "cmBuildArgs.h"
 #include "cmCMakePath.h"
 #include "cmCPackPropertiesGenerator.h"
@@ -42,6 +43,7 @@
 #include "cmGeneratorTarget.h"
 #include "cmInstallGenerator.h"
 #include "cmInstallRuntimeDependencySet.h"
+#include "cmInstallSbomExportGenerator.h"
 #include "cmLinkLineComputer.h"
 #include "cmList.h"
 #include "cmListFileCache.h"
@@ -52,6 +54,7 @@
 #include "cmOutputConverter.h"
 #include "cmPolicies.h"
 #include "cmRange.h"
+#include "cmSbomArguments.h"
 #include "cmSourceFile.h"
 #include "cmState.h"
 #include "cmStateDirectory.h"
@@ -1569,6 +1572,37 @@ bool cmGlobalGenerator::Compute()
     return false;
   }
 
+#ifndef CMAKE_BOOTSTRAP
+  bool isTryCompile = this->GetGlobalSetting("IN_TRY_COMPILE").IsOn();
+  bool sbomEnabled = cmExperimental::HasSupportEnabled(
+    *this->Makefiles[0], cmExperimental::Feature::GenerateSbom);
+
+  // Automatically generate SBOM files if enabled.
+  cmValue sbomFormat = this->GetGlobalSetting("CMAKE_INSTALL_SBOM_FORMATS");
+  if (sbomFormat.IsSet() && !this->Makefiles[0]->ExplicitlyGeneratesSbom() &&
+      sbomEnabled && !isTryCompile) {
+    std::string location =
+      this->Makefiles[0]->GetSafeDefinition("CMAKE_INSTALL_LIBDIR");
+    if (location.empty()) {
+      location = "lib";
+    }
+
+    std::string projectName = this->LocalGenerators[0]->GetProjectName();
+    cmSbomArguments sbomDefaultArgs;
+    sbomDefaultArgs.ProjectName = projectName;
+    for (auto& exportSet : this->ExportSets) {
+      sbomDefaultArgs.PackageName = exportSet.first;
+      std::string dest = cmStrCat(location, "/sbom/", projectName);
+      this->Makefiles[0]->AddInstallGenerator(
+        cm::make_unique<cmInstallSbomExportGenerator>(
+          &exportSet.second, dest, "", std::vector<std::string>(), "",
+          cmInstallGenerator::SelectMessageLevel(this->Makefiles[0].get()),
+          false, std::move(sbomDefaultArgs), "",
+          this->Makefiles[0]->GetBacktrace()));
+    }
+  }
+#endif
+
   for (auto const& localGen : this->LocalGenerators) {
     cmMakefile* mf = localGen->GetMakefile();
     for (auto const& g : mf->GetInstallGenerators()) {
@@ -2093,6 +2127,35 @@ std::string cmGlobalGenerator::ComputeTargetShortName(
   auto dirHash = hasher.HashString(rcwbd).substr(0, HASH_TRUNCATION);
   auto tgtHash = hasher.HashString(targetName).substr(0, HASH_TRUNCATION);
   return cmStrCat(tgtHash, dirHash);
+}
+
+cmGlobalGenerator::TargetDirectoryRegistration&
+cmGlobalGenerator::RegisterTargetDirectory(cmGeneratorTarget const* tgt,
+                                           std::string const& targetDir) const
+{
+  if (!tgt->IsNormal() || tgt->GetType() == cmStateEnums::GLOBAL_TARGET ||
+      tgt->Target->IsForTryCompile()) {
+    static TargetDirectoryRegistration utilityRegistration(nullptr, true);
+    return utilityRegistration;
+  }
+
+  // Get the registration instance for the target.
+#if __cplusplus >= 201703L
+  auto registration = this->TargetDirectoryRegistrations.try_emplace(tgt);
+#else
+  auto registration = this->TargetDirectoryRegistrations.insert(
+    std::make_pair(tgt, TargetDirectoryRegistration()));
+#endif
+  // If it was just inserted, search for a `CollidesWith` possibility.
+  if (registration.second) {
+    auto& otherTargets = this->TargetDirectories[targetDir];
+    if (!otherTargets.empty()) {
+      registration.first->second.CollidesWith = *otherTargets.begin();
+    }
+    otherTargets.insert(tgt);
+  }
+
+  return registration.first->second;
 }
 
 void cmGlobalGenerator::ComputeTargetObjectDirectory(
