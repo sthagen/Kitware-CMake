@@ -463,7 +463,8 @@ std::string cmSystemTools::LowerCase(cm::string_view s)
   std::string n;
   n.resize(s.size());
   for (size_t i = 0; i < s.size(); i++) {
-    n[i] = static_cast<std::string::value_type>(tolower(s[i]));
+    n[i] = static_cast<std::string::value_type>(
+      tolower(static_cast<unsigned char>(s[i])));
   }
   return n;
 }
@@ -474,7 +475,8 @@ std::string cmSystemTools::UpperCase(cm::string_view s)
   std::string n;
   n.resize(s.size());
   for (size_t i = 0; i < s.size(); i++) {
-    n[i] = static_cast<std::string::value_type>(toupper(s[i]));
+    n[i] = static_cast<std::string::value_type>(
+      toupper(static_cast<unsigned char>(s[i])));
   }
   return n;
 }
@@ -1362,7 +1364,7 @@ std::string cmSystemTools::GetRealPathResolvingWindowsSubst(
   }
   // Normalize to upper-case drive letter as cm::PathResolver does.
   if (resolved_path.size() > 1 && resolved_path[1] == ':') {
-    resolved_path[0] = toupper(resolved_path[0]);
+    resolved_path[0] = toupper(static_cast<unsigned char>(resolved_path[0]));
   }
   return resolved_path;
 #else
@@ -1384,10 +1386,12 @@ std::string cmSystemTools::GetRealPath(std::string const& path,
   // limitation to otherwise preserve susbt drives.
   if (resolved_path.size() >= 2 && resolved_path[1] == ':' &&
       path.size() >= 2 && path[1] == ':' &&
-      toupper(resolved_path[0]) != toupper(path[0])) {
+      toupper(static_cast<unsigned char>(resolved_path[0])) !=
+        toupper(static_cast<unsigned char>(path[0]))) {
     // FIXME: Add thread_local or mutex if we use threads.
     static std::map<char, std::string> substMap;
-    char const drive = static_cast<char>(toupper(path[0]));
+    char const drive =
+      static_cast<char>(toupper(static_cast<unsigned char>(path[0])));
     std::string maybe_subst = cmStrCat(drive, ":/");
     auto smi = substMap.find(drive);
     if (smi == substMap.end()) {
@@ -4391,4 +4395,30 @@ char cmSystemTools::GetSystemPathlistSeparator()
 #else
   return ':';
 #endif
+}
+
+cm::string_view cmSystemTools::GetFilenameNameView(cm::string_view filename)
+{
+// implementation mostly taken from cmsys::SystemTools
+#if defined(_WIN32) || defined(KWSYS_SYSTEMTOOLS_SUPPORT_WINDOWS_SLASHES)
+  cm::static_string_view separators = "/\\"_s;
+#else
+  char separators = '/';
+#endif
+  std::string::size_type slash_pos = filename.find_last_of(separators);
+  if (slash_pos == std::string::npos) {
+    return filename;
+  }
+  return filename.substr(slash_pos + 1);
+}
+
+cm::string_view cmSystemTools::GetFilenameLastExtensionView(
+  cm::string_view filename)
+{
+  cm::string_view name = cmSystemTools::GetFilenameNameView(filename);
+  cm::string_view::size_type dot_pos = name.rfind('.');
+  if (dot_pos == std::string::npos) {
+    return cm::string_view();
+  }
+  return name.substr(dot_pos);
 }

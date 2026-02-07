@@ -1791,10 +1791,11 @@ bool HandleDirectoryMode(std::vector<std::string> const& args,
       exclude_from_all = true;
       doing = DoingNone;
     } else if (doing == DoingDirs) {
-      // Convert this directory to a full path.
+      // If the given directory is not a full path, convert it to one by
+      // assuming it's relative to the current source directory.
       std::string dir = args[i];
       std::string::size_type gpos = cmGeneratorExpression::Find(dir);
-      if (gpos != 0 && !cmSystemTools::FileIsFullPath(dir)) {
+      if (!dir.empty() && gpos != 0 && !cmSystemTools::FileIsFullPath(dir)) {
         dir =
           cmStrCat(helper.Makefile->GetCurrentSourceDirectory(), '/', args[i]);
       }
@@ -1990,8 +1991,7 @@ bool HandleExportAndroidMKMode(std::vector<std::string> const& args,
   }
 
   // Check the file extension.
-  if (!fname.empty() &&
-      cmSystemTools::GetFilenameLastExtension(fname) != ".mk") {
+  if (!fname.empty() && !cmHasSuffix(fname, ".mk"_s)) {
     status.SetError(cmStrCat(
       args[0], " given invalid export file name \"", fname,
       R"(".  The FILE argument must specify a name ending in ".mk".)"));
@@ -2249,8 +2249,7 @@ bool HandleExportMode(std::vector<std::string> const& args,
   }
 
   // Check the file extension.
-  if (!fname.empty() &&
-      cmSystemTools::GetFilenameLastExtension(fname) != ".cmake") {
+  if (!fname.empty() && !cmHasSuffix(fname, ".cmake"_s)) {
     status.SetError(
       cmStrCat(args[0], " given invalid export file name \"", fname,
                "\".  "
