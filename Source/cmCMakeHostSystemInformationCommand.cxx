@@ -4,7 +4,6 @@
 
 #include <algorithm>
 #include <cassert>
-#include <cctype>
 #include <cstddef>
 #include <initializer_list>
 #include <map>
@@ -16,8 +15,13 @@
 #include <cm/type_traits>
 #include <cmext/string_view>
 
+#if !defined(_WIN32)
+#  include <langinfo.h>
+#endif
+
 #include "cmsys/FStream.hxx"
 #include "cmsys/Glob.hxx"
+#include "cmsys/String.h"
 #include "cmsys/SystemInformation.hxx"
 
 #include "cmArgumentParser.h"
@@ -73,6 +77,22 @@ cm::optional<std::string> GetValue(cmsys::SystemInformation& info,
   }
   if (key == "FQDN"_s) {
     return ValueToString(info.GetFullyQualifiedDomainName());
+  }
+  if (key == "LOCALE_CHARSET"_s) {
+#if defined(_WIN32)
+    // On Windows we always use UTF-8.
+    return ValueToString("UTF-8");
+#else
+    // On non-Windows platforms we use the locale's encoding.
+    if (char const* charset = nl_langinfo(CODESET)) {
+      if (cmsysString_strcasecmp(charset, "utf-8") == 0 ||
+          cmsysString_strcasecmp(charset, "utf8") == 0) {
+        charset = "UTF-8";
+      }
+      return ValueToString(charset);
+    }
+    return ValueToString("");
+#endif
   }
   if (key == "TOTAL_VIRTUAL_MEMORY"_s) {
     return ValueToString(info.GetTotalVirtualMemory());
@@ -218,10 +238,10 @@ cm::optional<std::pair<std::string, std::string>> ParseOSReleaseLine(
   for (auto ch : line) {
     switch (state) {
       case PARSE_KEY_1ST:
-        if (std::isalpha(ch) || ch == '_') {
+        if (cmsysString_isalpha(ch) || ch == '_') {
           key += ch;
           state = PARSE_KEY;
-        } else if (!cmIsSpace(ch)) {
+        } else if (!cmsysString_isspace(ch)) {
           state = IGNORE_REST;
         }
         break;
@@ -229,7 +249,7 @@ cm::optional<std::pair<std::string, std::string>> ParseOSReleaseLine(
       case PARSE_KEY:
         if (ch == '=') {
           state = FOUND_EQ;
-        } else if (std::isalnum(ch) || ch == '_') {
+        } else if (cmsysString_isalnum(ch) || ch == '_') {
           key += ch;
         } else {
           state = IGNORE_REST;
@@ -281,7 +301,7 @@ cm::optional<std::pair<std::string, std::string>> ParseOSReleaseLine(
         break;
 
       case PARSE_VALUE:
-        if (ch == '#' || cmIsSpace(ch)) {
+        if (ch == '#' || cmsysString_isspace(ch)) {
           state = IGNORE_REST;
         } else {
           value += ch;
@@ -355,8 +375,8 @@ std::map<std::string, std::string> GetOSReleaseVariables(
     auto const& filename = cmSystemTools::GetFilenameName(filepath);
     // NOTE Minimum filename length expected:
     //   NNN-<at-least-one-char-name>.cmake  --> 11
-    return (filename.size() < 11) || !std::isdigit(filename[0]) ||
-      !std::isdigit(filename[1]) || !std::isdigit(filename[2]) ||
+    return (filename.size() < 11) || !cmsysString_isdigit(filename[0]) ||
+      !cmsysString_isdigit(filename[1]) || !cmsysString_isdigit(filename[2]) ||
       filename[3] != '-';
   };
   scripts.erase(std::remove_if(scripts.begin(), scripts.end(), checkName),
