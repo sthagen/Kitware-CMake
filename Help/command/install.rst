@@ -975,10 +975,7 @@ Signatures
 .. signature::
   install(PACKAGE_INFO <package-name> [...])
 
-  .. versionadded:: 3.31
-  .. note::
-
-    Experimental. Gated by ``CMAKE_EXPERIMENTAL_EXPORT_PACKAGE_INFO``.
+  .. versionadded:: 4.3
 
   Installs a |CPS|_ ("CPS") file exporting targets for dependent projects:
 
@@ -1274,6 +1271,11 @@ Signatures
   is specified, automatic inheritance of sbom metadata will be disabled.
   In any case, any metadata values specified in the ``install`` command will
   take precedence.
+
+  Note that an SBOM file cannot be generated for targets with generator
+  expressions contained in their :prop_tgt:`LINK_LIBRARIES` or
+  :prop_tgt:`INTERFACE_LINK_LIBRARIES` properties, unless the generator
+  expressions are guarded by :genex:`LINK_ONLY`.
 
 Examples
 ^^^^^^^^
