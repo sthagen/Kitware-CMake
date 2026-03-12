@@ -536,6 +536,11 @@ add_RunCMake_test(GenEx-FILE_SET_EXISTS)
 add_RunCMake_test(GenEx-FILE_SET_PROPERTY)
 add_RunCMake_test(GenEx-TARGET_PROPERTY)
 add_RunCMake_test(GenEx-TARGET_RUNTIME_DLLS)
+list(LENGTH CMAKE_OSX_ARCHITECTURES _num_archs)
+if(NOT (XCODE AND _num_archs GREATER 1))
+  add_RunCMake_test(GenEx-TARGET_OBJECTS -DCMake_TEST_CUDA=${CMake_TEST_CUDA})
+  set_property(TEST RunCMake.GenEx-TARGET_OBJECTS APPEND PROPERTY LABELS "CUDA")
+endif()
 add_RunCMake_test(GenEx-STRING)
 add_RunCMake_test(GenEx-PATH)
 add_RunCMake_test(GenEx-PATH_EQUAL)
@@ -1500,7 +1505,7 @@ add_RunCMake_test(CMakePresetsWorkflow
   -DCMake_TEST_JSON_SCHEMA=${CMake_TEST_JSON_SCHEMA}
   )
 
-add_RunCMake_test(VerifyHeaderSets)
+add_RunCMake_test(VerifyHeaderSets -DCMake_TEST_OBJC=${CMake_TEST_OBJC})
 add_RunCMake_test(set_tests_properties)
 
 add_RunCMake_test(CMakeListFileName)
