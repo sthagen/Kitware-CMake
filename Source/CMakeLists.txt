@@ -185,6 +185,8 @@ add_library(
   cmDependsJavaParserHelper.h
   cmDependsCompiler.cxx
   cmDependsCompiler.h
+  cmDiagnostics.h
+  cmDiagnostics.cxx
   cmDocumentation.cxx
   cmDocumentationFormatter.cxx
   cmDyndepCollation.cxx
@@ -311,6 +313,7 @@ add_library(
   cmGeneratorTarget.cxx
   cmGeneratorTarget.h
   cmGeneratorTarget_CompatibleInterface.cxx
+  cmGeneratorTarget_HeaderSetVerification.cxx
   cmGeneratorTarget_IncludeDirectories.cxx
   cmGeneratorTarget_Link.cxx
   cmGeneratorTarget_LinkDirectories.cxx
@@ -582,6 +585,8 @@ add_library(
   cmBreakCommand.h
   cmBuildCommand.cxx
   cmBuildCommand.h
+  cmCMakeDiagnosticCommand.cxx
+  cmCMakeDiagnosticCommand.h
   cmCMakeHostSystemInformationCommand.cxx
   cmCMakeHostSystemInformationCommand.h
   cmCMakeLanguageCommand.cxx

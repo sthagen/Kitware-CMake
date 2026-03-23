@@ -262,6 +262,10 @@ if(BUILD_TESTING)
     unset(_sysctl_stdout)
   endif()
 
+  if(CMake_TEST_CUDA AND NOT CMake_TEST_CUDA MATCHES "^(NVIDIA|Clang)$")
+    message(FATAL_ERROR "CMake_TEST_CUDA should be \"NVIDIA\" or \"Clang\", got \"${CMake_TEST_CUDA}\"")
+  endif()
+
   #---------------------------------------------------------------------------
   # Add tests below here.
 
@@ -464,6 +468,7 @@ if(BUILD_TESTING)
   if(CMake_TEST_Rust)
     ADD_TEST_MACRO(RustOnly RustOnly)
     ADD_TEST_MACRO(RustMix RustMix)
+    ADD_TEST_MACRO(RustPie RustPie)
   endif()
   if(CMAKE_Fortran_COMPILER)
     ADD_TEST_MACRO(FortranOnly FortranOnly)

@@ -523,7 +523,8 @@ int do_build(int ac, char const* const* av)
     cmCommandLineArgument<bool(std::string const& value)>;
 
   std::vector<CommandArgument> arguments = {
-    CommandArgument{ "--preset", CommandArgument::Values::One,
+    CommandArgument{ "--preset", "No preset specified for --preset",
+                     CommandArgument::Values::One,
                      CommandArgument::setToValue(presetName) },
     CommandArgument{ "--list-presets", CommandArgument::Values::Zero,
                      CommandArgument::setToTrue(listPresets) },
@@ -840,7 +841,8 @@ int do_install(int ac, char const* const* av)
     CommandArgument{
       "--default-directory-permissions", CommandArgument::Values::One,
       CommandArgument::setToValue(defaultDirectoryPermissions) },
-    CommandArgument{ "-j", CommandArgument::Values::One, jLambda },
+    CommandArgument{ "-j", CommandArgument::Values::One,
+                     CommandArgument::RequiresSeparator::No, jLambda },
     CommandArgument{ "--parallel", CommandArgument::Values::One,
                      parallelLambda },
     CommandArgument{ "--prefix", CommandArgument::Values::One,
@@ -990,7 +992,8 @@ int do_workflow(int ac, char const* const* av)
     cmCommandLineArgument<bool(std::string const& value)>;
 
   std::vector<CommandArgument> arguments = {
-    CommandArgument{ "--preset", CommandArgument::Values::One,
+    CommandArgument{ "--preset", "No preset specified for --preset",
+                     CommandArgument::Values::One,
                      CommandArgument::setToValue(presetName) },
     CommandArgument{ "--list-presets", CommandArgument::Values::Zero,
                      [&listPresets](std::string const&) -> bool {
