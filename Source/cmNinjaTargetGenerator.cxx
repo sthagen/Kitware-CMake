@@ -681,6 +681,50 @@ cmNinjaRule GetScanRule(
 
   return rule;
 }
+
+void SetupResponseFile(cmNinjaRule& rule,
+                       cmRulePlaceholderExpander::RuleVariables& vars,
+                       std::string& flags, std::string const& lang,
+                       std::string const& responseFlag)
+{
+  rule.RspFile = "$RSP_FILE";
+  rule.RspContent =
+    cmStrCat(' ', vars.Defines, ' ', vars.Includes, ' ', flags);
+  flags = cmStrCat(responseFlag, rule.RspFile);
+  vars.Defines = "";
+  vars.Includes = "";
+  // Swift consumes all source files in a module at once, which reaches
+  // command line length limits pretty quickly. Inject source files into the
+  // response file in this case as well.
+  if (lang == "Swift") {
+    rule.RspContent = cmStrCat(rule.RspContent, ' ', vars.Source);
+    vars.Source = "";
+  }
+}
+
+cmList ExpandRuleCommands(std::string const& command,
+                          cmRulePlaceholderExpander::RuleVariables const& vars,
+                          cmMakefile const* mf, std::string const& lang,
+                          std::string const& launcher,
+                          cmLocalGenerator* localGenerator,
+                          cmRulePlaceholderExpander* rulePlaceholderExpander)
+{
+  std::string const extraCommands =
+    mf->GetSafeDefinition(cmStrCat("CMAKE_", lang, "_DEPENDS_EXTRA_COMMANDS"));
+  cmList commands(command);
+  if (!commands.empty()) {
+    commands.front().insert(0, "${CODE_CHECK}");
+    commands.front().insert(0, "${LAUNCHER}");
+  }
+  if (!extraCommands.empty()) {
+    commands.append(extraCommands);
+  }
+  for (std::string& cmd : commands) {
+    cmd = cmStrCat(launcher, cmd);
+    rulePlaceholderExpander->ExpandRuleVariables(localGenerator, cmd, vars);
+  }
+  return commands;
+}
 }
 
 void cmNinjaTargetGenerator::WriteCompileRule(std::string const& lang,
@@ -883,20 +927,7 @@ void cmNinjaTargetGenerator::WriteCompileRule(std::string const& lang,
   cmNinjaRule rule(this->LanguageCompilerRule(lang, config, withScanning));
   // If using a response file, move defines, includes, and flags into it.
   if (!responseFlag.empty()) {
-    rule.RspFile = "$RSP_FILE";
-    rule.RspContent =
-      cmStrCat(' ', vars.Defines, ' ', vars.Includes, ' ', flags);
-    flags = cmStrCat(responseFlag, rule.RspFile);
-    vars.Defines = "";
-    vars.Includes = "";
-
-    // Swift consumes all source files in a module at once, which reaches
-    // command line length limits pretty quickly. Inject source files into the
-    // response file in this case as well.
-    if (lang == "Swift") {
-      rule.RspContent = cmStrCat(rule.RspContent, ' ', vars.Source);
-      vars.Source = "";
-    }
+    SetupResponseFile(rule, vars, flags, lang, responseFlag);
   }
 
   // Tell ninja dependency format so all deps can be loaded into a database
@@ -987,27 +1018,12 @@ void cmNinjaTargetGenerator::WriteCompileRule(std::string const& lang,
   // Rule for compiling object file.
   std::string const cmdVar = this->GetCompileTemplateVar(lang);
   std::string const& compileCmd = mf->GetRequiredDefinition(cmdVar);
-  cmList compileCmds(compileCmd);
-
-  if (!compileCmds.empty()) {
-    compileCmds.front().insert(0, "${CODE_CHECK}");
-    compileCmds.front().insert(0, "${LAUNCHER}");
-  }
+  cmList compileCmds = ExpandRuleCommands(compileCmd, vars, mf, lang, launcher,
+                                          this->GetLocalGenerator(),
+                                          rulePlaceholderExpander.get());
 
   if (!compileCmds.empty()) {
     compileCmds.front().insert(0, cldeps);
-  }
-
-  auto const& extraCommands = this->GetMakefile()->GetSafeDefinition(
-    cmStrCat("CMAKE_", lang, "_DEPENDS_EXTRA_COMMANDS"));
-  if (!extraCommands.empty()) {
-    compileCmds.append(extraCommands);
-  }
-
-  for (auto& i : compileCmds) {
-    i = cmStrCat(launcher, i);
-    rulePlaceholderExpander->ExpandRuleVariables(this->GetLocalGenerator(), i,
-                                                 vars);
   }
 
   rule.Command =
@@ -2102,19 +2118,6 @@ void cmNinjaTargetGenerator::WriteSwiftObjectBuildStatement(
     return true;
   };
 
-  // Swift modules only make sense to emit from things that can be imported.
-  // Executables that don't export symbols can't be imported, so don't try to
-  // emit a swiftmodule for them. It will break.
-  if (isImportableTarget(target)) {
-    std::string const emitModuleFlag = "-emit-module";
-    std::string const modulePathFlag = "-emit-module-path";
-    this->LocalGenerator->AppendFlags(
-      vars["FLAGS"],
-      { emitModuleFlag, modulePathFlag,
-        this->LocalGenerator->ConvertToOutputFormat(
-          moduleFilepath, cmOutputConverter::SHELL) });
-    objBuild.Outputs.push_back(moduleFilepath);
-  }
   this->LocalGenerator->AppendFlags(vars["FLAGS"],
                                     cmStrCat("-module-name ", moduleName));
 
@@ -2128,6 +2131,20 @@ void cmNinjaTargetGenerator::WriteSwiftObjectBuildStatement(
 
   this->LocalGenerator->AppendFlags(vars["FLAGS"],
                                     this->GetFlags(language, config));
+
+  // Swift modules only make sense to emit from things that can be imported.
+  // Executables that don't export symbols can't be imported, so don't try to
+  // emit a swiftmodule for them. It will break.
+  if (isImportableTarget(target)) {
+    std::string const emitModuleFlag = "-emit-module";
+    std::string const modulePathFlag = "-emit-module-path";
+    this->LocalGenerator->AppendFlags(
+      vars["FLAGS"],
+      { emitModuleFlag, modulePathFlag,
+        this->LocalGenerator->ConvertToOutputFormat(
+          moduleFilepath, cmOutputConverter::SHELL) });
+    objBuild.Outputs.push_back(moduleFilepath);
+  }
   vars["DEFINES"] = this->GetDefines(language, config);
   vars["INCLUDES"] = this->GetIncludes(language, config);
   vars["CONFIG"] = config;
