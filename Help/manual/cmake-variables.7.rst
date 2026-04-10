@@ -142,6 +142,7 @@ Variables that Provide Information
    /variable/CMAKE_Swift_COMPILATION_MODE
    /variable/CMAKE_Swift_MODULE_DIRECTORY
    /variable/CMAKE_Swift_NUM_THREADS
+   /variable/CMAKE_Swift_SEPARATE_MODULE_EMISSION
    /variable/CMAKE_TEST_LAUNCHER
    /variable/CMAKE_TOOLCHAIN_FILE
    /variable/CMAKE_TWEAK_VERSION

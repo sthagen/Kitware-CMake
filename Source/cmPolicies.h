@@ -642,7 +642,10 @@ class cmMakefile;
          4, 4, 0, WARN)                                                       \
   SELECT(POLICY, CMP0214,                                                     \
          "Honor CMAKE_EXE_LINKER_FLAGS for Swift executable targets.", 4, 4,  \
-         0, WARN)
+         0, WARN)                                                             \
+  SELECT(POLICY, CMP0215,                                                     \
+         "Ninja generators emit Swift modules separately from compilation.",  \
+         4, 4, 0, WARN)
 
 #define CM_SELECT_ID(F, A1, A2, A3, A4, A5, A6) F(A1)
 #define CM_FOR_EACH_POLICY_ID(POLICY)                                         \
@@ -699,7 +702,8 @@ class cmMakefile;
   F(CMP0209)                                                                  \
   F(CMP0210)                                                                  \
   F(CMP0211)                                                                  \
-  F(CMP0214)
+  F(CMP0214)                                                                  \
+  F(CMP0215)
 
 #define CM_FOR_EACH_CUSTOM_COMMAND_POLICY(F)                                  \
   F(CMP0116)                                                                  \

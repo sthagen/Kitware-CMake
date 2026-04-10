@@ -130,6 +130,15 @@ std::string cmNinjaTargetGenerator::LanguageCompilerRule(
     withScanning == WithScanning::Yes ? "_scanned_" : "_unscanned_", config);
 }
 
+std::string cmNinjaTargetGenerator::LanguageEmitModuleRule(
+  std::string const& lang, std::string const& config) const
+{
+  return cmStrCat(
+    lang, "_EMIT_MODULE__",
+    cmGlobalNinjaGenerator::EncodeRuleName(this->GeneratorTarget->GetName()),
+    '_', config);
+}
+
 std::string cmNinjaTargetGenerator::LanguagePreprocessAndScanRule(
   std::string const& lang, std::string const& config) const
 {
@@ -1033,6 +1042,40 @@ void cmNinjaTargetGenerator::WriteCompileRule(std::string const& lang,
   rule.Comment = cmStrCat("Rule for compiling ", lang, " files.");
   rule.Description = cmStrCat("Building ", lang, " object $out");
   this->GetGlobalGenerator()->AddRule(rule);
+
+  // Write a separate emit-module rule for Swift (produces .swiftmodule
+  // without compile outputs, enabling downstream modules to compile in
+  // parallel with upstream compilation).
+  if (lang == "Swift" && withScanning == WithScanning::No) {
+    std::string const emitModCmdVar = "CMAKE_Swift_EMIT_MODULE";
+    cmValue emitModCmdVal = mf->GetDefinition(emitModCmdVar);
+    if (emitModCmdVal) {
+      cmNinjaRule emitModRule(this->LanguageEmitModuleRule(lang, config));
+      cmRulePlaceholderExpander::RuleVariables emVars = vars;
+      std::string emFlags = "$FLAGS";
+      if (!responseFlag.empty()) {
+        // Reset placeholders after compile response-file setup.
+        emVars.Source = "$in";
+        emVars.Object = "$out";
+        emVars.Defines = "$DEFINES";
+        emVars.Includes = "$INCLUDES";
+        SetupResponseFile(emitModRule, emVars, emFlags, lang, responseFlag);
+      }
+
+      emVars.Flags = emFlags.c_str();
+      emitModRule.Restat = "1";
+
+      cmList emitModCmds = ExpandRuleCommands(
+        *emitModCmdVal, emVars, mf, lang, launcher, this->GetLocalGenerator(),
+        rulePlaceholderExpander.get());
+      emitModRule.Command = this->GetLocalGenerator()->BuildCommandLine(
+        emitModCmds, config, config);
+      emitModRule.Comment = "Rule for emitting Swift .swiftmodule files.";
+      emitModRule.Description =
+        cmStrCat("Emitting Swift .swiftmodule ", "$out");
+      this->GetGlobalGenerator()->AddRule(emitModRule);
+    }
+  }
 }
 
 void cmNinjaTargetGenerator::WriteObjectBuildStatements(
@@ -2033,7 +2076,8 @@ void cmNinjaTargetGenerator::WriteSwiftObjectBuildStatement(
   //  - Definitions
   //  - Include paths
   //  - (single-output) output object filename
-  //  - Swiftmodule
+  //  - Swiftmodule (for importable targets), produced either by the compile
+  //    edge or by a separate emit-module edge
   //
   //  Per-File:
   //  - compile-command
@@ -2095,18 +2139,6 @@ void cmNinjaTargetGenerator::WriteSwiftObjectBuildStatement(
     return !isMultiThread && compileMode == cmSwiftCompileMode::Wholemodule;
   }();
 
-  // Without `-emit-library` or `-emit-executable`, targets with a single
-  // source file parse as a Swift script instead of like normal source. For
-  // non-executable targets, append this to ensure that they are parsed like a
-  // normal source.
-  if (target.GetType() != cmStateEnums::EXECUTABLE) {
-    this->LocalGenerator->AppendFlags(vars["FLAGS"], "-parse-as-library");
-  }
-
-  if (target.GetType() == cmStateEnums::STATIC_LIBRARY) {
-    this->LocalGenerator->AppendFlags(vars["FLAGS"], "-static");
-  }
-
   // Does this swift target emit a module file for importing into other
   // targets?
   auto isImportableTarget = [](cmGeneratorTarget const& tgt) -> bool {
@@ -2117,7 +2149,34 @@ void cmNinjaTargetGenerator::WriteSwiftObjectBuildStatement(
     }
     return true;
   };
+  bool const targetIsImportable = isImportableTarget(target);
 
+  // Check if we can emit the module separately (produces .swiftmodule before
+  // compilation finishes, enabling downstream modules to compile in parallel).
+  bool const emitModuleSeparately = [&]() -> bool {
+    if (!targetIsImportable ||
+        !this->GetMakefile()->GetDefinition("CMAKE_Swift_EMIT_MODULE")) {
+      return false;
+    }
+    cmValue prop =
+      this->GeneratorTarget->GetProperty("Swift_SEPARATE_MODULE_EMISSION");
+    if (prop) {
+      return prop.IsOn();
+    }
+    return this->GeneratorTarget->GetPolicyStatusCMP0215() == cmPolicies::NEW;
+  }();
+
+  // Build flags common to both compile and emit-module edges.
+  if (target.GetType() != cmStateEnums::EXECUTABLE) {
+    // Without `-emit-library` or `-emit-executable`, targets with a single
+    // source file parse as a Swift script instead of like normal source. For
+    // non-executable targets, append this to ensure that they are parsed like
+    // a normal source.
+    this->LocalGenerator->AppendFlags(vars["FLAGS"], "-parse-as-library");
+  }
+  if (target.GetType() == cmStateEnums::STATIC_LIBRARY) {
+    this->LocalGenerator->AppendFlags(vars["FLAGS"], "-static");
+  }
   this->LocalGenerator->AppendFlags(vars["FLAGS"],
                                     cmStrCat("-module-name ", moduleName));
 
@@ -2128,23 +2187,8 @@ void cmNinjaTargetGenerator::WriteSwiftObjectBuildStatement(
     this->LocalGenerator->AppendFlags(
       vars["FLAGS"], cmStrCat(libraryLinkNameFlag, ' ', libraryLinkName));
   }
-
   this->LocalGenerator->AppendFlags(vars["FLAGS"],
                                     this->GetFlags(language, config));
-
-  // Swift modules only make sense to emit from things that can be imported.
-  // Executables that don't export symbols can't be imported, so don't try to
-  // emit a swiftmodule for them. It will break.
-  if (isImportableTarget(target)) {
-    std::string const emitModuleFlag = "-emit-module";
-    std::string const modulePathFlag = "-emit-module-path";
-    this->LocalGenerator->AppendFlags(
-      vars["FLAGS"],
-      { emitModuleFlag, modulePathFlag,
-        this->LocalGenerator->ConvertToOutputFormat(
-          moduleFilepath, cmOutputConverter::SHELL) });
-    objBuild.Outputs.push_back(moduleFilepath);
-  }
   vars["DEFINES"] = this->GetDefines(language, config);
   vars["INCLUDES"] = this->GetIncludes(language, config);
   vars["CONFIG"] = config;
@@ -2155,9 +2199,14 @@ void cmNinjaTargetGenerator::WriteSwiftObjectBuildStatement(
     this->GetGlobalGenerator()->GetLanguageOutputExtension(language)));
   objBuild.RspFile = cmStrCat(targetObjectFilename, ".swift.rsp");
 
+  // Importable targets keep -emit-module on compile so swiftc still emits
+  // .swiftdoc.  When splitting module emission, only the .swiftmodule output
+  // moves to the separate emit-module edge.
+  if (targetIsImportable && !emitModuleSeparately) {
+    objBuild.Outputs.push_back(moduleFilepath);
+  }
+
   if (isSingleOutput) {
-    this->LocalGenerator->AppendFlags(vars["FLAGS"],
-                                      cmStrCat("-o ", targetObjectFilename));
     objBuild.Outputs.push_back(targetObjectFilename);
     this->Configs[config].Objects.push_back(targetObjectFilename);
   }
@@ -2182,6 +2231,25 @@ void cmNinjaTargetGenerator::WriteSwiftObjectBuildStatement(
 
   if (!isSingleOutput) {
     this->GenerateSwiftOutputFileMap(config, vars["FLAGS"]);
+  }
+
+  // Save common flags for the emit-module edge before adding
+  // compile-specific flags (-emit-module, -emit-module-path, -o).
+  std::string const commonFlags = vars["FLAGS"];
+
+  std::string const moduleOutputPath =
+    this->LocalGenerator->ConvertToOutputFormat(moduleFilepath,
+                                                cmOutputConverter::SHELL);
+  if (targetIsImportable) {
+    std::string const emitModuleFlag = "-emit-module";
+    std::string const modulePathFlag = "-emit-module-path";
+    this->LocalGenerator->AppendFlags(
+      vars["FLAGS"], { emitModuleFlag, modulePathFlag, moduleOutputPath });
+  }
+
+  if (isSingleOutput) {
+    this->LocalGenerator->AppendFlags(vars["FLAGS"],
+                                      cmStrCat("-o ", targetObjectFilename));
   }
 
   if (firstForConfig) {
@@ -2211,6 +2279,34 @@ void cmNinjaTargetGenerator::WriteSwiftObjectBuildStatement(
   this->GetGlobalGenerator()->WriteBuild(this->GetImplFileStream(fileConfig),
                                          objBuild,
                                          this->ForceResponseFile() ? -1 : 0);
+
+  // Write a separate emit-module build edge that produces .swiftmodule
+  // without compile outputs. This allows downstream Swift targets to start
+  // compiling as soon as the module interface is ready, overlapping with
+  // upstream compilation and linking.
+  if (emitModuleSeparately) {
+    cmNinjaBuild modBuild = objBuild;
+    modBuild.Rule = this->LanguageEmitModuleRule(language, config);
+
+    // Start from common flags (shared with compile edge) and add
+    // emit-module-specific flags.  The emit-module rule template already
+    // contains -emit-module, so we only need -emit-module-path here.
+    modBuild.Variables["FLAGS"] = commonFlags;
+    this->LocalGenerator->AppendFlags(
+      modBuild.Variables["FLAGS"],
+      cmStrCat("-emit-module-path ", moduleOutputPath));
+
+    modBuild.RspFile = cmStrCat(moduleFilepath, ".rsp");
+
+    // Output is just the .swiftmodule
+    this->EnsureParentDirectoryExists(moduleFilepath);
+    modBuild.Outputs.clear();
+    modBuild.Outputs.push_back(moduleFilepath);
+
+    this->GetGlobalGenerator()->WriteBuild(this->GetImplFileStream(fileConfig),
+                                           modBuild,
+                                           this->ForceResponseFile() ? -1 : 0);
+  }
 }
 
 void cmNinjaTargetGenerator::WriteTargetDependInfo(std::string const& lang,
