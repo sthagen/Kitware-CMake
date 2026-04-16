@@ -16,15 +16,22 @@
 // IWYU pragma: no_forward_declare cmDiagnostics::DiagnosticCategory
 
 // The list of diagnostic categories along with their associated data.
-// Each entry is of the form `SELECT(ACTION, <default>, <parent>, <name>)`.
+// Each entry is of the form:
+//    `SELECT(ACTION, <default>, <parent>, <name>, <preset-version>)`
 // Entries MUST appear in the order that a depth-first enumeration would
 // produce.
+//
+// When changing this table, Utilities/Scripts/regenerate-presets.py must be
+// run to update the JSON schema for CMake presets. If the _TABLE macro name
+// changes, said script will also need to be updated with the new name.
 
 #define CM_FOR_EACH_DIAGNOSTIC_TABLE(ACTION, SELECT)                          \
-  SELECT(ACTION, Warn, CMD_NONE, CMD_AUTHOR)                                  \
-  SELECT(ACTION, Warn, CMD_NONE, CMD_DEPRECATED)
+  SELECT(ACTION, Warn, CMD_NONE, CMD_AUTHOR, 12)                              \
+  SELECT(ACTION, Warn, CMD_AUTHOR, CMD_DEPRECATED, 1)                         \
+  SELECT(ACTION, Ignore, CMD_NONE, CMD_UNINITIALIZED, 1)                      \
+  SELECT(ACTION, Warn, CMD_NONE, CMD_UNUSED_CLI, 1)
 
-#define CM_SELECT_CATEGORY(F, D, P, C) F(C)
+#define CM_SELECT_CATEGORY(F, D, P, C, V) F(C)
 #define CM_FOR_EACH_DIAGNOSTIC_CATEGORY(ACTION)                               \
   CM_FOR_EACH_DIAGNOSTIC_TABLE(ACTION, CM_SELECT_CATEGORY)
 
@@ -67,12 +74,13 @@ public:
   {
     DiagnosticCategory Parent;
     DiagnosticAction DefaultAction;
+    int PresetVersion;
   };
 
   constexpr static DiagnosticCategoryInformation
     CategoryInfo[CategoryCount] = {
-      { CMD_NONE, Undefined }, // CMD_NONE
-#define DIAGNOSTIC_CATEGORY_INFO(F, D, P, C) { P, D },
+      { CMD_NONE, Undefined, 0 }, // CMD_NONE
+#define DIAGNOSTIC_CATEGORY_INFO(F, D, P, C, V) { P, D, V },
       CM_FOR_EACH_DIAGNOSTIC_TABLE(UNUSED, DIAGNOSTIC_CATEGORY_INFO)
 #undef DIAGNOSTIC_CATEGORY_INFO
     };

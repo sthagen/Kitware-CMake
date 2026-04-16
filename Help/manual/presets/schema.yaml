@@ -657,7 +657,9 @@ properties:
 
             .. include:: presets/warnings-properties.rst
           properties:
-            # These should be in lexicographical order, except for systemVars.
+            # This should ONLY have diagnostics whose definitions require
+            # special handling (i.e. anything from preset version < 12). Others
+            # will be generated from cmDiagnostics.h.
             deprecated:
               type: boolean
               description:
@@ -666,12 +668,13 @@ properties:
                 to false if errors.deprecated is set to true.
               sphinxDescription: |
                 An optional boolean. Equivalent to passing
-                :cmake-option:`-Wdeprecated` or
-                :cmake-option:`-Wno-deprecated`
+                :option:`-Wdeprecated <cmake -W>` or
+                :option:`-Wno-deprecated <cmake -Wno->`
                 on the command line.
                 This may not be set to ``false``
                 if ``errors.deprecated`` is set to ``true``.
             dev:
+              until: 12
               type: boolean
               description:
                 An optional boolean. Equivalent to passing -Wdev or
@@ -679,31 +682,39 @@ properties:
                 to false if errors.dev is set to true.
               sphinxDescription: |
                 An optional boolean. Equivalent to passing
-                :cmake-option:`-Wdev` or
-                :cmake-option:`-Wno-dev`
+                :option:`-Wdev <cmake -W>` or
+                :option:`-Wno-dev <cmake -Wno->`
                 on the command line.
                 This may not be set to ``false``
                 if ``errors.dev`` is set to ``true``.
             uninitialized:
               type: boolean
               description:
-                An optional boolean. Setting this to true is equivalent to
-                passing --warn-uninitialized on the command line.
+                An optional boolean. Equivalent to passing -Wuninitialized or
+                -Wno-uninitialized on the command line. This may not be set
+                to false if errors.uninitialized is set to true.
               sphinxDescription: |
-                An optional boolean. Setting this to ``true`` is equivalent to
-                passing :cmake-option:`--warn-uninitialized` on the command
-                line.
+                An optional boolean. Equivalent to passing
+                :option:`-Wuninitialized <cmake -W>` or
+                :option:`-Wno-uninitialized <cmake -Wno->`
+                on the command line.
+                This may not be set to ``false``
+                if ``errors.uninitialized`` is set to ``true``.
             unusedCli:
               type: boolean
               description:
-                An optional boolean. Setting this to false is equivalent to
-                passing --no-warn-unused-cli on the command line.
+                An optional boolean. Equivalent to passing -Wunused-cli or
+                -Wno-unused-cli on the command line. This may not be set
+                to false if errors.unusedCli is set to true.
               sphinxDescription: |
-                An optional boolean. Setting this to ``false`` is equivalent to
-                passing :cmake-option:`--no-warn-unused-cli` on the command
-                line.
-            # systemVars should be last.
+                An optional boolean. Equivalent to passing
+                :option:`-Wunused-cli <cmake -W>` or
+                :option:`-Wno-unused-cli <cmake -Wno->`
+                on the command line.
+                This may not be set to ``false``
+                if ``errors.unusedCli`` is set to ``true``.
             systemVars:
+              sort: false
               type: boolean
               description:
                 An optional boolean. Setting this to true is equivalent to
@@ -723,7 +734,9 @@ properties:
 
             .. include:: presets/errors-properties.rst
           properties:
-            # These should be in lexicographical order.
+            # This should ONLY have diagnostics whose definitions require
+            # special handling (i.e. anything from preset version < 12). Others
+            # will be generated from cmDiagnostics.h.
             deprecated:
               type: boolean
               description:
@@ -739,6 +752,7 @@ properties:
                 This may not be set to ``true``
                 if ``warnings.deprecated`` is set to ``false``.
             dev:
+              until: 12
               type: boolean
               description:
                 An optional boolean. Equivalent to passing
@@ -752,6 +766,36 @@ properties:
                 on the command line.
                 This may not be set to ``true``
                 if ``warnings.dev`` is set to ``false``.
+            uninitialized:
+              since: 12
+              type: boolean
+              description:
+                An optional boolean. Equivalent to passing
+                -Werror=uninitialized or -Wno-error=uninitialized
+                on the command line. This may not be set
+                to true if warnings.uninitialized is set to false.
+              sphinxDescription: |
+                An optional boolean. Equivalent to passing
+                :cmake-option:`-Werror=uninitialized` or
+                :cmake-option:`-Wno-error=uninitialized`
+                on the command line.
+                This may not be set to ``true``
+                if ``warnings.uninitialized`` is set to ``false``.
+            unusedCli:
+              since: 12
+              type: boolean
+              description:
+                An optional boolean. Equivalent to passing
+                -Werror=unused-cli or -Wno-error=unused-cli
+                on the command line. This may not be set
+                to true if warnings.unusedCli is set to false.
+              sphinxDescription: |
+                An optional boolean. Equivalent to passing
+                :cmake-option:`-Werror=unused-cli` or
+                :cmake-option:`-Wno-error=unused-cli`
+                on the command line.
+                This may not be set to ``true``
+                if ``warnings.unusedCli`` is set to ``false``.
           unevaluatedProperties: false
         debug:
           type: object
