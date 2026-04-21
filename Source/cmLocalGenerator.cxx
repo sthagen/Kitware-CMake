@@ -272,14 +272,14 @@ void cmLocalGenerator::ComputeObjectMaxPath()
         w << "CMAKE_OBJECT_PATH_MAX is set to " << pmax
           << ", which is less than the minimum of 128.  "
              "The value will be ignored.";
-        this->IssueMessage(MessageType::AUTHOR_WARNING, w.str());
+        this->IssueDiagnostic(cmDiagnostics::CMD_AUTHOR, w.str());
       }
     } else {
       std::ostringstream w;
       w << "CMAKE_OBJECT_PATH_MAX is set to \"" << *plen
         << "\", which fails to parse as a positive integer.  "
            "The value will be ignored.";
-      this->IssueMessage(MessageType::AUTHOR_WARNING, w.str());
+      this->IssueDiagnostic(cmDiagnostics::CMD_AUTHOR, w.str());
     }
   }
   this->ObjectMaxPathViolations.clear();
@@ -719,7 +719,7 @@ void cmLocalGenerator::GenerateInstallRules()
             "CMAKE_POLICY_WARNING_CMP0082")) {
         std::ostringstream e;
         e << cmPolicies::GetPolicyWarning(cmPolicies::CMP0082) << "\n";
-        this->IssueMessage(MessageType::AUTHOR_WARNING, e.str());
+        this->IssueDiagnostic(cmDiagnostics::CMD_AUTHOR, e.str());
       }
       CM_FALLTHROUGH;
     case cmPolicies::OLD: {
@@ -1562,7 +1562,9 @@ void cmLocalGenerator::GetTargetFlags(
       }
     } break;
     case cmStateEnums::EXECUTABLE: {
-      if (linkLanguage != "Swift") {
+      if (linkLanguage != "Swift" ||
+          (this->IsSplitSwiftBuild() &&
+           target->GetPolicyStatusCMP0214() == cmPolicies::NEW)) {
         std::string exeFlags;
         this->AddTargetTypeLinkerFlags(exeFlags, target, linkLanguage, config);
         if (!exeFlags.empty()) {
@@ -1706,8 +1708,8 @@ std::vector<BT<std::string>> cmLocalGenerator::GetTargetCompileFlags(
         case cmSwiftCompileMode::Singlefile:
           break;
         case cmSwiftCompileMode::Unknown: {
-          this->IssueMessage(
-            MessageType::AUTHOR_WARNING,
+          this->IssueDiagnostic(
+            cmDiagnostics::CMD_AUTHOR,
             cmStrCat("Unknown Swift_COMPILATION_MODE on target '",
                      target->GetName(), '\''));
         }
@@ -2636,8 +2638,8 @@ void cmLocalGenerator::AppendFlags(std::string& flags,
       if (!this->Makefile->GetCMakeInstance()->GetIsInTryCompile() &&
           this->Makefile->PolicyOptionalWarningEnabled(
             "CMAKE_POLICY_WARNING_CMP0181")) {
-        this->Makefile->GetCMakeInstance()->IssueMessage(
-          MessageType::AUTHOR_WARNING,
+        this->Makefile->IssueDiagnostic(
+          cmDiagnostics::CMD_AUTHOR,
           cmStrCat(cmPolicies::GetPolicyWarning(cmPolicies::CMP0181),
                    "\nSince the policy is not set, the contents of variable '",
                    name,
@@ -3417,8 +3419,8 @@ void cmLocalGenerator::AddPerLanguageLinkFlags(std::string& flags,
             this->Makefile->GetSafeDefinition(
               cmStrCat("CMAKE_EXECUTABLE_CREATE_", lang, "_FLAGS")) &&
           this->GlobalGenerator->ShouldWarnCMP0210(lang)) {
-        this->IssueMessage(
-          MessageType::AUTHOR_WARNING,
+        this->IssueDiagnostic(
+          cmDiagnostics::CMD_AUTHOR,
           cmStrCat(cmPolicies::GetPolicyWarning(cmPolicies::CMP0210), "\n",
                    "For compatibility with older versions of CMake, ",
                    "CMAKE_", lang, "_LINK_FLAGS will be ignored for all ",

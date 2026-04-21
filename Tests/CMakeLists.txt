@@ -444,6 +444,7 @@ if(BUILD_TESTING)
 
   if(CMake_TEST_RESOURCES)
     ADD_TEST_MACRO(VSResource VSResource)
+    set_property(TEST VSResource APPEND PROPERTY LABELS "PellesC")
     if(CMAKE_GENERATOR MATCHES "Ninja")
       add_test_macro(VSResourceNinjaForceRSP VSResourceNinjaForceRSP)
     endif()
@@ -2465,7 +2466,7 @@ if(BUILD_TESTING)
     --build-options
       "-DUNUSED_CLI_VARIABLE=Unused")
   set_tests_properties(WarnUnusedCliUnused PROPERTIES
-    PASS_REGULAR_EXPRESSION "CMake Warning:.*Manually-specified variables were not used by the project:.*  UNUSED_CLI_VARIABLE")
+    PASS_REGULAR_EXPRESSION "CMake Warning \\(unused-cli\\):.*Manually-specified variables were not used by the project:.*  UNUSED_CLI_VARIABLE")
   list(APPEND TEST_BUILD_DIRS "${CMake_BINARY_DIR}/Tests/WarnUnusedCliUnused")
 
   add_test(WarnUnusedCliUsed ${CMAKE_CTEST_COMMAND}

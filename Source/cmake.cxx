@@ -48,7 +48,6 @@
 #    include "cmDebuggerPosixPipeConnection.h"
 #  endif //_WIN32
 #endif
-#include "cmDiagnostics.h"
 #include "cmDocumentation.h"
 #include "cmDocumentationEntry.h"
 #include "cmDuration.h"
@@ -2453,38 +2452,6 @@ int cmake::Configure()
                                         deprecated, false);
   }
 
-  // Copy diagnostic state to cmMessenger.
-  switch (this->CurrentSnapshot.GetDiagnostic(cmDiagnostics::CMD_AUTHOR)) {
-    case cmDiagnostics::Ignore:
-      this->Messenger->SetSuppressDevWarnings(true);
-      this->Messenger->SetDevWarningsAsErrors(false);
-      break;
-    case cmDiagnostics::SendError:
-    case cmDiagnostics::FatalError:
-      this->Messenger->SetSuppressDevWarnings(false);
-      this->Messenger->SetDevWarningsAsErrors(true);
-      break;
-    default:
-      this->Messenger->SetSuppressDevWarnings(false);
-      this->Messenger->SetDevWarningsAsErrors(false);
-      break;
-  }
-  switch (this->CurrentSnapshot.GetDiagnostic(cmDiagnostics::CMD_DEPRECATED)) {
-    case cmDiagnostics::Ignore:
-      this->Messenger->SetSuppressDeprecatedWarnings(true);
-      this->Messenger->SetDeprecatedWarningsAsErrors(false);
-      break;
-    case cmDiagnostics::SendError:
-    case cmDiagnostics::FatalError:
-      this->Messenger->SetSuppressDeprecatedWarnings(false);
-      this->Messenger->SetDeprecatedWarningsAsErrors(true);
-      break;
-    default:
-      this->Messenger->SetSuppressDeprecatedWarnings(false);
-      this->Messenger->SetDeprecatedWarningsAsErrors(false);
-      break;
-  }
-
   // Now write the diagnostic state back to the cache.
   cmList diagnostics;
   for (unsigned i = 1; i < cmDiagnostics::CategoryCount; ++i) {
@@ -4511,10 +4478,7 @@ void cmake::RunCheckForUnusedVariables()
       }
     }
     if (haveUnused) {
-      this->IssueMessage(action > cmDiagnostics::Warn
-                           ? MessageType::FATAL_ERROR
-                           : MessageType::WARNING,
-                         msg.str());
+      this->IssueDiagnostic(cmDiagnostics::CMD_UNUSED_CLI, msg.str());
     }
   }
 #endif
