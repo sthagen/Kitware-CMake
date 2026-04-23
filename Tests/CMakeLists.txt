@@ -440,6 +440,7 @@ if(BUILD_TESTING)
     )
   ADD_TEST_MACRO(CompileFeatures CompileFeatures)
   set_property(TEST CompileFeatures APPEND PROPERTY LABELS "CUDA" "HIP")
+  set_property(TEST CompileFeatures APPEND PROPERTY LABELS "PellesC")
 
   ADD_TEST_MACRO(CMakeCommands.target_compile_features)
 
