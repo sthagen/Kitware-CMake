@@ -1,12 +1,15 @@
-
 cmake_minimum_required(VERSION 3.10)
+project(CompileFeatures LANGUAGES NONE)
 
-project(CompileFeatures)
-
+enable_language(C)
 set(ext_C c)
-set(ext_CXX cpp)
 set(std_C 90 99 11 17 23)
-set(std_CXX 98 11 14 17 20 23 26)
+
+if(CMake_TEST_CXX)
+  enable_language(CXX)
+  set(ext_CXX cpp)
+  set(std_CXX 98 11 14 17 20 23 26)
+endif()
 
 if(CMake_TEST_CUDA)
   enable_language(CUDA)
@@ -356,10 +359,7 @@ endif ()
 # always add a target "CompileFeatures"
 if ((NOT CXX_expected_features) OR
     (NOT cxx_auto_type IN_LIST CXX_expected_features))
-  file(WRITE "${CMAKE_CURRENT_BINARY_DIR}/dummy.cpp"
-    "int main(int,char**) { return 0; }\n"
-  )
-  add_executable(CompileFeatures "${CMAKE_CURRENT_BINARY_DIR}/dummy.cpp")
+  add_executable(CompileFeatures main.c)
 else()
   # these tests only work if at least cxx_auto_type is available
   add_executable(CompileFeatures main.cpp)
