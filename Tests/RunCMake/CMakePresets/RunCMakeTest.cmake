@@ -365,6 +365,7 @@ run_cmake_presets(DisableWarningFlags)
 run_cmake_presets(ErrorDev)
 run_cmake_presets(ErrorUninitialized)
 run_cmake_presets(ErrorUnusedCli)
+run_cmake_presets(DiagnosticOrder)
 unset(CMakePresets_WARN_UNUSED_CLI)
 
 # Test debug

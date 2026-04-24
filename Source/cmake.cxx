@@ -496,23 +496,29 @@ void cmake::SetDiagnosticsFromPreset(
   std::map<cmDiagnosticCategory, bool> const& warnings,
   std::map<cmDiagnosticCategory, bool> const& errors)
 {
-  for (auto const& wi : warnings) {
-    if (wi.second) {
-      this->CurrentSnapshot.PromoteDiagnostic( // clang-format: break
-        wi.first, cmDiagnostics::Warn, true);
-    } else {
-      this->CurrentSnapshot.DemoteDiagnostic( // clang-format: break
-        wi.first, cmDiagnostics::Ignore, true);
-    }
-  }
+  for (unsigned i = 1; i < cmDiagnostics::CategoryCount; ++i) {
+    auto const category = static_cast<cmDiagnosticCategory>(i);
 
-  for (auto const& ei : errors) {
-    if (ei.second) {
-      this->CurrentSnapshot.PromoteDiagnostic( // clang-format: break
-        ei.first, cmDiagnostics::SendError, true);
-    } else {
-      this->CurrentSnapshot.DemoteDiagnostic( // clang-format: break
-        ei.first, cmDiagnostics::Warn, true);
+    auto const wi = warnings.find(category);
+    if (wi != warnings.end()) {
+      if (wi->second) {
+        this->CurrentSnapshot.PromoteDiagnostic( // clang-format: break
+          category, cmDiagnostics::Warn, true);
+      } else {
+        this->CurrentSnapshot.DemoteDiagnostic( // clang-format: break
+          category, cmDiagnostics::Ignore, true);
+      }
+    }
+
+    auto const ei = errors.find(category);
+    if (ei != errors.end()) {
+      if (ei->second) {
+        this->CurrentSnapshot.PromoteDiagnostic( // clang-format: break
+          category, cmDiagnostics::SendError, true);
+      } else {
+        this->CurrentSnapshot.DemoteDiagnostic( // clang-format: break
+          category, cmDiagnostics::Warn, true);
+      }
     }
   }
 }
