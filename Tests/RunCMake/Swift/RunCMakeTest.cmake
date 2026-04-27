@@ -147,6 +147,22 @@ if(RunCMake_GENERATOR MATCHES "Ninja")
   endblock()
 
   block()
+    set(RunCMake_TEST_BINARY_DIR ${RunCMake_BINARY_DIR}/EmitModuleSeparately-build)
+    run_cmake(EmitModuleSeparately)
+    set(RunCMake_TEST_NO_CLEAN 1)
+    # -v: verbose to capture executed commands -n: dry-run to avoid actually compiling
+    run_cmake_command(EmitModuleSeparately-build ${CMAKE_COMMAND} --build . -- -vn)
+  endblock()
+
+  block()
+    set(RunCMake_TEST_BINARY_DIR ${RunCMake_BINARY_DIR}/EmitModuleSeparatelyResponseFile-build)
+    run_cmake(EmitModuleSeparatelyResponseFile)
+    set(RunCMake_TEST_NO_CLEAN 1)
+    # -v: verbose to capture executed commands -n: dry-run to avoid actually compiling
+    run_cmake_command(EmitModuleSeparatelyResponseFile-build ${CMAKE_COMMAND} --build . -- -vn)
+  endblock()
+
+  block()
     if(CMAKE_SYSTEM_NAME MATCHES Windows)
       set(RunCMake_TEST_BINARY_DIR ${RunCMake_BINARY_DIR}/ImportLibraryFlags-build)
       run_cmake(ImportLibraryFlags)
