@@ -25,8 +25,21 @@ foreach(lang C CXX CUDA HIP)
     string(TOLOWER "${lang}_std_${std}" feature)
     if("${std}" IN_LIST CMake_TEST_${lang}_STANDARDS
         OR CMAKE_${lang}${std}_STANDARD_COMPILE_OPTION)
+      # Test <lang>_std_<std> feature.
       add_library(test_${feature} OBJECT ${feature}.${ext_${lang}})
       target_compile_features(test_${feature} PRIVATE ${feature})
+      # Test <lang>_STANDARD <std> property.
+      if(NOT "${lang}_STANDARD_${std}" MATCHES "^(CUDA_STANDARD_03|HIP_STANDARD_98)$")
+        add_library(test_${lang}_STANDARD_${std} OBJECT ${lang}_STANDARD_${std}.${ext_${lang}})
+        set_property(TARGET test_${lang}_STANDARD_${std} PROPERTY ${lang}_STANDARD ${std})
+        if(CMAKE_${lang}${std}_STANDARD_COMPILE_OPTION STREQUAL [[]]
+            OR "${CMAKE_${lang}_COMPILER_ID};${CMAKE_${lang}_SIMULATE_ID};${CMAKE_${lang}_COMPILER_FRONTEND_VARIANT};${lang};${std}" MATCHES "^(Clang;MSVC;GNU;CXX;(98|11)|Intel;MSVC;(MSVC)?;CXX;11)$")
+          target_compile_definitions(test_${lang}_STANDARD_${std} PRIVATE ${lang}_STD_MISSING)
+        elseif(CMAKE_${lang}_COMPILER_FRONTEND_VARIANT STREQUAL "MSVC"
+            AND CMAKE_${lang}${std}_STANDARD_COMPILE_OPTION MATCHES [[^-std:c\+*latest$]])
+          target_compile_definitions(test_${lang}_STANDARD_${std} PRIVATE ${lang}_STD_LATEST)
+        endif()
+      endif()
     endif()
   endforeach()
 endforeach()
