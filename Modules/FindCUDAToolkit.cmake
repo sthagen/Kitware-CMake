@@ -1212,6 +1212,12 @@ endif()
 unset(CUDAToolkit_IMPLICIT_LIBRARY_DIRECTORIES)
 unset(CUDAToolkit_INCLUDE_DIRECTORIES)
 
+# CUDAToolkit_LIBRARY_ROOT is accidentally set to the target directory in some environments
+# when the CUDA language is enabled, so patch it out
+if(CUDAToolkit_LIBRARY_ROOT MATCHES "^(.*)/targets/([^/]*)$")
+  set(CUDAToolkit_LIBRARY_ROOT "${CMAKE_MATCH_1}")
+endif()
+
 #-----------------------------------------------------------------------------
 # Construct import targets
 if(CUDAToolkit_FOUND)
