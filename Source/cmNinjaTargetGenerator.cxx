@@ -1438,6 +1438,7 @@ void cmNinjaTargetGenerator::GenerateSwiftOutputFileMap(
   this->Configs[config].SwiftOutputMap[""] = deps;
 
   cmGeneratedFileStream output(mapFilePath);
+  output.SetCopyIfDifferent(true);
   output << this->Configs[config].SwiftOutputMap;
 
   // Add flag
@@ -2200,8 +2201,11 @@ void cmNinjaTargetGenerator::WriteSwiftObjectBuildStatement(
   objBuild.RspFile = cmStrCat(targetObjectFilename, ".swift.rsp");
 
   // Importable targets keep -emit-module on compile so swiftc still emits
-  // .swiftdoc.  When splitting module emission, only the .swiftmodule output
-  // moves to the separate emit-module edge.
+  // .swiftdoc.  When splitting module emission, both the .swiftmodule output
+  // and -emit-module flags move entirely to the separate emit-module edge.
+  if (targetIsImportable) {
+    this->Configs[config].SwiftModuleOutput = moduleFilepath;
+  }
   if (targetIsImportable && !emitModuleSeparately) {
     objBuild.Outputs.push_back(moduleFilepath);
   }
@@ -2240,7 +2244,8 @@ void cmNinjaTargetGenerator::WriteSwiftObjectBuildStatement(
   std::string const moduleOutputPath =
     this->LocalGenerator->ConvertToOutputFormat(moduleFilepath,
                                                 cmOutputConverter::SHELL);
-  if (targetIsImportable) {
+  if (targetIsImportable && !emitModuleSeparately &&
+      commonFlags.find("-emit-module-path") == std::string::npos) {
     std::string const emitModuleFlag = "-emit-module";
     std::string const modulePathFlag = "-emit-module-path";
     this->LocalGenerator->AppendFlags(
@@ -2275,11 +2280,6 @@ void cmNinjaTargetGenerator::WriteSwiftObjectBuildStatement(
 
   objBuild.OrderOnlyDeps.push_back(this->OrderDependsTargetForTarget(config));
 
-  // Write object build
-  this->GetGlobalGenerator()->WriteBuild(this->GetImplFileStream(fileConfig),
-                                         objBuild,
-                                         this->ForceResponseFile() ? -1 : 0);
-
   // Write a separate emit-module build edge that produces .swiftmodule
   // without compile outputs. This allows downstream Swift targets to start
   // compiling as soon as the module interface is ready, overlapping with
@@ -2291,10 +2291,14 @@ void cmNinjaTargetGenerator::WriteSwiftObjectBuildStatement(
     // Start from common flags (shared with compile edge) and add
     // emit-module-specific flags.  The emit-module rule template already
     // contains -emit-module, so we only need -emit-module-path here.
+    // Skip if the flags already contain one (e.g. a directory-style path
+    // set by the target's compile options).
     modBuild.Variables["FLAGS"] = commonFlags;
-    this->LocalGenerator->AppendFlags(
-      modBuild.Variables["FLAGS"],
-      cmStrCat("-emit-module-path ", moduleOutputPath));
+    if (commonFlags.find("-emit-module-path") == std::string::npos) {
+      this->LocalGenerator->AppendFlags(
+        modBuild.Variables["FLAGS"],
+        cmStrCat("-emit-module-path ", moduleOutputPath));
+    }
 
     modBuild.RspFile = cmStrCat(moduleFilepath, ".rsp");
 
@@ -2306,7 +2310,16 @@ void cmNinjaTargetGenerator::WriteSwiftObjectBuildStatement(
     this->GetGlobalGenerator()->WriteBuild(this->GetImplFileStream(fileConfig),
                                            modBuild,
                                            this->ForceResponseFile() ? -1 : 0);
+
+    // Both edges share the same -output-file-map; serialize the compile
+    // edge after emit-module so they do not race on the module .swiftdeps.
+    objBuild.OrderOnlyDeps.push_back(moduleFilepath);
   }
+
+  // Write object build
+  this->GetGlobalGenerator()->WriteBuild(this->GetImplFileStream(fileConfig),
+                                         objBuild,
+                                         this->ForceResponseFile() ? -1 : 0);
 }
 
 void cmNinjaTargetGenerator::WriteTargetDependInfo(std::string const& lang,
@@ -2664,6 +2677,16 @@ cmNinjaDeps cmNinjaTargetGenerator::GetObjects(std::string const& config) const
   auto const it = this->Configs.find(config);
   if (it != this->Configs.end()) {
     return it->second.Objects;
+  }
+  return {};
+}
+
+std::string cmNinjaTargetGenerator::GetSwiftModuleOutput(
+  std::string const& config) const
+{
+  auto const it = this->Configs.find(config);
+  if (it != this->Configs.end()) {
+    return it->second.SwiftModuleOutput;
   }
   return {};
 }

@@ -26,6 +26,12 @@ function(run_cmake_build_presets name CMakePresetsBuild_CONFIGURE_PRESETS CMakeP
     configure_file("${CMakePresetsBuild_FILE}" "${RunCMake_TEST_SOURCE_DIR}/CMakePresets.json" @ONLY)
   endif()
 
+  set(_presets_file)
+  if(CMakePresets_FILE_ARG)
+    set(_presets_file "--presets-file=${RunCMake_TEST_SOURCE_DIR}/${CMakePresets_FILE_ARG}")
+    configure_file("${RunCMake_SOURCE_DIR}/${CMakePresets_FILE_ARG}.in" "${RunCMake_TEST_SOURCE_DIR}/${CMakePresets_FILE_ARG}" @ONLY)
+  endif()
+
   if(NOT CMakeUserPresets_FILE)
     set(CMakeUserPresets_FILE "${RunCMake_SOURCE_DIR}/${name}User.json.in")
   endif()
@@ -50,11 +56,11 @@ function(run_cmake_build_presets name CMakePresetsBuild_CONFIGURE_PRESETS CMakeP
 
     if(eq)
       run_cmake_command(${name}-build-${BUILD_PRESET}
-        ${CMAKE_COMMAND} "--build" ${CMakePresetsBuild_BUILD_DIR_OVERRIDE} "--preset=${BUILD_PRESET}" ${ARGN})
+        ${CMAKE_COMMAND} "--build" ${CMakePresetsBuild_BUILD_DIR_OVERRIDE} "--preset=${BUILD_PRESET}" ${_presets_file} ${ARGN})
       set(eq 0)
     else()
       run_cmake_command(${name}-build-${BUILD_PRESET}
-        ${CMAKE_COMMAND} "--build" ${CMakePresetsBuild_BUILD_DIR_OVERRIDE} "--preset" "${BUILD_PRESET}" ${ARGN})
+        ${CMAKE_COMMAND} "--build" ${CMakePresetsBuild_BUILD_DIR_OVERRIDE} "--preset" "${BUILD_PRESET}" ${_presets_file} ${ARGN})
       set(eq 1)
     endif()
   endforeach()
@@ -74,9 +80,17 @@ run_cmake_build_presets(Good "default;other" "build-other;withEnvironment;noEnvi
 run_cmake_build_presets(InvalidConfigurePreset "default" "badConfigurePreset" "")
 run_cmake_build_presets(Condition "default" "enabled;disabled" "")
 
+set(CMakePresets_FILE_ARG "OtherCMakePresetsFile.json")
+run_cmake_build_presets(OtherCMakePresetsFile "default" "default-from-other-file" "")
+set(CMakePresetsBuild_BUILD_ONLY 1)
+run_cmake_build_presets(OtherCMakePresetsFileListPresets "" "x" "--list-presets" "")
+unset(CMakePresetsBuild_BUILD_ONLY)
+unset(CMakePresets_FILE_ARG)
+
 set(CMakePresetsBuild_BUILD_ONLY 1)
 run_cmake_command(PresetsNoArg-build ${CMAKE_COMMAND} "--build" "--preset")
 run_cmake_command(PresetsNoArgEq-build ${CMAKE_COMMAND} "--build" "--preset=")
+run_cmake_Command(PresetsFileNoArg-build ${CMAKE_COMMAND} "--build" "--presets-file")
 run_cmake_build_presets(ListPresets "x" "x" "--list-presets" "")
 run_cmake_build_presets(NoConfigurePreset "x" "noConfigurePreset" "")
 run_cmake_build_presets(Invalid "x" "hidden;vendorMacro" "")

@@ -88,3 +88,15 @@ Warn about variables that are declared on the command line, but not used.
 
 Although the action of this warning category can be queried as usual, changes
 made using the :command:`cmake_diagnostic` command have no effect.
+
+.. _CMD_INSTALL_ABSOLUTE_DESTINATION:
+
+``CMD_INSTALL_ABSOLUTE_DESTINATION`` (``-Winstall-absolute-destination``)
+-------------------------------------------------------------------------
+
+:Default: Ignore
+
+Warn when an :command:`install` command specifies an absolute
+``DESTINATION`` path.  Absolute destinations are typically undesirable
+because they prevent the installation prefix from being overridden at
+install time.

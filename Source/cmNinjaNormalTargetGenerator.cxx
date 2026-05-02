@@ -1652,6 +1652,14 @@ void cmNinjaNormalTargetGenerator::WriteLinkStatement(
     }
   }
 
+  // For split Swift builds, ensure the link edge depends on the target's own
+  // .swiftmodule so the emit-module edge runs even when no other target in
+  // the build depends on it (e.g. install-only targets).
+  std::string swiftModuleOutput = this->GetSwiftModuleOutput(config);
+  if (!swiftModuleOutput.empty()) {
+    linkBuild.ImplicitDeps.emplace_back(std::move(swiftModuleOutput));
+  }
+
   // Ninja should restat after linking if and only if there are byproducts.
   vars["RESTAT"] = byproducts.ExplicitOuts.empty() ? "" : "1";
 

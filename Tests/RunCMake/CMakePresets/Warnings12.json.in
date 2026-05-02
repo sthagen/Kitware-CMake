@@ -30,6 +30,20 @@
       }
     },
     {
+      "name": "WarningAbsInstallPath",
+      "inherits": "NoWarningFlags",
+      "warnings": {
+        "installAbsoluteDestination": true
+      }
+    },
+    {
+      "name": "ErrorAbsInstallPath",
+      "inherits": "NoWarningFlags",
+      "errors": {
+        "installAbsoluteDestination": true
+      }
+    },
+    {
       "name": "ErrorDev",
       "inherits": "NoWarningFlags",
       "errors": {

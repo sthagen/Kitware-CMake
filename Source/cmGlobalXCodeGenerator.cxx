@@ -2723,6 +2723,15 @@ void cmGlobalXCodeGenerator::CreateBuildSettings(cmGeneratorTarget* gtgt,
           break;
       }
     }
+
+    // Add SWIFT_PACKAGE_NAME
+    if (this->XcodeVersion >= 150) {
+      std::string const packageName = gtgt->GetSwiftPackageName();
+      if (!packageName.empty()) {
+        buildSettings->AddAttribute("SWIFT_PACKAGE_NAME",
+                                    this->CreateString(packageName));
+      }
+    }
   }
 
   std::string extraLinkOptions;

@@ -69,20 +69,41 @@ The options for running tests are:
 
 .. option:: --preset <preset>, --preset=<preset>
 
- Use a test preset to specify test options. The project binary directory
- is inferred from the ``configurePreset`` key. The current working directory
- must contain CMake preset files.
- See :manual:`preset <cmake-presets(7)>` for more details.
+ Use a test :manual:`preset <cmake-presets(7)>` to specify test options. The
+ project binary directory is inferred from the
+ :preset:`testPresets.configurePreset` key.
 
  .. versionadded:: 3.30
-   The ``--test-dir`` option may optionally be specified with a different
-   binary directory than the one specified by the ``configurePreset`` key
-   of the test preset.
+   The :ctest-option:`--test-dir` option may be specified with a different
+   binary directory than the one specified by the
+   :preset:`testPresets.configurePreset` key.
+
+ .. versionchanged:: 4.4
+   If :ctest-option:`--presets-file` is specified, neither of
+   ``CMakePresets.json`` nor ``CMakeUserPresets.json`` are required to be
+   present.  Otherwise, they are required to be present in the top level
+    source directory.  In prior versions, this was strictly required.
+
+.. option:: --presets-file <file>, --presets-file=<file>
+
+ .. versionadded:: 4.4
+
+ Reads :manual:`presets <cmake-presets(7)>` from the given ``<file>``. The
+ specified path may be absolute or relative to the current working directory.
+ If ``--presets-file`` is given, presets defined in ``CMakePresets.json`` and
+ ``CMakeUserPresets.json`` will be ignored.
 
 .. option:: --list-presets
 
  Lists the available test presets. The current working directory must contain
- CMake preset files.
+ ``CMakePresets.json`` and/or ``CMakeUserPresets.json``.
+
+ .. versionchanged:: 4.4
+   If :ctest-option:`--presets-file` is specified, neither of
+   ``CMakePresets.json`` nor ``CMakeUserPresets.json`` are required to be
+   present, and only presets defined in the given ``<file>`` will be listed.
+   Otherwise, they are required to be present in the top level source
+   directory.  In prior versions, this was strictly required.
 
 .. option:: -C <cfg>, --build-config <cfg>
 

@@ -2,8 +2,17 @@ string(
   REGEX MATCHALL
   "swiftc(\\.exe)?\"? [^\n]* -emit-module-path [^\n]*L\\.swiftmodule"
   swift_module_commands "${actual_stdout}")
-list(LENGTH swift_module_commands swift_module_command_count)
-if(swift_module_command_count LESS 2)
+
+set(emit_module_commands "${swift_module_commands}")
+list(FILTER emit_module_commands EXCLUDE REGEX " -c ")
+if(NOT emit_module_commands)
   string(APPEND RunCMake_TEST_FAILED
-    "Expected separate compile and emit-module commands for L, found ${swift_module_command_count} command(s) with '-emit-module-path ... L.swiftmodule'.\n")
+    "Expected an emit-module command with '-emit-module-path ... L.swiftmodule'.\n")
+endif()
+
+set(compile_commands "${swift_module_commands}")
+list(FILTER compile_commands INCLUDE REGEX " -c ")
+if(compile_commands)
+  string(APPEND RunCMake_TEST_FAILED
+    "Compile command (-c) should not contain '-emit-module-path' when emitting module separately.\n")
 endif()
