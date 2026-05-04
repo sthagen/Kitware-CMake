@@ -3267,6 +3267,7 @@ void cmCTest::SetCMakeVariables(cmMakefile& mf)
 
   // CTest Test Step
   set("CTEST_TEST_TIMEOUT", "TimeOut");
+  set("CTEST_TEST_COVERAGE_TOOL", "CTestTestCoverageTool");
 
   // CTest Coverage Step
   set("CTEST_COVERAGE_COMMAND", "CoverageCommand");

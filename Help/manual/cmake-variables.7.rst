@@ -806,6 +806,7 @@ Variables for CTest
    /variable/CTEST_SVN_UPDATE_OPTIONS
    /variable/CTEST_TEST_LOAD
    /variable/CTEST_TEST_TIMEOUT
+   /variable/CTEST_TEST_COVERAGE_TOOL
    /variable/CTEST_TLS_VERIFY
    /variable/CTEST_TLS_VERSION
    /variable/CTEST_UPDATE_COMMAND

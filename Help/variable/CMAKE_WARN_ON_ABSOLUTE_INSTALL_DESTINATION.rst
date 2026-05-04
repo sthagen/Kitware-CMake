@@ -10,8 +10,7 @@ warning messages from the script.
 
 .. versionadded:: 4.4
 
-  The :ref:`CMD_INSTALL_ABSOLUTE_DESTINATION <CMD_INSTALL_ABSOLUTE_DESTINATION>`
-  diagnostic can be used to to generate warnings for absolute install destinations
-  at generate time.
+  The :diagnostic:`CMD_INSTALL_ABSOLUTE_DESTINATION` diagnostic can be used to
+  generate warnings for absolute install destinations at generate time.
 
 See also :variable:`CMAKE_ERROR_ON_ABSOLUTE_INSTALL_DESTINATION`.

@@ -4563,7 +4563,7 @@ bool cmGlobalXCodeGenerator::CreateGroups(
 
       auto addSourceToGroup = [this, &gtgt,
                                &generator](std::string const& source) {
-        cmSourceGroup* sourceGroup = generator->FindSourceGroup(source);
+        cmSourceGroup const* sourceGroup = generator->FindSourceGroup(source);
         cmXCodeObject* pbxgroup =
           this->CreateOrGetPBXGroup(gtgt.get(), sourceGroup);
         std::string key = GetGroupMapKeyFromPath(gtgt.get(), source);
@@ -4639,7 +4639,7 @@ cmXCodeObject* cmGlobalXCodeGenerator::CreatePBXGroup(cmXCodeObject* parent,
 }
 
 cmXCodeObject* cmGlobalXCodeGenerator::CreateOrGetPBXGroup(
-  cmGeneratorTarget* gtgt, cmSourceGroup* sg)
+  cmGeneratorTarget* gtgt, cmSourceGroup const* sg)
 {
   std::string s;
   std::string target;

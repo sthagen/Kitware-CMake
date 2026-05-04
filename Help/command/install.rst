@@ -61,9 +61,8 @@ signatures that specify them.  The common options are:
   but not recommended.
 
   .. versionadded:: 4.4
-    The :ref:`CMD_INSTALL_ABSOLUTE_DESTINATION <CMD_INSTALL_ABSOLUTE_DESTINATION>`
-    diagnostic can be enabled to warn or error out when an absolute destination
-    is provided.
+    The :diagnostic:`CMD_INSTALL_ABSOLUTE_DESTINATION` diagnostic can be
+    enabled to warn or error out when an absolute destination is provided.
 
   When a relative path is given, it is interpreted relative to the value
   of the :variable:`CMAKE_INSTALL_PREFIX` variable.

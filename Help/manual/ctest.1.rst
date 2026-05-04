@@ -1383,7 +1383,40 @@ Configuration settings include:
   * `CTest Script`_ variable: :variable:`CTEST_TEST_TIMEOUT`
   * :module:`CTest` module variable: ``DART_TESTING_TIMEOUT``
 
+.. _`ctest-CoverageTool`:
+
+``CoverageTool``
+  .. versionadded:: 4.4
+
+  Specify the tool used for collecting coverage during the running
+  of the tests.  The tool may be one of:
+
+  ``LLVM-COV``
+    This value indicates the usage of Clang's source-based code coverage
+    which "operates on AST and preprocessor information directly".
+    For more information, see the `Clang Source-based Code Coverage`_
+    documentation.
+
+    CTest will run each test with the ``LLVM_PROFILE_FILE`` environment
+    variable set to ``<directory>/<test-name>_<process-id>.profraw``,
+    where ``<directory>`` is the absolute path to the directory where
+    the ``CTestTestfile.cmake`` that describes the test is located.
+    This configures Clang Source-based Code Coverage to uniquely identify
+    the coverage information gathered by each test without any collisions.
+
+    Any existing ``<directory>/<test-name>_*.profraw`` files for a test
+    are removed before running the test.  Any existing ``LLVM_PROFILE_FILE``
+    environment variable is ignored.
+
+  If no value is specified, no work is done and nothing is added to the
+  environment.
+
+  * `CTest Script`_ variable: :variable:`CTEST_TEST_COVERAGE_TOOL`
+  * :module:`CTest` module variable: :variable:`CTEST_TEST_COVERAGE_TOOL`
+
 To report extra test values to CDash, see :ref:`Additional Test Measurements`.
+
+.. _`Clang Source-based Code Coverage`: https://clang.llvm.org/docs/SourceBasedCodeCoverage.html
 
 .. _`CTest Coverage Step`:
 
