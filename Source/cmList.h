@@ -821,8 +821,11 @@ public:
     EXCLUDE
   };
   // Includes or removes items from the list
-  // Throw std::invalid_argument if regular expression is invalid
+  // Throw std::invalid_argument if regular expression is invalid or predicate
+  // function is unknown / does not set its output variable
   cmList& filter(cm::string_view regex, FilterMode mode);
+  cmList& filter(std::string const& functionName, FilterMode mode,
+                 cmMakefile& makefile);
 
   cmList& reverse()
   {
@@ -886,6 +889,7 @@ public:
     struct AT;
     struct FOR;
     struct REGEX;
+    struct PREDICATE;
 
     virtual ~TransformSelector() = default;
 
@@ -910,6 +914,12 @@ public:
     static std::unique_ptr<TransformSelector> New(std::string const&);
     template <typename Type>
     static std::unique_ptr<TransformSelector> New(std::string&&);
+
+    // NewPREDICATE is public (unlike NewAT/NewFOR/NewREGEX) because it takes
+    // a cmMakefile& parameter that cannot be dispatched through the existing
+    // New<Type>() templates.
+    static std::unique_ptr<TransformSelector> NewPREDICATE(
+      std::string const& functionName, cmMakefile& makefile);
 
     cmMakefile* Makefile = nullptr;
 

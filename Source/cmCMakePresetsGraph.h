@@ -84,6 +84,8 @@ public:
 
     std::map<std::string, cm::optional<std::string>> Environment;
 
+    std::string ErrorDetail;
+
     virtual bool VisitPresetInherit(Preset const& parent) = 0;
     virtual bool VisitPresetBeforeInherit() { return true; }
 

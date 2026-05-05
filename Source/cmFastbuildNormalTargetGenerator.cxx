@@ -1141,10 +1141,16 @@ void cmFastbuildNormalTargetGenerator::CollapseAllExecsIntoOneScriptfile(
 std::string cmFastbuildNormalTargetGenerator::ComputeCodeCheckOptions(
   cmSourceFile const& srcFile)
 {
+  cmGeneratorFileSet const* fileSet =
+    this->GeneratorTarget->GetFileSetForSource(Config, &srcFile);
+  cmValue const fsSkipCodeCheckVal =
+    fileSet ? fileSet->GetProperty("SKIP_LINTING") : nullptr;
   cmValue const srcSkipCodeCheckVal = srcFile.GetProperty("SKIP_LINTING");
-  bool const skipCodeCheck = srcSkipCodeCheckVal.IsSet()
-    ? srcSkipCodeCheckVal.IsOn()
-    : this->GetGeneratorTarget()->GetPropertyAsBool("SKIP_LINTING");
+  bool const skipCodeCheck = fsSkipCodeCheckVal.IsSet()
+    ? fsSkipCodeCheckVal.IsOn()
+    : (srcSkipCodeCheckVal.IsSet()
+         ? srcSkipCodeCheckVal.IsOn()
+         : this->GetGeneratorTarget()->GetPropertyAsBool("SKIP_LINTING"));
 
   if (skipCodeCheck) {
     return {};
@@ -1413,8 +1419,8 @@ void cmFastbuildNormalTargetGenerator::GenerateObjects(FastbuildTarget& target)
     useUnity = false;
   }
 
-  // List of sources isolated from the unity build if enabled.
-  std::set<std::string> isolatedFromUnity;
+  // List of sources excluded from the unity build if enabled.
+  std::set<std::string> excludedFromUnity;
 
   // Mapping from unity group (if any) to sources belonging to that group.
   std::map<std::string, std::vector<std::string>> sourcesWithGroups;
@@ -1425,10 +1431,10 @@ void cmFastbuildNormalTargetGenerator::GenerateObjects(FastbuildTarget& target)
     std::string const pathToFile = srcFile.GetFullPath();
     bool fileUsesUnity = useUnity;
     if (useUnity) {
-      // Check if the source should be added to "UnityInputIsolatedFiles".
+      // Check if the source should be added to "UnityInputExcludedFiles".
       if (srcFile.GetPropertyAsBool(SKIP_UNITY_BUILD_INCLUSION)) {
         fileUsesUnity = false;
-        isolatedFromUnity.emplace(pathToFile);
+        excludedFromUnity.emplace(pathToFile);
       }
       std::string const perFileUnityGroup =
         srcFile.GetSafeProperty(UNITY_GROUP);
@@ -1567,27 +1573,27 @@ void cmFastbuildNormalTargetGenerator::GenerateObjects(FastbuildTarget& target)
   }
   if (useUnity) {
     target.UnityNodes =
-      GenerateUnity(objects, isolatedFromUnity, sourcesWithGroups);
+      GenerateUnity(objects, excludedFromUnity, sourcesWithGroups);
   }
 }
 
 FastbuildUnityNode cmFastbuildNormalTargetGenerator::GetOneUnity(
-  std::set<std::string> const& isolatedFiles, std::vector<std::string>& files,
+  std::set<std::string> const& excludedFiles, std::vector<std::string>& files,
   int unitySize) const
 {
   FastbuildUnityNode result;
   for (auto iter = files.begin(); iter != files.end();) {
     std::string pathToFile = std::move(*iter);
     iter = files.erase(iter);
-    // This source must be isolated
-    if (isolatedFiles.find(pathToFile) != isolatedFiles.end()) {
+    // This source must be excluded from the generated unity file.
+    if (excludedFiles.find(pathToFile) != excludedFiles.end()) {
       result.UnityInputFiles.emplace_back(pathToFile);
-      result.UnityInputIsolatedFiles.emplace_back(std::move(pathToFile));
+      result.UnityInputExcludedFiles.emplace_back(std::move(pathToFile));
     } else {
       result.UnityInputFiles.emplace_back(std::move(pathToFile));
     }
     if (int(result.UnityInputFiles.size() -
-            result.UnityInputIsolatedFiles.size()) == unitySize) {
+            result.UnityInputExcludedFiles.size()) == unitySize) {
       break;
     }
   }
@@ -1617,7 +1623,7 @@ int cmFastbuildNormalTargetGenerator::GetUnityBatchSize() const
 std::vector<FastbuildUnityNode>
 cmFastbuildNormalTargetGenerator::GenerateUnity(
   std::vector<FastbuildObjectListNode>& objects,
-  std::set<std::string> const& isolatedSources,
+  std::set<std::string> const& excludedSources,
   std::map<std::string, std::vector<std::string>> const& sourcesWithGroups)
 {
   int const unitySize = GetUnityBatchSize();
@@ -1650,14 +1656,14 @@ cmFastbuildNormalTargetGenerator::GenerateUnity(
     // General unity batching of the remaining (non-grouped) sources.
     while (!obj.CompilerInputFiles.empty()) {
       FastbuildUnityNode node =
-        GetOneUnity(isolatedSources, obj.CompilerInputFiles, unitySize);
+        GetOneUnity(excludedSources, obj.CompilerInputFiles, unitySize);
       node.Name = cmStrCat(this->GetName(), "_Unity_", ++unityNumber);
       node.UnityOutputPath = obj.CompilerOutputPath;
       node.UnityOutputPattern = cmStrCat(node.Name, ext);
 
-      // Unity group of size 1 doesn't make sense - just isolate the source.
+      // Unity group of size 1 doesn't make sense - just exclude the source.
       if (groupedNode.UnityInputFiles.size() == 1) {
-        node.UnityInputIsolatedFiles.emplace_back(
+        node.UnityInputExcludedFiles.emplace_back(
           groupedNode.UnityInputFiles[0]);
         node.UnityInputFiles.emplace_back(
           std::move(groupedNode.UnityInputFiles[0]));

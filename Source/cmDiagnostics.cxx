@@ -12,6 +12,28 @@
 #include "cmStringAlgorithms.h"
 
 namespace {
+
+#if __cplusplus >= 201703L
+constexpr unsigned validateDiagnosticsSubtree(unsigned parent, unsigned index)
+{
+  // Ensure that all diagnostics, starting from the specified index, have the
+  // specified parent as an ancestor. Return the first index that violates
+  // this condition.
+  while (index < cmDiagnostics::CategoryCount &&
+         cmDiagnostics::CategoryInfo[index].Parent == parent) {
+    unsigned const child = index;
+    // For each diagnostic, 'consume' its children (if any).
+    index = validateDiagnosticsSubtree(child, ++index);
+  }
+  return index;
+}
+
+static_assert(validateDiagnosticsSubtree(cmDiagnostics::CMD_NONE, 1) ==
+                cmDiagnostics::CategoryCount,
+              "Diagnostics are not properly ordered"
+              " (hint: LHS is the index of the first misordered diagnostic)");
+#endif
+
 cm::optional<cmDiagnosticCategory> stringToCategory(cm::string_view input)
 {
   using Map = std::map<cm::string_view, cmDiagnosticCategory>;

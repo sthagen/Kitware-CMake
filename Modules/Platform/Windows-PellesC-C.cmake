@@ -6,3 +6,12 @@ __windows_compiler_pellesc(C)
 
 set(CMAKE_C_COMPILE_OBJECT
   "<CMAKE_C_COMPILER> <DEFINES> <INCLUDES> <FLAGS> -Fo<OBJECT> -c <SOURCE>")
+
+# Enable Pelles C's Microsoft extensions to use Windows APIs.
+# The flag also disables standard definitions, so add them.
+string(APPEND CMAKE_C_FLAGS_INIT " -Ze -D__STDC__=1 -D__STDC_VERSION__=__POCC_STDC_VERSION__")
+
+string(APPEND CMAKE_C_FLAGS_DEBUG_INIT " -Zi -Ob0")
+string(APPEND CMAKE_C_FLAGS_RELEASE_INIT " -Ot -Ob2 -DNDEBUG=1")
+string(APPEND CMAKE_C_FLAGS_RELWITHDEBINFO_INIT " -Zi -Ot -Ob1 -DNDEBUG=1")
+string(APPEND CMAKE_C_FLAGS_MINSIZEREL_INIT " -Os -Ob1 -DNDEBUG=1")

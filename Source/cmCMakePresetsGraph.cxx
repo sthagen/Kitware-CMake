@@ -109,8 +109,8 @@ bool VisitPreset(
 {
   switch (cycleStatus[preset.Name]) {
     case CycleStatus::InProgress:
-      cmCMakePresetsErrors::CYCLIC_PRESET_INHERITANCE(preset.Name,
-                                                      &graph.parseState);
+      cmCMakePresetsErrors::CYCLIC_PRESET_INHERITANCE(
+        preset.Name, preset.kind(), &graph.parseState);
       return false;
     case CycleStatus::Verified:
       return true;
@@ -121,28 +121,32 @@ bool VisitPreset(
   cycleStatus[preset.Name] = CycleStatus::InProgress;
 
   if (preset.Environment.count("") != 0) {
-    cmCMakePresetsErrors::INVALID_PRESET_NAMED(preset.Name, &graph.parseState);
+    cmCMakePresetsErrors::INVALID_PRESET_NAMED(
+      preset.Name, preset.kind(), &graph.parseState,
+      "Empty environment variable names are not allowed");
     return false;
   }
 
   bool result = preset.VisitPresetBeforeInherit();
   if (!result) {
-    cmCMakePresetsErrors::INVALID_PRESET_NAMED(preset.Name, &graph.parseState);
+    cmCMakePresetsErrors::INVALID_PRESET_NAMED(
+      preset.Name, preset.kind(), &graph.parseState, preset.ErrorDetail);
     return false;
   }
 
   for (auto const& i : preset.Inherits) {
     auto parent = presets.find(i);
     if (parent == presets.end()) {
-      cmCMakePresetsErrors::INVALID_PRESET_NAMED(preset.Name,
-                                                 &graph.parseState);
+      cmCMakePresetsErrors::INVALID_PRESET_NAMED(
+        preset.Name, preset.kind(), &graph.parseState,
+        cmStrCat("Could not find inherited preset \"", i, "\""));
       return false;
     }
 
     auto& parentPreset = parent->second.Unexpanded;
     if (!preset.OriginFile->ReachableFiles.count(parentPreset.OriginFile)) {
       cmCMakePresetsErrors::INHERITED_PRESET_UNREACHABLE_FROM_FILE(
-        preset.Name, &graph.parseState);
+        preset.Name, preset.kind(), &graph.parseState);
       return false;
     }
 
@@ -152,8 +156,8 @@ bool VisitPreset(
 
     result = preset.VisitPresetInherit(parentPreset);
     if (!result) {
-      cmCMakePresetsErrors::INVALID_PRESET_NAMED(preset.Name,
-                                                 &graph.parseState);
+      cmCMakePresetsErrors::INVALID_PRESET_NAMED(
+        preset.Name, preset.kind(), &graph.parseState, preset.ErrorDetail);
       return false;
     }
 
@@ -171,7 +175,8 @@ bool VisitPreset(
   result = preset.VisitPresetAfterInherit(graph.GetVersion(preset),
                                           &graph.parseState);
   if (!result) {
-    cmCMakePresetsErrors::INVALID_PRESET_NAMED(preset.Name, &graph.parseState);
+    cmCMakePresetsErrors::INVALID_PRESET_NAMED(
+      preset.Name, preset.kind(), &graph.parseState, preset.ErrorDetail);
     return false;
   }
 
@@ -453,8 +458,9 @@ bool ExpandMacros(cmCMakePresetsGraph* graph, T const& preset,
       switch (VisitEnv(*v.second, envCycles[v.first], macroExpanders,
                        graph->GetVersion(preset))) {
         case ExpandMacroResult::Error:
-          cmCMakePresetsErrors::INVALID_PRESET_NAMED(preset.Name,
-                                                     &graph->parseState);
+          cmCMakePresetsErrors::INVALID_PRESET_NAMED(
+            preset.Name, preset.kind(), &graph->parseState,
+            "Invalid macro expansion");
           return false;
         case ExpandMacroResult::Ignore:
           out.reset();
@@ -471,8 +477,8 @@ bool ExpandMacros(cmCMakePresetsGraph* graph, T const& preset,
     cm::optional<bool> result;
     if (!preset.ConditionEvaluator->Evaluate(
           macroExpanders, graph->GetVersion(preset), result)) {
-      cmCMakePresetsErrors::INVALID_PRESET_NAMED(preset.Name,
-                                                 &graph->parseState);
+      cmCMakePresetsErrors::INVALID_PRESET_NAMED(
+        preset.Name, preset.kind(), &graph->parseState, "Invalid condition");
       return false;
     }
     if (!result) {
@@ -911,6 +917,8 @@ bool cmCMakePresetsGraph::ConfigurePreset::VisitPresetBeforeInherit()
 {
   auto& preset = *this;
   if (preset.Environment.count("") != 0) {
+    this->ErrorDetail =
+      "Empty environment variable names are not allowed in configure presets";
     return false;
   }
 
@@ -945,6 +953,7 @@ bool cmCMakePresetsGraph::ConfigurePreset::VisitPresetAfterInherit(
     }
 
     if (preset.CacheVariables.count("") != 0) {
+      this->ErrorDetail = "Empty cache variable names are not allowed";
       return false;
     }
   }
@@ -977,7 +986,12 @@ bool cmCMakePresetsGraph::BuildPreset::VisitPresetInherit(
 bool cmCMakePresetsGraph::BuildPreset::VisitPresetAfterInherit(
   int /* version */, cmJSONState* /*stat*/)
 {
-  return this->Hidden || !this->ConfigurePreset.empty();
+  if (!this->Hidden && this->ConfigurePreset.empty()) {
+    this->ErrorDetail = "Build presets must either be hidden or have an "
+                        "associated configure preset";
+    return false;
+  }
+  return true;
 }
 
 bool cmCMakePresetsGraph::TestPreset::VisitPresetInherit(
@@ -1087,7 +1101,12 @@ bool cmCMakePresetsGraph::TestPreset::VisitPresetInherit(
 bool cmCMakePresetsGraph::TestPreset::VisitPresetAfterInherit(
   int /* version */, cmJSONState* /*state*/)
 {
-  return this->Hidden || !this->ConfigurePreset.empty();
+  if (!this->Hidden && this->ConfigurePreset.empty()) {
+    this->ErrorDetail = "Test presets must either be hidden or have an "
+                        "associated configure preset";
+    return false;
+  }
+  return true;
 }
 
 bool cmCMakePresetsGraph::PackagePreset::VisitPresetInherit(
@@ -1116,7 +1135,12 @@ bool cmCMakePresetsGraph::PackagePreset::VisitPresetInherit(
 bool cmCMakePresetsGraph::PackagePreset::VisitPresetAfterInherit(
   int /* version */, cmJSONState* /*state*/)
 {
-  return this->Hidden || !this->ConfigurePreset.empty();
+  if (!this->Hidden && this->ConfigurePreset.empty()) {
+    this->ErrorDetail = "Package presets must either be hidden or have an "
+                        "associated configure preset";
+    return false;
+  }
+  return true;
 }
 
 bool cmCMakePresetsGraph::WorkflowPreset::VisitPresetInherit(

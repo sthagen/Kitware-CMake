@@ -3870,11 +3870,11 @@ cmTarget* cmMakefile::AddImportedTarget(std::string const& name,
                                         bool global)
 {
   // Create the target.
-  std::unique_ptr<cmTarget> target(
-    new cmTarget(name, type,
-                 global ? cmTarget::Visibility::ImportedGlobally
-                        : cmTarget::Visibility::Imported,
-                 this, cmTarget::PerConfig::Yes));
+  auto target =
+    cm::make_unique<cmTarget>(name, type,
+                              global ? cmTarget::Visibility::ImportedGlobally
+                                     : cmTarget::Visibility::Imported,
+                              this, cmTarget::PerConfig::Yes);
 
   // Add to the set of available imported targets.
   this->ImportedTargets[name] = target.get();
@@ -3890,9 +3890,9 @@ cmTarget* cmMakefile::AddForeignTarget(std::string const& origin,
                                        std::string const& name)
 {
   auto foreign_name = cmStrCat("@foreign_", origin, "::", name);
-  std::unique_ptr<cmTarget> target(new cmTarget(
+  auto target = cm::make_unique<cmTarget>(
     foreign_name, cmStateEnums::TargetType::INTERFACE_LIBRARY,
-    cmTarget::Visibility::Foreign, this, cmTarget::PerConfig::Yes));
+    cmTarget::Visibility::Foreign, this, cmTarget::PerConfig::Yes);
 
   this->ImportedTargets[foreign_name] = target.get();
   this->GetGlobalGenerator()->IndexTarget(target.get());

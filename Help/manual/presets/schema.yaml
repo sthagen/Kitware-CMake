@@ -989,6 +989,8 @@ properties:
             ExternalProject may use a different (system default) compiler than
             the top-level CMake project.
           properties: {}
+          propertyNames:
+            pattern: '^.+$'
           additionalProperties: *environment-additional-properties
         configurePreset:
           type: string

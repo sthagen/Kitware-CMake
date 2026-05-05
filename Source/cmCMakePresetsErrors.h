@@ -35,16 +35,19 @@ void INVALID_PRESETS(Json::Value const* value, cmJSONState* state);
 
 void INVALID_PRESET(Json::Value const* value, cmJSONState* state);
 
-void INVALID_PRESET_NAMED(std::string const& presetName, cmJSONState* state);
+void INVALID_PRESET_NAMED(std::string const& presetName,
+                          std::string const& kind, cmJSONState* state,
+                          std::string const& detail);
 
 void INVALID_VARIABLE(Json::Value const* value, cmJSONState* state);
 
 void DUPLICATE_PRESETS(std::string const& presetName, cmJSONState* state);
 
 void CYCLIC_PRESET_INHERITANCE(std::string const& presetName,
-                               cmJSONState* state);
+                               std::string const& kind, cmJSONState* state);
 
 void INHERITED_PRESET_UNREACHABLE_FROM_FILE(std::string const& presetName,
+                                            std::string const& kind,
                                             cmJSONState* state);
 
 void CONFIGURE_PRESET_UNREACHABLE_FROM_FILE(std::string const& presetName,

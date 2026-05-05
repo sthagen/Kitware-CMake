@@ -36,7 +36,7 @@
 #define CM_FOR_EACH_DIAGNOSTIC_CATEGORY(ACTION)                               \
   CM_FOR_EACH_DIAGNOSTIC_TABLE(ACTION, CM_SELECT_CATEGORY)
 
-/** \class cmDiagnostic
+/** \class cmDiagnostics
  * \brief Handles CMake diagnostic (warning) behavior
  *
  * See the cmake-diagnostics(7) manual for an overview of this class's purpose.

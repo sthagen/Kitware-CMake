@@ -63,8 +63,8 @@ bool cmExportFileGenerator::GenerateImportFile()
                                                openmodeApp);
   } else {
     // Generate atomically and with copy-if-different.
-    std::unique_ptr<cmGeneratedFileStream> ap(
-      new cmGeneratedFileStream(this->MainImportFile, true));
+    auto ap =
+      cm::make_unique<cmGeneratedFileStream>(this->MainImportFile, true);
     ap->SetCopyIfDifferent(true);
     foutPtr = std::move(ap);
   }

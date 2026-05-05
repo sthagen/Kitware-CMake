@@ -1041,7 +1041,8 @@ void cmNinjaNormalTargetGenerator::WriteNvidiaDeviceLinkStatement(
                               vars["LINK_FLAGS"], frameworkPath, linkPath,
                               genTarget);
 
-  this->addPoolNinjaVariable("JOB_POOL_LINK", genTarget, nullptr, vars);
+  this->addPoolNinjaVariable("JOB_POOL_LINK", config, genTarget, nullptr,
+                             vars);
 
   vars["MANIFESTS"] = this->GetManifests(config);
 
@@ -1384,7 +1385,7 @@ void cmNinjaNormalTargetGenerator::WriteLinkStatement(
                            this->TargetLinkLanguage(config), "CURRENT", false);
   }
 
-  this->addPoolNinjaVariable("JOB_POOL_LINK", gt, nullptr, vars);
+  this->addPoolNinjaVariable("JOB_POOL_LINK", config, gt, nullptr, vars);
 
   this->UseLWYU = this->GetLocalGenerator()->AppendLWYUFlags(
     vars["LINK_FLAGS"], this->GetGeneratorTarget(),

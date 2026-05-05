@@ -6,6 +6,8 @@ set(CMAKE_LIBRARY_PATH_FLAG "-libpath:")
 set(CMAKE_LINK_DEF_FILE_FLAG "-def:")
 set(CMAKE_LINK_LIBRARY_FLAG "")
 
+set(CMAKE_BUILD_TYPE_INIT Debug)
+
 macro(__windows_compiler_pellesc lang)
   set(CMAKE_${lang}_CREATE_STATIC_LIBRARY "<CMAKE_AR> <LINK_FLAGS> -out:<TARGET> <OBJECTS>")
 
@@ -27,3 +29,8 @@ macro(__windows_compiler_pellesc lang)
   endif()
   enable_language(RC)
 endmacro()
+
+foreach (t IN ITEMS EXE SHARED MODULE)
+  string(APPEND CMAKE_${t}_LINKER_FLAGS_DEBUG_INIT " -debug -debugtype:both -dbg")
+  string(APPEND CMAKE_${t}_LINKER_FLAGS_RELWITHDEBINFO_INIT " -debug -debugtype:both -dbg")
+endforeach ()

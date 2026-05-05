@@ -1107,10 +1107,14 @@ void cmMakefileTargetGenerator::WriteObjectRuleFiles(
       compilerLauncher = GetCompilerLauncher(lang, config);
     }
 
+    cmValue const fsSkipCodeCheckVal =
+      fileSet ? fileSet->GetProperty("SKIP_LINTING") : nullptr;
     cmValue const srcSkipCodeCheckVal = source.GetProperty("SKIP_LINTING");
-    bool const skipCodeCheck = srcSkipCodeCheckVal.IsSet()
-      ? srcSkipCodeCheckVal.IsOn()
-      : this->GetGeneratorTarget()->GetPropertyAsBool("SKIP_LINTING");
+    bool const skipCodeCheck = fsSkipCodeCheckVal.IsSet()
+      ? fsSkipCodeCheckVal.IsOn()
+      : (srcSkipCodeCheckVal.IsSet()
+           ? srcSkipCodeCheckVal.IsOn()
+           : this->GetGeneratorTarget()->GetPropertyAsBool("SKIP_LINTING"));
 
     if (!skipCodeCheck) {
       std::string const codeCheck = this->GenerateCodeCheckRules(

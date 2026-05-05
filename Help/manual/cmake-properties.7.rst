@@ -545,6 +545,7 @@ Properties on File Sets
    /prop_fs/COMPILE_DEFINITIONS
    /prop_fs/COMPILE_OPTIONS
    /prop_fs/CXX_SCAN_FOR_MODULES
+   /prop_fs/JOB_POOL_COMPILE
    /prop_fs/INCLUDE_DIRECTORIES
    /prop_fs/INDEPENDENT_FILES
    /prop_fs/INTERFACE_COMPILE_DEFINITIONS
@@ -552,6 +553,7 @@ Properties on File Sets
    /prop_fs/INTERFACE_INCLUDE_DIRECTORIES
    /prop_fs/INTERFACE_SOURCES
    /prop_fs/SCOPE
+   /prop_fs/SKIP_LINTING
    /prop_fs/SOURCES
    /prop_fs/TYPE
 

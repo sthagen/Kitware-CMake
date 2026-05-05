@@ -520,6 +520,7 @@ bool HandleTransformCommand(std::vector<std::string> const& args,
   std::string const REGEX{ "REGEX" };
   std::string const AT{ "AT" };
   std::string const FOR{ "FOR" };
+  std::string const PREDICATE{ "PREDICATE" };
   std::string const OUTPUT_VARIABLE{ "OUTPUT_VARIABLE" };
   std::unique_ptr<cmList::TransformSelector> selector;
   std::string outputName = listName;
@@ -527,7 +528,8 @@ bool HandleTransformCommand(std::vector<std::string> const& args,
   try {
     // handle optional arguments
     while (args.size() > index) {
-      if ((args[index] == REGEX || args[index] == AT || args[index] == FOR) &&
+      if ((args[index] == REGEX || args[index] == AT || args[index] == FOR ||
+           args[index] == PREDICATE) &&
           selector) {
         status.SetError(
           cmStrCat("sub-command TRANSFORM, selector already specified (",
@@ -650,6 +652,21 @@ bool HandleTransformCommand(std::vector<std::string> const& args,
           cmList::TransformSelector::New<cmList::TransformSelector::FOR>(
             { start, stop, step });
 
+        continue;
+      }
+
+      // PREDICATE selector
+      if (args[index] == PREDICATE) {
+        if (args.size() == ++index) {
+          status.SetError("sub-command TRANSFORM, selector PREDICATE expects "
+                          "'function name' argument.");
+          return false;
+        }
+
+        selector = cmList::TransformSelector::NewPREDICATE(
+          args[index], status.GetMakefile());
+
+        index += 1;
         continue;
       }
 
@@ -951,25 +968,46 @@ bool HandleFilterCommand(std::vector<std::string> const& args,
   }
 
   std::string const& mode = args[3];
-  if (mode != "REGEX") {
-    status.SetError("sub-command FILTER does not recognize mode " + mode);
-    return false;
-  }
-  if (args.size() != 5) {
-    status.SetError("sub-command FILTER, mode REGEX "
-                    "requires five arguments.");
-    return false;
-  }
-  std::string const& pattern = args[4];
+  if (mode == "REGEX") {
+    if (args.size() != 5) {
+      status.SetError("sub-command FILTER, mode REGEX "
+                      "requires five arguments.");
+      return false;
+    }
+    std::string const& pattern = args[4];
 
-  try {
-    status.GetMakefile().AddDefinition(
-      listName, list->filter(pattern, filterMode).to_string());
-    return true;
-  } catch (std::invalid_argument& e) {
-    status.SetError(e.what());
-    return false;
+    try {
+      status.GetMakefile().AddDefinition(
+        listName, list->filter(pattern, filterMode).to_string());
+      return true;
+    } catch (std::invalid_argument& e) {
+      status.SetError(e.what());
+      return false;
+    }
   }
+
+  if (mode == "PREDICATE") {
+    if (args.size() != 5) {
+      status.SetError("sub-command FILTER, mode PREDICATE "
+                      "requires five arguments.");
+      return false;
+    }
+    std::string const& functionName = args[4];
+
+    try {
+      status.GetMakefile().AddDefinition(
+        listName,
+        list->filter(functionName, filterMode, status.GetMakefile())
+          .to_string());
+      return true;
+    } catch (std::invalid_argument& e) {
+      status.SetError(e.what());
+      return false;
+    }
+  }
+
+  status.SetError("sub-command FILTER does not recognize mode " + mode);
+  return false;
 }
 } // namespace
 

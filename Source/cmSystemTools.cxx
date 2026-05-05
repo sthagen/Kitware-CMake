@@ -2084,6 +2084,9 @@ std::string cmSystemTools::ToNormalizedPathOnDisk(std::string p)
   static Resolver<Policies::LogicalPath> const resolver(RealOS);
 #endif
   resolver.Resolve(std::move(p), p);
+#ifdef __clang_analyzer__ /* cplusplus.Move */
+  p.clear();
+#endif
   return p;
 }
 

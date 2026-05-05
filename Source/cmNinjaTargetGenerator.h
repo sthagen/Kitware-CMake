@@ -247,6 +247,7 @@ protected:
 
   /// @param source may be nullptr.
   void addPoolNinjaVariable(std::string const& pool_property,
+                            std::string const& config,
                             cmGeneratorTarget* target,
                             cmSourceFile const* source, cmNinjaVars& vars);
 

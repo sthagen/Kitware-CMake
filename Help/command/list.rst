@@ -19,7 +19,7 @@ Synopsis
 
   `Modification`_
     list(`APPEND`_ <list> [<element>...])
-    list(`FILTER`_ <list> {INCLUDE | EXCLUDE} REGEX <regex>)
+    list(`FILTER`_ <list> <INCLUDE|EXCLUDE> <MODE>)
     list(`INSERT`_ <list> <index> [<element>...])
     list(`POP_BACK`_ <list> [<out-var>...])
     list(`POP_FRONT`_ <list> [<out-var>...])
@@ -120,15 +120,54 @@ Modification
   that empty list.
 
 .. signature::
-  list(FILTER <list> <INCLUDE|EXCLUDE> REGEX <regular_expression>)
+  list(FILTER <list> <INCLUDE|EXCLUDE> <MODE>)
 
-.. versionadded:: 3.6
+  .. versionadded:: 3.6
 
-Includes or removes items from the list that match the mode's pattern.
-In ``REGEX`` mode, items will be matched against the given regular expression.
+  Includes or removes items from the list that match the mode's pattern.
 
-For more information on regular expressions look under
-:ref:`string(REGEX) <Regex Specification>`.
+  ``<MODE>`` must be one of the following:
+
+    ``REGEX``
+      Items will be matched against the given regular expression.
+
+      .. code-block:: cmake
+
+        list(FILTER <list> <INCLUDE|EXCLUDE> REGEX <regular_expression>)
+
+      For more information on regular expressions look under
+      :ref:`string(REGEX) <Regex Specification>`.
+
+    ``PREDICATE``
+      Specify a user-defined callable as a predicate.
+
+      .. code-block:: cmake
+
+        list(FILTER <list> <INCLUDE|EXCLUDE> PREDICATE <function>)
+
+      .. versionadded:: 4.4
+
+      ``<function>`` is a user-defined :command:`function` that acts as a
+      unary predicate.  The callable must accept exactly two parameters: the
+      input value and the name of an output variable.  The callable must set the
+      output variable to a boolean value in the calling scope.
+      The output variable is interpreted using standard CMake boolean evaluation.
+      If the callable does not set the output variable, it is an error.
+
+      Example:
+
+      .. code-block:: cmake
+
+        function(file_exists path result)
+          if(EXISTS "${path}")
+            set(${result} TRUE PARENT_SCOPE)
+          else()
+            set(${result} FALSE PARENT_SCOPE)
+          endif()
+        endfunction()
+
+        set(candidate_files main.c missing.c utils.c)
+        list(FILTER candidate_files INCLUDE PREDICATE file_exists)
 
 .. signature::
   list(INSERT <list> <element_index> <element> [<element> ...])
@@ -315,6 +354,39 @@ For more information on regular expressions look under
       .. code-block:: cmake
 
         list(TRANSFORM <list> <ACTION> REGEX <regular_expression> ...)
+
+    ``PREDICATE``
+      Specify a user-defined callable as a predicate.
+      Only elements for which the callable returns a true value will be
+      transformed.
+
+      .. code-block:: cmake
+
+        list(TRANSFORM <list> <ACTION> PREDICATE <function> ...)
+
+      .. versionadded:: 4.4
+
+      ``<function>`` is a user-defined :command:`function` with exactly
+      two formal parameters: the input value and the name of an output
+      variable.  The callable must set the output variable to a boolean
+      value.  Standard CMake boolean evaluation is used.
+      If the callable does not set the output variable, it is an error.
+
+      Example:
+
+      .. code-block:: cmake
+
+        function(is_relative path result)
+          if(NOT IS_ABSOLUTE "${path}")
+            set(${result} TRUE PARENT_SCOPE)
+          else()
+            set(${result} FALSE PARENT_SCOPE)
+          endif()
+        endfunction()
+
+        set(search_paths /usr/include src lib /opt/lib)
+        list(TRANSFORM search_paths PREPEND "${CMAKE_CURRENT_SOURCE_DIR}/"
+             PREDICATE is_relative)
 
 
 Ordering

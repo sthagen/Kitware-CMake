@@ -89,8 +89,11 @@ bool cmGeneratorTarget::AddHeaderSetVerification()
     std::set<cmGeneratorFileSet const*> fileSets;
     for (auto const& fileSet : fileSetEntries) {
       if (all || verifySet.count(fileSet->GetName())) {
-        fileSets.insert(fileSet);
         verifySet.erase(fileSet->GetName());
+        if (fileSet->GetProperty("SKIP_LINTING").IsOn()) {
+          continue;
+        }
+        fileSets.insert(fileSet);
       }
     }
 

@@ -80,9 +80,16 @@ void INVALID_PRESET(Json::Value const* value, cmJSONState* state)
   state->AddErrorAtValue("Invalid preset", value);
 }
 
-void INVALID_PRESET_NAMED(std::string const& presetName, cmJSONState* state)
+void INVALID_PRESET_NAMED(std::string const& presetName,
+                          std::string const& kind, cmJSONState* state,
+                          std::string const& detail)
 {
-  state->AddError(cmStrCat("Invalid preset: \"", presetName, '"'));
+  std::string err_msg =
+    cmStrCat("Invalid ", kind, " preset: \"", presetName, '"');
+  if (!detail.empty()) {
+    err_msg = cmStrCat(err_msg, ": ", detail);
+  }
+  state->AddError(err_msg);
 }
 
 void INVALID_VARIABLE(Json::Value const* value, cmJSONState* state)
@@ -97,17 +104,18 @@ void DUPLICATE_PRESETS(std::string const& presetName, cmJSONState* state)
 }
 
 void CYCLIC_PRESET_INHERITANCE(std::string const& presetName,
-                               cmJSONState* state)
+                               std::string const& kind, cmJSONState* state)
 
 {
-  state->AddError(
-    cmStrCat("Cyclic preset inheritance for preset \"", presetName, '"'));
+  state->AddError(cmStrCat("Cyclic preset inheritance for ", kind,
+                           " preset \"", presetName, '"'));
 }
 
 void INHERITED_PRESET_UNREACHABLE_FROM_FILE(std::string const& presetName,
+                                            std::string const& kind,
                                             cmJSONState* state)
 {
-  state->AddError(cmStrCat("Inherited preset \"", presetName,
+  state->AddError(cmStrCat("Inherited ", kind, " preset \"", presetName,
                            "\" is unreachable from preset's file"));
 }
 
