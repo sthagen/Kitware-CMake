@@ -190,6 +190,8 @@ if(CMAKE_C_COMPILER_ID STREQUAL "MSVC")
   add_RunCMake_test(CMP0194 -DCMAKE_C_COMPILER_VERSION=${CMAKE_C_COMPILER_VERSION})
 endif()
 
+add_RunCMake_test(CMP0218)
+
 # The test for Policy 65 requires the use of the
 # CMAKE_SHARED_LIBRARY_LINK_CXX_FLAGS variable, which both the VS and Xcode
 # generators ignore.  The policy will have no effect on those generators.
@@ -1355,7 +1357,9 @@ endif()
 if(CMAKE_SYSTEM_PROCESSOR STREQUAL "e2k" AND NOT DEFINED CMake_TEST_E2K_BROKEN_LIBC)
   # Exclude tests that fail due to a broken libc version on Elbrus.
   find_program(DPKG_QUERY "dpkg-query" )
-  execute_process(COMMAND "${DPKG_QUERY}" "-f" "\${Version}" "-W" "glibc" OUTPUT_VARIABLE LIBC_VERSION)
+  execute_process(COMMAND "${DPKG_QUERY}" "-f" "\${Version}" "-W" "glibc"
+    OUTPUT_VARIABLE LIBC_VERSION
+    RESULT_VARIABLE _result_libc)
   if(LIBC_VERSION MATCHES "2.29-25.*")
     list(REMOVE_ITEM cpack_tests
       DEB.DEFAULT_PERMISSIONS
