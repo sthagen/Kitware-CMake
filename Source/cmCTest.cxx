@@ -79,6 +79,10 @@
 #  include <be/kernel/OS.h> /* disable_debugger() API. */
 #endif
 
+namespace {
+cm::string_view const kVT100_EraseLine = "\x1B[K"_s;
+}
+
 struct tm;
 
 struct cmCTest::Private
@@ -121,7 +125,7 @@ struct cmCTest::Private
   bool Failover = false;
   cmJSONState parseState;
 
-  bool FlushTestProgressLine = false;
+  bool TestProgressNewlinePending = false;
 
   // these are helper classes
   cmCTestBuildAndTest BuildAndTest;
@@ -1618,76 +1622,12 @@ bool cmCTest::SetArgsFromPreset(cmCMakePresetsArgs const& args)
     this->Impl->SubprojectSummary =
       expandedPreset->Output->SubprojectSummary.value_or(true);
 
-    if (expandedPreset->Output->MaxPassedTestOutputSize) {
-      this->Impl->TestOptions.OutputSizePassed =
-        *expandedPreset->Output->MaxPassedTestOutputSize;
-    }
-
-    if (expandedPreset->Output->MaxFailedTestOutputSize) {
-      this->Impl->TestOptions.OutputSizeFailed =
-        *expandedPreset->Output->MaxFailedTestOutputSize;
-    }
-
-    if (expandedPreset->Output->TestOutputTruncation) {
-      this->Impl->TestOptions.OutputTruncation =
-        *expandedPreset->Output->TestOutputTruncation;
-    }
-
     if (expandedPreset->Output->MaxTestNameWidth) {
       this->Impl->MaxTestNameWidth = *expandedPreset->Output->MaxTestNameWidth;
     }
   }
 
-  if (expandedPreset->Filter) {
-    if (expandedPreset->Filter->Include) {
-      this->Impl->TestOptions.IncludeRegularExpression =
-        expandedPreset->Filter->Include->Name;
-      if (!expandedPreset->Filter->Include->Label.empty()) {
-        this->Impl->TestOptions.LabelRegularExpression.push_back(
-          expandedPreset->Filter->Include->Label);
-      }
-
-      if (expandedPreset->Filter->Include->Index) {
-        if (expandedPreset->Filter->Include->Index->IndexFile.empty()) {
-          auto const& start = expandedPreset->Filter->Include->Index->Start;
-          auto const& end = expandedPreset->Filter->Include->Index->End;
-          auto const& stride = expandedPreset->Filter->Include->Index->Stride;
-          std::string indexOptions = cmStrCat(
-            (start ? std::to_string(*start) : std::string{}), ',',
-            (end ? std::to_string(*end) : std::string{}), ',',
-            (stride ? std::to_string(*stride) : std::string{}), ',',
-            cmJoin(expandedPreset->Filter->Include->Index->SpecificTests,
-                   ","));
-
-          this->Impl->TestOptions.TestsToRunInformation = indexOptions;
-        } else {
-          this->Impl->TestOptions.TestsToRunInformation =
-            expandedPreset->Filter->Include->Index->IndexFile;
-        }
-      }
-
-      this->Impl->TestOptions.UseUnion =
-        expandedPreset->Filter->Include->UseUnion.value_or(false);
-    }
-
-    if (expandedPreset->Filter->Exclude) {
-      this->Impl->TestOptions.ExcludeRegularExpression =
-        expandedPreset->Filter->Exclude->Name;
-      if (!expandedPreset->Filter->Exclude->Label.empty()) {
-        this->Impl->TestOptions.ExcludeLabelRegularExpression.push_back(
-          expandedPreset->Filter->Exclude->Label);
-      }
-
-      if (expandedPreset->Filter->Exclude->Fixtures) {
-        this->Impl->TestOptions.ExcludeFixtureRegularExpression =
-          expandedPreset->Filter->Exclude->Fixtures->Any;
-        this->Impl->TestOptions.ExcludeFixtureSetupRegularExpression =
-          expandedPreset->Filter->Exclude->Fixtures->Setup;
-        this->Impl->TestOptions.ExcludeFixtureCleanupRegularExpression =
-          expandedPreset->Filter->Exclude->Fixtures->Cleanup;
-      }
-    }
-  }
+  cmCTestApplyTestPresetToOptions(this->Impl->TestOptions, *expandedPreset);
 
   if (expandedPreset->Execution) {
     this->Impl->StopOnFailure =
@@ -1704,9 +1644,6 @@ bool cmCTest::SetArgsFromPreset(cmCMakePresetsArgs const& args)
       }
       this->Impl->ParallelLevelSetInCli = true;
     }
-
-    this->Impl->TestOptions.ResourceSpecFile =
-      expandedPreset->Execution->ResourceSpecFile;
 
     if (expandedPreset->Execution->TestLoad) {
       auto testLoad = *expandedPreset->Execution->TestLoad;
@@ -1784,11 +1721,6 @@ bool cmCTest::SetArgsFromPreset(cmCMakePresetsArgs const& args)
           return false;
       }
     }
-
-    // Assign passthrough arguments from preset.
-    // CLI -- args (parsed later in Run()) will be appended after these.
-    this->Impl->TestOptions.TestPassthroughArguments =
-      expandedPreset->Execution->TestPassthroughArguments;
   }
 
   return true;
@@ -3471,22 +3403,19 @@ void cmCTest::Log(LogType logType, std::string msg, bool suppress)
   if (!this->Impl->Quiet) {
     if (logType == HANDLER_TEST_PROGRESS_OUTPUT) {
       if (this->Impl->TestProgressOutput) {
-        if (this->Impl->FlushTestProgressLine) {
-          printf("\r");
-          this->Impl->FlushTestProgressLine = false;
-          std::cout.flush();
+        if (this->Impl->TestProgressNewlinePending) {
+          this->Impl->TestProgressNewlinePending = false;
+          std::cout << '\r';
         }
 
         if (msg.find('\n') != std::string::npos) {
-          this->Impl->FlushTestProgressLine = true;
+          this->Impl->TestProgressNewlinePending = true;
           msg.erase(std::remove(msg.begin(), msg.end(), '\n'), msg.end());
         }
 
-        std::cout << msg;
-#ifndef _WIN32
-        printf("\x1B[K"); // move caret to end
-#endif
-        std::cout.flush();
+        // ProgressOutputSupportedByConsole() already verified VT100 support.
+        // Erase the rest of the line before printing the message.
+        std::cout << kVT100_EraseLine << msg << std::flush;
         return;
       }
       logType = HANDLER_OUTPUT;

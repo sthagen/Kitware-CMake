@@ -1338,8 +1338,8 @@ void cmGlobalGenerator::Configure()
     this->CMakeInstance->GetHomeOutputDirectory());
 
   if (this->ExtraGenerator && !this->CMakeInstance->GetIsInTryCompile()) {
-    this->CMakeInstance->IssueDiagnostic(
-      cmDiagnostics::CMD_DEPRECATED,
+    this->CMakeInstance->IssueMessage(
+      MessageType::WARNING,
       cmStrCat("Support for \"Extra Generators\" like\n  ",
                this->ExtraGenerator->GetName(),
                "\nis deprecated and will be removed from a future version "
@@ -1649,7 +1649,7 @@ bool cmGlobalGenerator::Compute()
           &exportSet.second, dest, "", std::vector<std::string>(), "",
           cmInstallGenerator::SelectMessageLevel(this->Makefiles[0].get()),
           false, std::move(sbomDefaultArgs), "",
-          this->Makefiles[0]->GetBacktrace()));
+          cmInstallGenerator::CaptureContext(this->Makefiles[0].get())));
     }
   }
 #endif
@@ -3101,7 +3101,7 @@ void cmGlobalGenerator::ReserveGlobalTargetCodegen()
 
   switch (policyStatus) {
     case cmPolicies::WARN:
-      this->GetCMakeInstance()->IssueDiagnostic(
+      tgt->GetMakefile()->IssueDiagnostic(
         cmDiagnostics::CMD_AUTHOR,
         cmStrCat(cmPolicies::GetPolicyWarning(cmPolicies::CMP0171), '\n',
                  "The target name \"codegen\" is reserved."),

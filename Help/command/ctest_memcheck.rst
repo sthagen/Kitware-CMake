@@ -26,6 +26,8 @@ Perform the :ref:`CTest MemCheck Step` as a :ref:`Dashboard Client`.
                  [CAPTURE_CMAKE_ERROR <result-var>]
                  [REPEAT <mode>:<n>]
                  [OUTPUT_JUNIT <file>]
+                 [PRESET <preset>]
+                 [PRESETS_FILE <path>]
                  [DEFECT_COUNT <defect-count-var>]
                  [QUIET]
                  )
