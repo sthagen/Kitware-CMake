@@ -1811,9 +1811,7 @@ bool HandleDirectoryMode(std::vector<std::string> const& args,
           // generator expressions
           if (cmGeneratorExpression::Find(args[i]) == cm::string_view::npos &&
               args[i] != cmCMakePath(args[i]).Normal().String()) {
-            status.GetMakefile().IssueDiagnostic(
-              cmDiagnostics::CMD_POLICY,
-              cmPolicies::GetPolicyWarning(cmPolicies::CMP0177));
+            status.GetMakefile().IssuePolicyWarning(cmPolicies::CMP0177);
           }
           CM_FALLTHROUGH;
         case cmPolicies::OLD:
@@ -2137,10 +2135,10 @@ bool HandleMappedPackageInfo(
   std::string dest = std::string{ directive };
   if (dest.empty()) {
     if (helper.Makefile->GetSafeDefinition("CMAKE_SYSTEM_NAME") == "Windows") {
-      dest = std::string{ "cps"_s };
+      dest = arguments.GetDefaultDestination();
     } else {
-      dest = cmStrCat(helper.GetLibraryDestination(nullptr), "/cps/",
-                      arguments.GetPackageDirName());
+      dest =
+        arguments.GetDefaultDestination(helper.GetLibraryDestination(nullptr));
     }
   }
 
@@ -2351,10 +2349,10 @@ bool HandlePackageInfoMode(std::vector<std::string> const& args,
   std::string dest = ica.GetDestination();
   if (dest.empty()) {
     if (helper.Makefile->GetSafeDefinition("CMAKE_SYSTEM_NAME") == "Windows") {
-      dest = std::string{ "cps"_s };
+      dest = arguments.GetDefaultDestination();
     } else {
-      dest = cmStrCat(helper.GetLibraryDestination(nullptr), "/cps/",
-                      arguments.GetPackageDirName());
+      dest =
+        arguments.GetDefaultDestination(helper.GetLibraryDestination(nullptr));
     }
   }
 
@@ -2553,10 +2551,10 @@ bool HandleSbomMode(std::vector<std::string> const& args,
   std::string dest = ica.GetDestination();
   if (dest.empty()) {
     if (helper.Makefile->GetSafeDefinition("CMAKE_SYSTEM_NAME") == "Windows") {
-      dest = std::string{ "/sbom/"_s };
+      dest = arguments.GetDefaultDestination();
     } else {
-      dest = cmStrCat(helper.GetLibraryDestination(nullptr), "/sbom/",
-                      arguments.GetPackageDirName());
+      dest =
+        arguments.GetDefaultDestination(helper.GetLibraryDestination(nullptr));
     }
   }
 

@@ -182,8 +182,7 @@ void cmDeprecatedWatch(std::string const& /*unused*/,
                        cmMakefile const* mf)
 {
   if (mf->GetPolicyStatus(cmPolicies::CMP0218) == cmPolicies::WARN) {
-    mf->IssueDiagnostic(cmDiagnostics::CMD_POLICY,
-                        cmPolicies::GetPolicyWarning(cmPolicies::CMP0218));
+    mf->IssuePolicyWarning(cmPolicies::CMP0218);
   }
 }
 #endif
@@ -1617,6 +1616,11 @@ void cmake::SetArgs(std::vector<std::string> const& args)
   }
   if (!haveBinaryDir) {
     this->SetHomeOutputDirectory(cmSystemTools::GetLogicalWorkingDirectory());
+  }
+
+  if (this->State->GetRole() == cmState::Role::Script && havePreset) {
+    this->IssueMessage(MessageType::FATAL_ERROR,
+                       "Presets are not supported in CMake script mode.");
   }
 
 #if !defined(CMAKE_BOOTSTRAP)
