@@ -140,7 +140,7 @@ cmGeneratorTarget::cmGeneratorTarget(cmTarget* t, cmLocalGenerator* lg)
   }
 
   auto configs =
-    this->Makefile->GetGeneratorConfigs(cmMakefile::ExcludeEmptyConfig);
+    this->Makefile->GetGeneratorConfigs(cmMakefile::IncludeEmptyConfig);
   std::string build_db_languages[] = { "CXX" };
   for (auto const& language : build_db_languages) {
     for (auto const& config : configs) {
@@ -1011,6 +1011,18 @@ void cmGeneratorTarget::GetRustMainCrateRoot(
   std::vector<cmSourceFile const*>& data, std::string const& config) const
 {
   IMPLEMENT_VISIT(SourceKindRustMainCrateRoot);
+}
+
+cmSourceFile const* cmGeneratorTarget::GetRustMainCrateRoot(
+  std::string const& config) const
+{
+  std::vector<cmSourceFile const*> files;
+  GetRustMainCrateRoot(files, config);
+  if (files.empty()) {
+    return nullptr;
+  }
+  assert(files.size() == 1);
+  return files[0];
 }
 
 std::set<cmLinkItem> const& cmGeneratorTarget::GetUtilityItems() const

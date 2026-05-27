@@ -110,6 +110,15 @@ public:
   FileScopeBase(cmMakefile* mf)
     : Makefile(mf)
   {
+#if !defined(CMAKE_BOOTSTRAP)
+    this->Makefile->GetGlobalGenerator()->GetFileLockPool().PushFileScope();
+#endif
+  }
+  ~FileScopeBase()
+  {
+#if !defined(CMAKE_BOOTSTRAP)
+    this->Makefile->GetGlobalGenerator()->GetFileLockPool().PopFileScope();
+#endif
   }
   void PushListFileVars(std::string const& newCurrent)
   {
@@ -1568,9 +1577,6 @@ public:
     this->Snapshot = this->GG->GetCMakeInstance()->GetCurrentSnapshot();
     this->GG->GetCMakeInstance()->SetCurrentSnapshot(this->Snapshot);
     this->GG->SetCurrentMakefile(mf);
-#if !defined(CMAKE_BOOTSTRAP)
-    this->GG->GetFileLockPool().PushFileScope();
-#endif
   }
 
   ~BuildsystemFileScope()
@@ -1578,9 +1584,6 @@ public:
     this->PopListFileVars();
     this->Makefile->PopFunctionBlockerBarrier(this->ReportError);
     this->Makefile->PopSnapshot(this->ReportError);
-#if !defined(CMAKE_BOOTSTRAP)
-    this->GG->GetFileLockPool().PopFileScope();
-#endif
     this->GG->SetCurrentMakefile(this->CurrentMakefile);
     this->GG->GetCMakeInstance()->SetCurrentSnapshot(this->Snapshot);
   }
@@ -3363,8 +3366,7 @@ int cmMakefile::TryCompile(std::string const& srcdir,
     cm.SetCacheArgs(*cmakeArgs);
   }
   // to save time we pass the EnableLanguage info directly
-  cm.GetGlobalGenerator()->EnableLanguagesFromGenerator(
-    this->GetGlobalGenerator(), this);
+  cm.GetGlobalGenerator()->SetupTryCompile(this->GetGlobalGenerator(), this);
   for (unsigned dc = 1; dc < cmDiagnostics::CategoryCount; ++dc) {
     auto const category = static_cast<cmDiagnosticCategory>(dc);
     if (this->GetDiagnosticAction(category) == cmDiagnostics::Ignore) {
