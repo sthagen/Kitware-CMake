@@ -777,7 +777,8 @@ add_RunCMake_test(file-RPATH
 add_RunCMake_test(file-STRINGS)
 add_RunCMake_test(find_file -DMINGW=${MINGW})
 add_RunCMake_test(find_library -DMINGW=${MINGW} -DCYGWIN=${CYGWIN} -DMSYS=${MSYS} -DMSVC=${MSVC})
-add_RunCMake_test(find_package -DMINGW=${MINGW} -DMSYS=${MSYS})
+add_RunCMake_test(find_package -DMINGW=${MINGW} -DMSYS=${MSYS}
+  -DCMake_TEST_FILESYSTEM_CASE=${CMake_TEST_FILESYSTEM_CASE})
 add_RunCMake_test(find_package-CPS)
 add_RunCMake_test(find_path -DMINGW=${MINGW})
 add_RunCMake_test(find_program -DCMAKE_SYSTEM_NAME=${CMAKE_SYSTEM_NAME})
@@ -792,7 +793,7 @@ endif()
 add_RunCMake_test(INSTALL_OBJECT_NAME_STRATEGY)
 add_RunCMake_test(INSTALL_OBJECT_ONLY_USE_DESTINATION)
 add_RunCMake_test(if -DMSYS=${MSYS})
-add_RunCMake_test(include)
+add_RunCMake_test(include -DCMake_TEST_FILESYSTEM_CASE=${CMake_TEST_FILESYSTEM_CASE})
 add_RunCMake_test(include_directories)
 add_RunCMake_test(include_guard)
 add_RunCMake_test(list)
@@ -1200,6 +1201,9 @@ endif()
 add_executable(print_stdin print_stdin.c)
 add_RunCMake_test(CTestCommandLine -DTEST_PRINT_STDIN=$<TARGET_FILE:print_stdin>)
 add_RunCMake_test(CacheNewline)
+add_RunCMake_test(CacheVarHelpFallback)
+add_RunCMake_test(CacheVarHelpCoverage
+  -DCMake_SOURCE_DIR=${CMake_SOURCE_DIR})
 # Only run this test on unix platforms that support
 # symbolic links
 if(UNIX)
