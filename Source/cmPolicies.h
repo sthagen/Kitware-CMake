@@ -631,8 +631,9 @@ class cmMakefile;
          "CMAKE_<LANG>_LINK_FLAGS adds link flags to all target types.", 4,   \
          3, 0, WARN)                                                          \
   SELECT(POLICY, CMP0211,                                                     \
-         "A file may belong to at most one file set in a target.", 4, 4, 0,   \
-         WARN)                                                                \
+         "A file may belong to at most one non-HEADERS file set in a "        \
+         "target.",                                                           \
+         4, 4, 0, WARN)                                                       \
   SELECT(POLICY, CMP0212,                                                     \
          "add_custom_command DEPENDS does not strip .exe suffixes.", 4, 4, 0, \
          WARN)                                                                \
@@ -654,7 +655,10 @@ class cmMakefile;
   SELECT(POLICY, CMP0218,                                                     \
          "The CMAKE_WARN_DEPRECATED and CMAKE_ERROR_DEPRECATED variables "    \
          "are ignored.",                                                      \
-         4, 4, 0, WARN)
+         4, 4, 0, WARN)                                                       \
+  SELECT(POLICY, CMP0219,                                                     \
+         "Macro invocations preserve backslashes in arguments.", 4, 4, 0,     \
+         WARN)
 
 #define CM_SELECT_ID(F, A1, A2, A3, A4, A5, A6) F(A1)
 #define CM_FOR_EACH_POLICY_ID(POLICY)                                         \

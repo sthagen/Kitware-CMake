@@ -185,6 +185,7 @@ if(WIN32)
   add_RunCMake_test(CMP0212)
 endif()
 add_RunCMake_test(CMP0217)
+add_RunCMake_test(CMP0219)
 
 if(CMAKE_C_COMPILER_ID STREQUAL "MSVC")
   add_RunCMake_test(CMP0194 -DCMAKE_C_COMPILER_VERSION=${CMAKE_C_COMPILER_VERSION})
@@ -621,6 +622,7 @@ add_RunCMake_test(ScriptMode)
 add_RunCMake_test(StandardLinkDirectories)
 add_RunCMake_test(Swift -DCMAKE_SYSTEM_NAME=${CMAKE_SYSTEM_NAME}
                         -DCMake_TEST_Swift=${CMake_TEST_Swift}
+                        -DCMAKE_Swift_COMPILER_VERSION=${CMAKE_Swift_COMPILER_VERSION}
                         -DXCODE_VERSION=${XCODE_VERSION})
 add_RunCMake_test(TargetArtifacts -DCMAKE_SYSTEM_NAME=${CMAKE_SYSTEM_NAME})
 add_RunCMake_test(TargetObjects)

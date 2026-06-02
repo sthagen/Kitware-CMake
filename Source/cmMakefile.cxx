@@ -30,6 +30,9 @@
 #include "cmsys/RegularExpression.hxx"
 #include "cmsys/String.h"
 
+#ifndef CMAKE_BOOTSTRAP
+#  include "cmBuildSbomGenerator.h"
+#endif
 #include "cmCustomCommand.h"
 #include "cmCustomCommandLines.h"
 #include "cmCustomCommandTypes.h"
@@ -1018,6 +1021,20 @@ void cmMakefile::AddExportBuildFileGenerator(
   this->ExportBuildFileGenerators.emplace_back(std::move(gen));
 }
 
+#ifndef CMAKE_BOOTSTRAP
+std::vector<std::unique_ptr<cmBuildSbomGenerator>> const&
+cmMakefile::GetBuildSbomGenerators() const
+{
+  return this->BuildSbomGenerators;
+}
+
+void cmMakefile::AddBuildSbomGenerator(
+  std::unique_ptr<cmBuildSbomGenerator> gen)
+{
+  this->BuildSbomGenerators.emplace_back(std::move(gen));
+}
+#endif
+
 namespace {
 struct file_not_persistent
 {
@@ -1480,16 +1497,6 @@ void cmMakefile::AddTestGenerator(std::unique_ptr<cmTestGenerator> g)
   if (g) {
     this->TestGenerators.push_back(std::move(g));
   }
-}
-
-bool cmMakefile::ExplicitlyGeneratesSbom() const
-{
-  return this->ExplicitSbomGenerator;
-}
-
-void cmMakefile::SetExplicitlyGeneratesSbom(bool status)
-{
-  this->ExplicitSbomGenerator = status;
 }
 
 void cmMakefile::PushFunctionScope(std::string const& fileName,
@@ -2623,6 +2630,83 @@ cm::optional<std::string> cmMakefile::DeferGetCall(std::string const& id) const
     call = std::move(tmp);
   }
   return call;
+}
+
+namespace {
+cmPolicies::PolicyStatus CheckCMP0219Impl(cmPolicies::PolicyStatus status,
+                                          std::string const& calleeName,
+                                          bool hasBackslashes,
+                                          std::set<std::string>& warned)
+{
+  if (status == cmPolicies::WARN && hasBackslashes &&
+      warned.insert(calleeName).second) {
+    return cmPolicies::WARN;
+  }
+  // Suppress WARN when there are no backslashes or already warned.
+  return status == cmPolicies::NEW ? cmPolicies::NEW : cmPolicies::OLD;
+}
+}
+
+cmPolicies::PolicyStatus cmMakefile::CheckCMP0219(
+  std::string const& calleeName, std::vector<std::string> const& args)
+{
+  bool const hasBackslashes =
+    std::any_of(args.begin(), args.end(), [](std::string const& s) {
+      return s.find('\\') != std::string::npos;
+    });
+  return CheckCMP0219Impl(GetPolicyStatus(cmPolicies::CMP0219), calleeName,
+                          hasBackslashes, WarnedCMP0219);
+}
+
+cmPolicies::PolicyStatus cmMakefile::CheckCMP0219(
+  std::string const& calleeName, std::vector<cmListFileArgument> const& args)
+{
+  bool const hasBackslashes =
+    std::any_of(args.begin(), args.end(), [](cmListFileArgument const& s) {
+      return s.Value.find('\\') != std::string::npos;
+    });
+  return CheckCMP0219Impl(GetPolicyStatus(cmPolicies::CMP0219), calleeName,
+                          hasBackslashes, WarnedCMP0219);
+}
+
+void cmMakefile::IssueCMP0219Warning(
+  std::string const& calleeName, std::vector<std::string> const& args) const
+{
+  std::string oldArgs;
+  for (std::string const& arg : args) {
+    if (arg.find('\\') == std::string::npos) {
+      continue;
+    }
+    if (!oldArgs.empty()) {
+      oldArgs += '\n';
+    }
+    oldArgs += cmStrCat(" \"", arg, '"');
+  }
+
+  std::string newArgs = oldArgs;
+  cmSystemTools::ReplaceString(newArgs, "\\", "\\\\");
+
+  this->IssueDiagnostic(
+    cmDiagnostics::CMD_POLICY,
+    cmStrCat(
+      cmPolicies::GetPolicyWarning(cmPolicies::CMP0219), '\n', "Command \"",
+      calleeName, "\" called with arguments containing backslashes.\n",
+      "Since the policy is not set, backslashes in the arguments:\n", oldArgs,
+      "\n", "will be interpreted as escape sequences for compatibility.\n",
+      "Set the policy to NEW to instead pass\n", newArgs, "\n",
+      "so that argument parsing will preserve the original values."));
+}
+
+void cmMakefile::IssueCMP0219Warning(
+  std::string const& calleeName,
+  std::vector<cmListFileArgument> const& args) const
+{
+  std::vector<std::string> stringArgs;
+  stringArgs.reserve(args.size());
+  for (cmListFileArgument const& arg : args) {
+    stringArgs.push_back(arg.Value);
+  }
+  this->IssueCMP0219Warning(calleeName, stringArgs);
 }
 
 MessageType cmMakefile::ExpandVariablesInStringImpl(

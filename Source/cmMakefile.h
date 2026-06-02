@@ -53,6 +53,7 @@ class cmCompiledGeneratorExpression;
 class cmCustomCommandLines;
 class cmExecutionStatus;
 class cmExpandedCommandArgument;
+class cmBuildSbomGenerator;
 class cmExportBuildFileGenerator;
 class cmGeneratorExpressionEvaluationFile;
 class cmGlobalGenerator;
@@ -901,9 +902,6 @@ public:
   //! Initialize a makefile from its parent
   void InitializeFromParent(cmMakefile* parent);
 
-  bool ExplicitlyGeneratesSbom() const;
-  void SetExplicitlyGeneratesSbom(bool status = true);
-
   void AddInstallGenerator(std::unique_ptr<cmInstallGenerator> g);
 
   std::vector<std::unique_ptr<cmInstallGenerator>>& GetInstallGenerators()
@@ -1113,6 +1111,12 @@ public:
   void AddExportBuildFileGenerator(
     std::unique_ptr<cmExportBuildFileGenerator> gen);
 
+#ifndef CMAKE_BOOTSTRAP
+  std::vector<std::unique_ptr<cmBuildSbomGenerator>> const&
+  GetBuildSbomGenerators() const;
+  void AddBuildSbomGenerator(std::unique_ptr<cmBuildSbomGenerator> gen);
+#endif
+
   // Maintain a stack of package roots to allow nested PACKAGE_ROOT_PATH
   // searches
   std::deque<std::vector<std::string>> FindPackageRootPathStack;
@@ -1185,6 +1189,20 @@ public:
   bool DeferCancelCall(std::string const& id);
   cm::optional<std::string> DeferGetCallIds() const;
   cm::optional<std::string> DeferGetCall(std::string const& id) const;
+
+  //! Check CMP0219 policy status for the given callee and arguments.
+  //! Returns the effective policy status: OLD, NEW, or WARN (only on
+  //! first occurrence of calleeName with backslashes present).  The
+  //! caller is responsible for issuing any warning when WARN is returned.
+  cmPolicies::PolicyStatus CheckCMP0219(std::string const& calleeName,
+                                        std::vector<std::string> const& args);
+  cmPolicies::PolicyStatus CheckCMP0219(
+    std::string const& calleeName,
+    std::vector<cmListFileArgument> const& args);
+  void IssueCMP0219Warning(std::string const& calleeName,
+                           std::vector<std::string> const& args) const;
+  void IssueCMP0219Warning(std::string const& calleeName,
+                           std::vector<cmListFileArgument> const& args) const;
 
 protected:
   // add link libraries and directories to the target
@@ -1285,6 +1303,10 @@ private:
   std::vector<std::unique_ptr<cmExportBuildFileGenerator>>
     ExportBuildFileGenerators;
 
+#ifndef CMAKE_BOOTSTRAP
+  std::vector<std::unique_ptr<cmBuildSbomGenerator>> BuildSbomGenerators;
+#endif
+
   std::vector<std::unique_ptr<cmGeneratorExpressionEvaluationFile>>
     EvaluationFiles;
 
@@ -1343,13 +1365,13 @@ private:
   cmFindPackageStack FindPackageStack;
   unsigned int FindPackageStackNextIndex = 0;
 
-  bool ExplicitSbomGenerator = false;
   bool DebugFindPkg = false;
 
   bool CheckSystemVars;
   bool CheckCMP0000;
   std::set<std::string> WarnedCMP0074;
   std::set<std::string> WarnedCMP0144;
+  std::set<std::string> WarnedCMP0219;
   bool IsSourceFileTryCompile;
   ImportedTargetScope CurrentImportedTargetScope = ImportedTargetScope::Local;
 };

@@ -167,9 +167,13 @@ struct cmCTest::Private
 
   int CompatibilityMode;
 
-  // information for the --build-and-test options
+  // Build and source directories used by various operating modes.
+  // BinaryDir is the active build tree.
+  // TestDir and SourceDir hold the raw values from --test-dir/--build-dir and
+  // --source-dir respectively, before path normalization is applied.
   std::string BinaryDir;
   std::string TestDir;
+  std::string SourceDir;
 
   std::string NotesFiles;
 
@@ -735,6 +739,17 @@ int cmCTest::ProcessSteps()
   cmMakefile& mf = *script.GetMakefile();
   this->ReadCustomConfigurationFileTree(this->Impl->BinaryDir, &mf);
   this->SetCMakeVariables(mf);
+
+  // Inject variables passed via -D so that ctest_* commands can read them
+  // using mf.GetDefinition(). This matches what cmCTestScriptHandler does
+  // before running a -S script. SetCMakeVariables() (above) only defines
+  // variables that correspond to a CTest Configuration key. Other variables
+  // such as CTEST_PRESET are read directly from the makefile and would
+  // otherwise be invisible here.
+  for (auto const& def : this->GetDefinitions()) {
+    mf.AddDefinition(def.first, def.second);
+  }
+
   // CTEST_TIME_LIMIT may come from CTestCustom.cmake (already in the makefile)
   // or from the config map (just populated by SetCMakeVariables above).
   this->SetTimeLimit(mf.GetDefinition("CTEST_TIME_LIMIT"));
@@ -2343,6 +2358,18 @@ int cmCTest::Run(std::vector<std::string> const& args)
                      } },
     CommandArgument{ "-A", CommandArgument::Values::One, dashA },
     CommandArgument{ "--add-notes", CommandArgument::Values::One, dashA },
+    CommandArgument{ "--source-dir", "'--source-dir' requires an argument",
+                     CommandArgument::Values::One,
+                     [this](std::string const& dir) -> bool {
+                       this->Impl->SourceDir = dir;
+                       return true;
+                     } },
+    CommandArgument{ "--build-dir", "'--build-dir' requires an argument",
+                     CommandArgument::Values::One,
+                     [this](std::string const& dir) -> bool {
+                       this->Impl->TestDir = dir;
+                       return true;
+                     } },
     CommandArgument{ "--test-dir", "'--test-dir' requires an argument",
                      CommandArgument::Values::One,
                      [this](std::string const& dir) -> bool {
@@ -2592,6 +2619,19 @@ int cmCTest::Run(std::vector<std::string> const& args)
   if (!this->Impl->TestDir.empty()) {
     workDir = cmSystemTools::ToNormalizedPathOnDisk(this->Impl->TestDir);
   }
+
+  // When --source-dir is given, record it as the source directory override
+  // and ensure the binary directory exists so an empty dir is accepted.
+  if (!this->Impl->SourceDir.empty()) {
+    this->Impl->CTestConfigurationOverwrites["SourceDirectory"] =
+      cmSystemTools::ToNormalizedPathOnDisk(this->Impl->SourceDir);
+    if (!cmSystemTools::MakeDirectory(workDir)) {
+      cmCTestLog(this, ERROR_MESSAGE,
+                 "Failed to create directory: " << workDir << std::endl);
+      return 1;
+    }
+  }
+
   cmWorkingDirectory changeDir(workDir);
   if (changeDir.Failed()) {
     cmCTestLog(this, ERROR_MESSAGE, changeDir.GetError() << std::endl);
