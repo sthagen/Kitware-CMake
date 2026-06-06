@@ -870,16 +870,26 @@ int cmCTest::ProcessSteps()
 
     std::string count = this->GetCTestConfiguration("CTestSubmitRetryCount");
     std::string delay = this->GetCTestConfiguration("CTestSubmitRetryDelay");
-    auto const func = cmListFileFunction(
-      "ctest_submit", 0, 0,
-      {
-        cmListFileArgument("RETRY_COUNT"_s, cmListFileArgument::Unquoted, 0),
-        cmListFileArgument(count, cmListFileArgument::Quoted, 0),
-        cmListFileArgument("RETRY_DELAY"_s, cmListFileArgument::Unquoted, 0),
-        cmListFileArgument(delay, cmListFileArgument::Quoted, 0),
-        cmListFileArgument("RETURN_VALUE"_s, cmListFileArgument::Unquoted, 0),
-        cmListFileArgument("return_value"_s, cmListFileArgument::Unquoted, 0),
-      });
+    std::vector<cmListFileArgument> submitArgs = {
+      cmListFileArgument("RETRY_COUNT"_s, cmListFileArgument::Unquoted, 0),
+      cmListFileArgument(count, cmListFileArgument::Quoted, 0),
+      cmListFileArgument("RETRY_DELAY"_s, cmListFileArgument::Unquoted, 0),
+      cmListFileArgument(delay, cmListFileArgument::Quoted, 0),
+      cmListFileArgument("RETURN_VALUE"_s, cmListFileArgument::Unquoted, 0),
+      cmListFileArgument("return_value"_s, cmListFileArgument::Unquoted, 0),
+    };
+    cmValue submitParts = mf.GetDefinition("CTEST_SUBMIT_PARTS");
+    if (submitParts && !submitParts->empty()) {
+      cmList submitPartsList{ *submitParts };
+      if (!submitPartsList.empty()) {
+        submitArgs.emplace_back("PARTS"_s, cmListFileArgument::Unquoted, 0);
+        for (auto const& part : submitPartsList) {
+          submitArgs.emplace_back(part, cmListFileArgument::Quoted, 0);
+        }
+      }
+    }
+    auto const func =
+      cmListFileFunction("ctest_submit", 0, 0, std::move(submitArgs));
     auto status = cmExecutionStatus(mf);
     if (!mf.ExecuteCommand(func, status) ||
         std::stoi(mf.GetDefinition("return_value")) < 0) {
@@ -2703,8 +2713,12 @@ int cmCTest::ExecuteTests(std::vector<std::string> const& args)
   };
   std::map<std::string, std::string> data;
   data["showOnly"] = this->GetShowOnly() ? "1" : "0";
-  int ret =
-    instrumentation.InstrumentCommand("ctest", args, processHandler, data);
+  int ret = instrumentation.InstrumentCommand(
+    "ctest", args,
+    [processHandler]() -> cmInstrumentation::CommandResult {
+      return { processHandler(), cm::nullopt, cm::nullopt };
+    },
+    data);
   instrumentation.CollectTimingData(cmInstrumentationQuery::Hook::PostCTest);
   if (ret == cmCTest::TEST_ERRORS) {
     cmCTestLog(this, ERROR_MESSAGE, "Errors while running CTest\n");
@@ -3274,6 +3288,7 @@ CTestVarConfigEntry const kCTestVarConfigMap[] = {
   // Submit step
   { "CTEST_NOTES_FILES",                   "NotesFiles"                  },
   { "CTEST_EXTRA_SUBMIT_FILES",            "ExtraSubmitFiles"            },
+  { "CTEST_SUBMIT_PARTS",                  "SubmitParts"                 },
   { "CTEST_SUBMIT_URL",                    "SubmitURL"                   },
   { "CTEST_DROP_METHOD",                   "DropMethod"                  },
   { "CTEST_DROP_SITE_USER",                "DropSiteUser"                },
