@@ -76,6 +76,16 @@ File-Based API
   optional ``fileSetType`` field gained a new ``SOURCES`` value to incorporate
   the new ``SOURCES`` :ref:`file set <file sets>` type in codemodel replies.
 
+Instrumentation
+---------------
+
+* The :manual:`cmake-instrumentation(7)` data version has been updated to 1.1.
+* :manual:`cmake-instrumentation(7)` gained a ``captureOutput`` option which
+  collects the ``stdout`` and ``stderr`` of instrumented commands.
+* :manual:`cmake-instrumentation(7)` gained a ``compileTrace`` option which
+  records compiler-generated trace files (e.g., from Clang's ``-ftime-trace``
+  flag).
+
 Generators
 ----------
 
@@ -92,6 +102,12 @@ Generators
   name, their dependencies are merged into one ``test_prep/<test-name>``
   target.
 
+Languages
+---------
+
+* CUDA language level 23 (corresponding to C++ 23) is now supported with
+  NVCC 13.3 and above.
+
 Compilers
 ---------
 
@@ -99,7 +115,7 @@ Compilers
   See :manual:`cmake-cxxmodules(7)`.
 
 * The ``ibm-flang`` compiler is now supported with
-  :variable:`compiler id <CMAKE_<LANG>_COMPILER_ID>` ``IBMLLVMFlang``.
+  :variable:`compiler id <CMAKE_<LANG>_COMPILER_ID>` ``IBMFlang``.
 
 * The `Pelles C`_ toolchain is now supported with
   :variable:`compiler id <CMAKE_<LANG>_COMPILER_ID>` ``PellesC``.

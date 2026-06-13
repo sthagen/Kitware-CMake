@@ -764,10 +764,16 @@ Transfer
 
     ``STATUS <variable>``
       Store the resulting status of the operation in a variable.
-      The status is a ``;`` separated list of length 2.
+      The status is a
+      :ref:`semicolon-separated list <CMake Language Lists>` of length 2.
       The first element is the numeric return value for the operation,
       and the second element is a string value for the error.
-      A ``0`` numeric error means no error in the operation.
+      A ``0`` numeric error means no error in the operation (``CURLE_OK``).
+
+      The return value and description are produced directly from libcurl.
+      See the `libcurl documentation`_ on error codes for more information.
+
+    .. _`libcurl documentation`: https://curl.se/libcurl/c/libcurl-errors.html
 
     ``TIMEOUT <seconds>``
       Terminate the operation after a given total time has elapsed.
@@ -1080,6 +1086,7 @@ Archiving
     [DESTINATION <dir>]
     [ENCODING <encoding>]
     [PATTERNS <pattern>...]
+    [PATTERNS_EXCLUDE <pattern>...]
     [LIST_ONLY]
     [VERBOSE]
     [TOUCH])
@@ -1136,6 +1143,18 @@ Archiving
     Extract/list only files and directories that match one of the given
     patterns.  Wildcards are supported.  If the ``PATTERNS`` option is
     not given, the entire archive will be listed or extracted.
+
+  ``PATTERNS_EXCLUDE <pattern>...``
+    .. versionadded:: 4.5
+
+    Do not extract or list files and directories that match one of the given
+    patterns.  Wildcards are supported.  This option may be combined with
+    ``PATTERNS``; an entry that matches both an inclusion pattern and an
+    exclusion pattern is excluded.
+
+    Unlike ``PATTERNS``, exclusion patterns are not anchored to the start of
+    an entry's path: a pattern matches if it matches any portion of the path.
+    This is consistent with the ``--exclude`` option of command-line ``tar``.
 
   ``LIST_ONLY``
     List the files in the archive rather than extract them.
