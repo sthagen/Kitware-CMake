@@ -2238,6 +2238,7 @@ bool cmSystemTools::IsPathToMacOSSharedLibrary(std::string const& path)
 
 bool cmSystemTools::CreateTar(
   std::string const& arFileName, std::vector<std::string> const& files,
+  std::vector<std::string> const& excludeFiles,
   std::string const& workingDirectory, cmTarCompression compressType,
   std::string const& encoding, bool verbose, std::string const& mtime,
   std::string const& format, int compressionLevel, int numThreads)
@@ -2300,6 +2301,10 @@ bool cmSystemTools::CreateTar(
   }
   a.SetMTime(mtime);
   a.SetVerbose(verbose);
+  if (!a.SetExcludePatterns(excludeFiles)) {
+    cmSystemTools::Error(a.GetError());
+    return false;
+  }
   bool tarCreatedSuccessfully = true;
   for (auto path : files) {
     if (cmSystemTools::FileIsFullPath(path)) {
@@ -2315,6 +2320,7 @@ bool cmSystemTools::CreateTar(
 #else
   (void)arFileName;
   (void)files;
+  (void)excludeFiles;
   (void)encoding;
   (void)verbose;
   return false;
@@ -2503,6 +2509,21 @@ bool copy_data(struct archive* ar, struct archive* aw)
 #  endif
 }
 
+struct ArchiveReadDeleter
+{
+  void operator()(struct archive* a) const { archive_read_free(a); }
+};
+
+struct ArchiveWriteDeleter
+{
+  void operator()(struct archive* a) const { archive_write_free(a); }
+};
+
+struct ArchiveMatchDeleter
+{
+  void operator()(struct archive* a) const { archive_match_free(a); }
+};
+
 bool extract_tar(std::string const& arFileName,
                  std::vector<std::string> const& files,
                  std::vector<std::string> const& excludeFiles,
@@ -2510,8 +2531,12 @@ bool extract_tar(std::string const& arFileName,
                  cmSystemTools::cmTarExtractTimestamps extractTimestamps,
                  bool extract)
 {
-  struct archive* a = archive_read_new();
-  struct archive* ext = archive_write_disk_new();
+  std::unique_ptr<struct archive, ArchiveReadDeleter> a_owner(
+    archive_read_new());
+  std::unique_ptr<struct archive, ArchiveWriteDeleter> ext_owner(
+    archive_write_disk_new());
+  struct archive* a = a_owner.get();
+  struct archive* ext = ext_owner.get();
   if (extract) {
     int flags =
       ARCHIVE_EXTRACT_SECURE_NODOTDOT | ARCHIVE_EXTRACT_SECURE_NOABSOLUTEPATHS;
@@ -2520,8 +2545,6 @@ bool extract_tar(std::string const& arFileName,
     }
     if (archive_write_disk_set_options(ext, flags) != ARCHIVE_OK) {
       ArchiveError("Problem with archive_write_disk_set_options(): ", ext);
-      archive_write_free(ext);
-      archive_read_free(a);
       return false;
     }
   }
@@ -2538,7 +2561,9 @@ bool extract_tar(std::string const& arFileName,
   }
   struct archive_entry* entry;
 
-  struct archive* matching = archive_match_new();
+  std::unique_ptr<struct archive, ArchiveMatchDeleter> matching_owner(
+    archive_match_new());
+  struct archive* matching = matching_owner.get();
   if (!matching) {
     cmSystemTools::Error("Out of memory");
     return false;
@@ -2563,10 +2588,6 @@ bool extract_tar(std::string const& arFileName,
   int r = cm_archive_read_open_filename(a, arFileName.c_str(), 10240);
   if (r) {
     ArchiveError("Problem with archive_read_open_filename(): ", a);
-    archive_write_free(ext);
-    archive_read_close(a);
-    archive_read_free(a);
-    archive_match_free(matching);
     return false;
   }
   for (;;) {
@@ -2642,10 +2663,6 @@ bool extract_tar(std::string const& arFileName,
       return false;
     }
   }
-  archive_match_free(matching);
-  archive_write_free(ext);
-  archive_read_close(a);
-  archive_read_free(a);
   return r == ARCHIVE_EOF || r == ARCHIVE_OK;
 }
 }
@@ -3878,7 +3895,8 @@ static cm::optional<bool> RemoveRPathELF(std::string const& file,
       // There is no RPATH or RUNPATH anyway.
       return true;
     }
-    if (se_count == 2 && se[1]->IndexInSection < se[0]->IndexInSection) {
+    if (se_count == 2 && se[0] && se[1] &&
+        se[1]->IndexInSection < se[0]->IndexInSection) {
       std::swap(se[0], se[1]);
     }
 

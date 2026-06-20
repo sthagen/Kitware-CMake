@@ -72,8 +72,13 @@ run_cmake(zip-filtered)
 run_cmake(zip-filtered-exclude)
 run_cmake(zip-filtered-exclude-precedence)
 
+# Excluding selected files or directories from creation
+run_cmake(create-filtered-exclude)
+run_cmake(create-empty-pattern-exclude)
+
 run_cmake(create-missing-args)
 run_cmake(extract-missing-args)
+run_cmake(extract-missing-pattern)
 
 run_cmake(unsupported-format)
 run_cmake(zip-with-bad-compression)

@@ -796,6 +796,9 @@ int cmCTest::ProcessSteps()
           this->Impl->BinaryDir = binaryDir;
           cmSystemTools::SetLogicalWorkingDirectory(binaryDir);
           mf.AddDefinition("CTEST_BINARY_DIRECTORY", binaryDir);
+          // Re-parse DartConfiguration.tcl since we changed BinaryDir.
+          this->UpdateCTestConfiguration();
+          this->SetCMakeVariables(mf);
         }
       }
     }
@@ -1338,8 +1341,9 @@ std::string cmCTest::Base64GzipEncodeFile(std::string const& file)
   std::vector<std::string> files;
   files.push_back(file);
 
-  if (!cmSystemTools::CreateTar(
-        tarFile, files, {}, cmSystemTools::TarCompressGZip, "UTF-8", false)) {
+  if (!cmSystemTools::CreateTar(tarFile, files, {}, {},
+                                cmSystemTools::TarCompressGZip, "UTF-8",
+                                false)) {
     cmCTestLog(this, ERROR_MESSAGE,
                "Error creating tar while "
                "encoding file: "
