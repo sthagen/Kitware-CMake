@@ -32,6 +32,7 @@ enum class Visibility;
 class cmCustomCommand;
 class cmFileSet;
 class cmFindPackageStack;
+class cmGeneratorTarget;
 class cmGlobalGenerator;
 class cmInstallTargetGenerator;
 class cmMakefile;
@@ -69,8 +70,8 @@ public:
     No
   };
 
-  cmTarget(std::string const& name, cmStateEnums::TargetType type,
-           Visibility vis, cmMakefile* mf, PerConfig perConfig);
+  cmTarget(std::string name, cmStateEnums::TargetType type, Visibility vis,
+           cmMakefile* mf, PerConfig perConfig);
 
   cmTarget(cmTarget const&) = delete;
   cmTarget(cmTarget&&) noexcept;
@@ -327,7 +328,8 @@ public:
   cmBTStringRange GetLinkInterfaceDirectEntries() const;
   cmBTStringRange GetLinkInterfaceDirectExcludeEntries() const;
 
-  void CopyUsageEffects(cmTarget const* tgt);
+  void CopyUsageEffects(cmGeneratorTarget const* gt,
+                        std::string const& config);
   void CopyPolicyStatuses(cmTarget const* tgt);
   void CopyCxxModulesEntries(cmTarget const* tgt);
   void CopyCxxModulesProperties(cmTarget const* tgt);

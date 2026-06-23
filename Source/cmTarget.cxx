@@ -25,6 +25,7 @@
 #include "cmFileSetMetadata.h"
 #include "cmFindPackageStack.h"
 #include "cmGeneratorExpression.h"
+#include "cmGeneratorTarget.h"
 #include "cmGlobalGenerator.h"
 #include "cmList.h"
 #include "cmListFileCache.h"
@@ -595,6 +596,16 @@ TargetProperty const StaticTargetProperties[] = {
 #undef COMMON_LANGUAGE_PROPERTIES
 #undef IC
 #undef R
+
+cmValue copyProperty(cmTarget const* src, cmTarget* dst,
+                     std::string const& prop)
+{
+  cmValue value = src->GetProperty(prop);
+  // Always set the property; it may have been explicitly unset.
+  dst->SetProperty(prop, value);
+  return value;
+};
+
 }
 
 class cmTargetInternals
@@ -604,21 +615,21 @@ public:
   cmTarget::Origin Origin = cmTarget::Origin::Unknown;
   cmMakefile* Makefile;
   cmPolicies::PolicyMap PolicyMap;
-  cmTarget const* TemplateTarget;
+  cmTarget const* TemplateTarget = nullptr;
   std::string Name;
   std::string InstallPath;
   std::string RuntimeInstallPath;
   cmPropertyMap Properties;
-  bool IsGeneratorProvided;
-  bool HaveInstallRule;
-  bool IsDLLPlatform;
-  bool IsAIX;
-  bool IsApple;
-  bool IsAndroid;
-  bool BuildInterfaceIncludesAppended;
-  bool PerConfig;
-  bool IsSymbolic;
-  bool IsForTryCompile{ false };
+  bool IsGeneratorProvided = false;
+  bool HaveInstallRule = false;
+  bool IsDLLPlatform = false;
+  bool IsAIX = false;
+  bool IsApple = false;
+  bool IsAndroid = false;
+  bool BuildInterfaceIncludesAppended = false;
+  bool PerConfig = false;
+  bool IsSymbolic = false;
+  bool IsForTryCompile = false;
   cmTarget::Visibility TargetVisibility;
   std::set<BT<std::pair<std::string, bool>>> Utilities;
   std::set<std::string> CodegenDependencies;
@@ -657,7 +668,9 @@ public:
 
   std::unordered_map<cm::string_view, FileSetType> FileSetTypes;
 
-  cmTargetInternals();
+  cmTargetInternals(std::string name, cmStateEnums::TargetType type,
+                    cmTarget::Visibility visibility, cmMakefile* mf,
+                    cmTarget::PerConfig perConfig);
 
   bool IsImported() const;
 
@@ -687,8 +700,17 @@ public:
   }
 };
 
-cmTargetInternals::cmTargetInternals()
-  : IncludeDirectories("INCLUDE_DIRECTORIES"_s)
+cmTargetInternals::cmTargetInternals(std::string name,
+                                     cmStateEnums::TargetType type,
+                                     cmTarget::Visibility visibility,
+                                     cmMakefile* mf,
+                                     cmTarget::PerConfig perConfig)
+  : TargetType(type)
+  , Makefile(mf)
+  , Name(std::move(name))
+  , PerConfig(perConfig == cmTarget::PerConfig::Yes)
+  , TargetVisibility(visibility)
+  , IncludeDirectories("INCLUDE_DIRECTORIES"_s)
   , CompileOptions("COMPILE_OPTIONS"_s)
   , CompileFeatures("COMPILE_FEATURES"_s)
   , CompileDefinitions("COMPILE_DEFINITIONS"_s)
@@ -729,6 +751,29 @@ cmTargetInternals::cmTargetInternals()
                       FileSetEntries{ "CXX_MODULE_SETS"_s },
                       FileSetEntries{ "INTERFACE_CXX_MODULE_SETS"_s } } } }
 {
+  assert(mf);
+
+  // Check whether this is a DLL platform.
+  this->IsDLLPlatform =
+    !mf->GetSafeDefinition("CMAKE_IMPORT_LIBRARY_SUFFIX").empty();
+
+  // Check whether we are targeting AIX.
+  {
+    std::string const& systemName = mf->GetSafeDefinition("CMAKE_SYSTEM_NAME");
+    this->IsAIX = (systemName == "AIX" || systemName == "OS400");
+  }
+
+  // Check whether we are targeting Apple.
+  this->IsApple = mf->IsOn("APPLE");
+
+  // Check whether we are targeting an Android platform.
+  this->IsAndroid = (mf->GetSafeDefinition("CMAKE_SYSTEM_NAME") == "Android");
+
+  // Save the backtrace of target construction.
+  this->Backtrace = mf->GetBacktrace();
+  if (this->IsImported()) {
+    this->FindPackageStack = mf->GetFindPackageStack();
+  }
 }
 
 template <typename ValueType>
@@ -889,51 +934,11 @@ std::pair<bool, cmValue> UsageRequirementProperty::Read(
   return { did_read, value };
 }
 
-cmTarget::cmTarget(std::string const& name, cmStateEnums::TargetType type,
+cmTarget::cmTarget(std::string name, cmStateEnums::TargetType type,
                    Visibility vis, cmMakefile* mf, PerConfig perConfig)
-  : impl(cm::make_unique<cmTargetInternals>())
+  : impl(cm::make_unique<cmTargetInternals>(std::move(name), type, vis, mf,
+                                            perConfig))
 {
-  assert(mf);
-  this->impl->TargetType = type;
-  this->impl->Makefile = mf;
-  this->impl->Name = name;
-  this->impl->TemplateTarget = nullptr;
-  this->impl->IsGeneratorProvided = false;
-  this->impl->HaveInstallRule = false;
-  this->impl->IsDLLPlatform = false;
-  this->impl->IsAIX = false;
-  this->impl->IsApple = false;
-  this->impl->IsAndroid = false;
-  this->impl->IsSymbolic = false;
-  this->impl->TargetVisibility = vis;
-  this->impl->BuildInterfaceIncludesAppended = false;
-  this->impl->PerConfig = (perConfig == PerConfig::Yes);
-
-  // Check whether this is a DLL platform.
-  this->impl->IsDLLPlatform =
-    !this->impl->Makefile->GetSafeDefinition("CMAKE_IMPORT_LIBRARY_SUFFIX")
-       .empty();
-
-  // Check whether we are targeting AIX.
-  {
-    std::string const& systemName =
-      this->impl->Makefile->GetSafeDefinition("CMAKE_SYSTEM_NAME");
-    this->impl->IsAIX = (systemName == "AIX" || systemName == "OS400");
-  }
-
-  // Check whether we are targeting Apple.
-  this->impl->IsApple = this->impl->Makefile->IsOn("APPLE");
-
-  // Check whether we are targeting an Android platform.
-  this->impl->IsAndroid = (this->impl->Makefile->GetSafeDefinition(
-                             "CMAKE_SYSTEM_NAME") == "Android");
-
-  // Save the backtrace of target construction.
-  this->impl->Backtrace = this->impl->Makefile->GetBacktrace();
-  if (this->impl->IsImported()) {
-    this->impl->FindPackageStack = this->impl->Makefile->GetFindPackageStack();
-  }
-
   if (this->IsNormal()) {
     // Initialize the INCLUDE_DIRECTORIES property based on the current value
     // of the same directory property:
@@ -1739,12 +1744,16 @@ cmBTStringRange cmTarget::GetLinkInterfaceDirectExcludeEntries() const
   return cmMakeRange(this->impl->InterfaceLinkLibrariesDirectExclude.Entries);
 }
 
-void cmTarget::CopyUsageEffects(cmTarget const* tgt)
+void cmTarget::CopyUsageEffects(cmGeneratorTarget const* gt,
+                                std::string const& config)
 {
   // Normal targets cannot be the target of a copy.
   assert(!this->IsNormal());
   // Imported targets cannot be the target of a copy.
   assert(!this->IsImported());
+
+  auto const* tgt = gt->Target;
+
   // Only imported or normal targets can be the source of a copy.
   assert(tgt->IsImported() || tgt->IsNormal());
 
@@ -1758,10 +1767,17 @@ void cmTarget::CopyUsageEffects(cmTarget const* tgt)
       cmMakeRange(tgt->impl->ImportedCxxModulesCompileOptions.Entries));
   } else {
     this->impl->CompileFeatures.CopyFromEntries(
-      cmMakeRange(tgt->impl->CompileFeatures.Entries));
+      cmMakeRange(gt->GetCompileFeatures(config)));
     this->impl->CompileOptions.CopyFromEntries(
-      cmMakeRange(tgt->impl->CompileOptions.Entries));
+      cmMakeRange(gt->GetCompileOptions(config, "CXX")));
   }
+
+  cmValue langStd = gt->GetLanguageStandard("CXX", config);
+  if (langStd) {
+    this->SetProperty("CXX_STANDARD", *langStd);
+  }
+  copyProperty(tgt, this, "CXX_EXTENSIONS");
+  copyProperty(tgt, this, "CXX_STANDARD_REQUIRED");
 }
 
 void cmTarget::CopyPolicyStatuses(cmTarget const* tgt)
@@ -1857,9 +1873,6 @@ void cmTarget::CopyCxxModulesProperties(cmTarget const* tgt)
     // -- Language
     // ---- C++
     "CXX_COMPILER_LAUNCHER",
-    "CXX_STANDARD",
-    "CXX_STANDARD_REQUIRED",
-    "CXX_EXTENSIONS",
     "CXX_VISIBILITY_PRESET",
     "CXX_MODULE_STD",
 
@@ -1896,15 +1909,8 @@ void cmTarget::CopyCxxModulesProperties(cmTarget const* tgt)
     "SYSTEM",
   };
 
-  auto copyProperty = [this, tgt](std::string const& prop) -> cmValue {
-    cmValue value = tgt->GetProperty(prop);
-    // Always set the property; it may have been explicitly unset.
-    this->SetProperty(prop, value);
-    return value;
-  };
-
   for (auto const& prop : propertiesToCopy) {
-    copyProperty(prop);
+    copyProperty(tgt, this, prop);
   }
 
   static cm::static_string_view const perConfigPropertiesToCopy[] = {
@@ -1919,12 +1925,13 @@ void cmTarget::CopyCxxModulesProperties(cmTarget const* tgt)
   for (std::string const& configName : configNames) {
     std::string configUpper = cmSystemTools::UpperCase(configName);
     for (auto const& perConfigProp : perConfigPropertiesToCopy) {
-      copyProperty(cmStrCat(perConfigProp, configUpper));
+      copyProperty(tgt, this, cmStrCat(perConfigProp, configUpper));
     }
   }
 
   if (this->GetGlobalGenerator()->IsXcode()) {
-    cmValue xcodeGenerateScheme = copyProperty("XCODE_GENERATE_SCHEME");
+    cmValue xcodeGenerateScheme =
+      copyProperty(tgt, this, "XCODE_GENERATE_SCHEME");
 
     // TODO: Make sure these show up on the imported target in the first place
     // XCODE_ATTRIBUTE_???
@@ -1954,7 +1961,7 @@ void cmTarget::CopyCxxModulesProperties(cmTarget const* tgt)
       };
 
       for (auto const& xcodeProperty : xcodeSchemePropertiesToCopy) {
-        copyProperty(xcodeProperty);
+        copyProperty(tgt, this, xcodeProperty);
       }
 #endif
     }
