@@ -437,7 +437,10 @@ endif()
 add_RunCMake_test(FileAPI -DPython_EXECUTABLE=${Python_EXECUTABLE}
                           -DCMAKE_CXX_COMPILER_ID=${CMAKE_CXX_COMPILER_ID}
                           -DCMAKE_CXX_SIMULATE_ID=${CMAKE_CXX_SIMULATE_ID}
-                          -DCMake_TEST_JSON_SCHEMA=${CMake_TEST_JSON_SCHEMA})
+                          -DCMake_TEST_JSON_SCHEMA=${CMake_TEST_JSON_SCHEMA}
+                          -DCMake_TEST_MODULE_COMPILATION=${CMake_TEST_MODULE_COMPILATION}
+                          -DCMake_TEST_MODULE_COMPILATION_RULES=${CMake_TEST_MODULE_COMPILATION_RULES}
+                          -DCMake_TEST_CXX_STDLIB_MODULES_JSON=${CMake_TEST_CXX_STDLIB_MODULES_JSON})
 if(CMAKE_GENERATOR MATCHES "Make|Ninja|FASTBuild")
   add_RunCMake_test(Instrumentation -DPython_EXECUTABLE=${Python_EXECUTABLE}
                                     -DCMAKE_C_COMPILER_ID=${CMAKE_C_COMPILER_ID}
@@ -878,6 +881,7 @@ add_RunCMake_test(alias_targets)
 add_RunCMake_test(InterfaceLibrary)
 add_RunCMake_test(IntermediateDirStrategy)
 add_RunCMake_test(no_install_prefix)
+add_RunCMake_test(SourceGroup)
 add_RunCMake_test(configure_file)
 if(CTestTestTimeout_TIME)
   set(CTestTimeout_ARGS -DTIMEOUT=${CTestTestTimeout_TIME})
@@ -1167,16 +1171,26 @@ else()
   set(NO_NAMELINK 0)
 endif()
 
-add_RunCMake_test(install -DNO_NAMELINK=${NO_NAMELINK} -DCYGWIN=${CYGWIN} -DMSYS=${MSYS}
-  -DCMAKE_SHARED_LIBRARY_RPATH_ORIGIN_TOKEN=${CMAKE_SHARED_LIBRARY_RPATH_ORIGIN_TOKEN}
-  -DCMAKE_SYSTEM_NAME=${CMAKE_SYSTEM_NAME}
-  -DCMAKE_SYSTEM_PROCESSOR=${CMAKE_SYSTEM_PROCESSOR}
-  -DCMAKE_SHARED_LIBRARY_RUNTIME_C_FLAG=${CMAKE_SHARED_LIBRARY_RUNTIME_C_FLAG}
-  -DCMAKE_EXECUTABLE_FORMAT=${CMAKE_EXECUTABLE_FORMAT}
-  -DCMake_TEST_ISPC=${CMake_TEST_ISPC}
+function (add_RunCMake_install_test variant)
+  add_RunCMake_test(install-${variant}
+    TEST_DIR install
+    -DNO_NAMELINK=${NO_NAMELINK}
+    -DCYGWIN=${CYGWIN}
+    -DMSYS=${MSYS}
+    -DCMAKE_SHARED_LIBRARY_RPATH_ORIGIN_TOKEN=${CMAKE_SHARED_LIBRARY_RPATH_ORIGIN_TOKEN}
+    -DCMAKE_SYSTEM_NAME=${CMAKE_SYSTEM_NAME}
+    -DCMAKE_SYSTEM_PROCESSOR=${CMAKE_SYSTEM_PROCESSOR}
+    -DCMAKE_SHARED_LIBRARY_RUNTIME_C_FLAG=${CMAKE_SHARED_LIBRARY_RUNTIME_C_FLAG}
+    -DCMAKE_EXECUTABLE_FORMAT=${CMAKE_EXECUTABLE_FORMAT}
+    -DCMake_TEST_ISPC=${CMake_TEST_ISPC}
+    -DCMake_TEST_install_VARIANT=${variant}
   )
-set_property(TEST RunCMake.install APPEND
-  PROPERTY LABELS "ISPC")
+  set_property(TEST RunCMake.install-${variant} APPEND
+    PROPERTY LABELS "ISPC")
+endfunction ()
+add_RunCMake_install_test(Files)
+add_RunCMake_install_test(Targets)
+add_RunCMake_install_test(Exports)
 
 if(DEFINED CMake_COMPILER_FORCES_NEW_DTAGS)
   list(APPEND file-GET_RUNTIME_DEPENDENCIES_ARGS
