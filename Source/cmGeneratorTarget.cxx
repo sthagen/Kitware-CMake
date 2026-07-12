@@ -176,7 +176,7 @@ cmLocalGenerator* cmGeneratorTarget::GetLocalGenerator() const
   return this->LocalGenerator;
 }
 
-cmStateEnums::TargetType cmGeneratorTarget::GetType() const
+cm::TargetType cmGeneratorTarget::GetType() const
 {
   return this->Target->GetType();
 }
@@ -254,7 +254,7 @@ char const* cmGeneratorTarget::GetOutputTargetType(
   }
 
   switch (this->GetType()) {
-    case cmStateEnums::SHARED_LIBRARY:
+    case cm::TargetType::SHARED_LIBRARY:
       if (this->IsDLLPlatform()) {
         switch (artifact) {
           case cmStateEnums::RuntimeBinaryArtifact:
@@ -276,10 +276,10 @@ char const* cmGeneratorTarget::GetOutputTargetType(
         }
       }
       break;
-    case cmStateEnums::STATIC_LIBRARY:
+    case cm::TargetType::STATIC_LIBRARY:
       // Static libraries are always treated as archive targets.
       return "ARCHIVE";
-    case cmStateEnums::MODULE_LIBRARY:
+    case cm::TargetType::MODULE_LIBRARY:
       switch (artifact) {
         case cmStateEnums::RuntimeBinaryArtifact:
           // Module libraries are always treated as library targets.
@@ -289,10 +289,10 @@ char const* cmGeneratorTarget::GetOutputTargetType(
           return "ARCHIVE";
       }
       break;
-    case cmStateEnums::OBJECT_LIBRARY:
+    case cm::TargetType::OBJECT_LIBRARY:
       // Object libraries are always treated as object targets.
       return "OBJECT";
-    case cmStateEnums::EXECUTABLE:
+    case cm::TargetType::EXECUTABLE:
       switch (artifact) {
         case cmStateEnums::RuntimeBinaryArtifact:
           // Executables are always treated as runtime targets.
@@ -435,10 +435,10 @@ cmValue cmGeneratorTarget::GetFilePrefixInternal(
   std::string const& language) const
 {
   // no prefix for non-main target types.
-  if (this->GetType() != cmStateEnums::STATIC_LIBRARY &&
-      this->GetType() != cmStateEnums::SHARED_LIBRARY &&
-      this->GetType() != cmStateEnums::MODULE_LIBRARY &&
-      this->GetType() != cmStateEnums::EXECUTABLE) {
+  if (this->GetType() != cm::TargetType::STATIC_LIBRARY &&
+      this->GetType() != cm::TargetType::SHARED_LIBRARY &&
+      this->GetType() != cm::TargetType::MODULE_LIBRARY &&
+      this->GetType() != cm::TargetType::EXECUTABLE) {
     return nullptr;
   }
 
@@ -453,9 +453,9 @@ cmValue cmGeneratorTarget::GetFilePrefixInternal(
 
   // The implib option is only allowed for shared libraries, module
   // libraries, and executables.
-  if (this->GetType() != cmStateEnums::SHARED_LIBRARY &&
-      this->GetType() != cmStateEnums::MODULE_LIBRARY &&
-      this->GetType() != cmStateEnums::EXECUTABLE) {
+  if (this->GetType() != cm::TargetType::SHARED_LIBRARY &&
+      this->GetType() != cm::TargetType::MODULE_LIBRARY &&
+      this->GetType() != cm::TargetType::EXECUTABLE) {
     artifact = cmStateEnums::RuntimeBinaryArtifact;
   }
 
@@ -486,10 +486,10 @@ cmValue cmGeneratorTarget::GetFileSuffixInternal(
   std::string const& language) const
 {
   // no suffix for non-main target types.
-  if (this->GetType() != cmStateEnums::STATIC_LIBRARY &&
-      this->GetType() != cmStateEnums::SHARED_LIBRARY &&
-      this->GetType() != cmStateEnums::MODULE_LIBRARY &&
-      this->GetType() != cmStateEnums::EXECUTABLE) {
+  if (this->GetType() != cm::TargetType::STATIC_LIBRARY &&
+      this->GetType() != cm::TargetType::SHARED_LIBRARY &&
+      this->GetType() != cm::TargetType::MODULE_LIBRARY &&
+      this->GetType() != cm::TargetType::EXECUTABLE) {
     return nullptr;
   }
 
@@ -504,9 +504,9 @@ cmValue cmGeneratorTarget::GetFileSuffixInternal(
 
   // The implib option is only allowed for shared libraries, module
   // libraries, and executables.
-  if (this->GetType() != cmStateEnums::SHARED_LIBRARY &&
-      this->GetType() != cmStateEnums::MODULE_LIBRARY &&
-      this->GetType() != cmStateEnums::EXECUTABLE) {
+  if (this->GetType() != cm::TargetType::SHARED_LIBRARY &&
+      this->GetType() != cm::TargetType::MODULE_LIBRARY &&
+      this->GetType() != cm::TargetType::EXECUTABLE) {
     artifact = cmStateEnums::RuntimeBinaryArtifact;
   }
 
@@ -836,10 +836,11 @@ bool cmGeneratorTarget::IsIPOEnabled(std::string const& lang,
 
   // Note: check consistency with messages from CheckIPOSupported
   char const* message = nullptr;
-  if (!this->Makefile->IsOn("_CMAKE_" + lang + "_IPO_SUPPORTED_BY_CMAKE")) {
+  if (!this->Makefile->IsOn(
+        cmStrCat("_CMAKE_", lang, "_IPO_SUPPORTED_BY_CMAKE"))) {
     message = "CMake doesn't support IPO for current compiler";
-  } else if (!this->Makefile->IsOn("_CMAKE_" + lang +
-                                   "_IPO_MAY_BE_SUPPORTED_BY_COMPILER")) {
+  } else if (!this->Makefile->IsOn(cmStrCat(
+               "_CMAKE_", lang, "_IPO_MAY_BE_SUPPORTED_BY_COMPILER"))) {
     message = "Compiler doesn't support IPO";
   } else if (!this->GlobalGenerator->IsIPOSupported()) {
     message = "CMake doesn't support IPO for current generator";
@@ -1129,15 +1130,15 @@ bool cmGeneratorTarget::IsInBuildSystem() const
     return false;
   }
   switch (this->Target->GetType()) {
-    case cmStateEnums::EXECUTABLE:
-    case cmStateEnums::STATIC_LIBRARY:
-    case cmStateEnums::SHARED_LIBRARY:
-    case cmStateEnums::MODULE_LIBRARY:
-    case cmStateEnums::OBJECT_LIBRARY:
-    case cmStateEnums::UTILITY:
-    case cmStateEnums::GLOBAL_TARGET:
+    case cm::TargetType::EXECUTABLE:
+    case cm::TargetType::STATIC_LIBRARY:
+    case cm::TargetType::SHARED_LIBRARY:
+    case cm::TargetType::MODULE_LIBRARY:
+    case cm::TargetType::OBJECT_LIBRARY:
+    case cm::TargetType::UTILITY:
+    case cm::TargetType::GLOBAL_TARGET:
       return true;
-    case cmStateEnums::INTERFACE_LIBRARY:
+    case cm::TargetType::INTERFACE_LIBRARY:
       // An INTERFACE library is in the build system if it has SOURCES
       // or C++ module filesets.
       if (!this->SourceEntries.empty() ||
@@ -1146,7 +1147,7 @@ bool cmGeneratorTarget::IsInBuildSystem() const
         return true;
       }
       break;
-    case cmStateEnums::UNKNOWN_LIBRARY:
+    case cm::TargetType::UNKNOWN_LIBRARY:
       break;
   }
   return false;
@@ -1219,19 +1220,18 @@ std::string const& cmGeneratorTarget::GetLocationForBuild() const
   location = this->GetDirectory(noConfig);
   cmValue cfgid = this->Makefile->GetDefinition("CMAKE_CFG_INTDIR");
   if (cfgid && (*cfgid != ".")) {
-    location += "/";
-    location += *cfgid;
+    location = cmStrCat(std::move(location), '/', *cfgid);
   }
 
   if (this->IsAppBundleOnApple()) {
     std::string macdir = this->BuildBundleDirectory("", "", FullLevel);
     if (!macdir.empty()) {
-      location += "/";
-      location += macdir;
+      location = cmStrCat(std::move(location), '/', macdir);
     }
   }
-  location += "/";
-  location += this->GetFullName("", cmStateEnums::RuntimeBinaryArtifact);
+  location =
+    cmStrCat(std::move(location), '/',
+             this->GetFullName("", cmStateEnums::RuntimeBinaryArtifact));
   return location;
 }
 
@@ -1359,7 +1359,7 @@ std::string cmGeneratorTarget::GetCompilePDBPath(
     dir = this->GetPDBDirectory(config);
   }
   if (!dir.empty()) {
-    dir += "/";
+    dir += '/';
   }
   return dir + name;
 }
@@ -1368,7 +1368,7 @@ bool cmGeneratorTarget::HasSOName(std::string const& config) const
 {
   // soname is supported only for shared libraries and modules,
   // and then only when the platform supports an soname flag.
-  return ((this->GetType() == cmStateEnums::SHARED_LIBRARY) &&
+  return ((this->GetType() == cm::TargetType::SHARED_LIBRARY) &&
           !this->GetPropertyAsBool("NO_SONAME") &&
           (this->Makefile->GetSONameFlag(this->GetLinkerLanguage(config)) ||
            this->IsArchivedAIXSharedLibrary()));
@@ -1379,9 +1379,9 @@ bool cmGeneratorTarget::NeedRelinkBeforeInstall(
 {
   // Only executables and shared libraries can have an rpath and may
   // need relinking.
-  if (this->GetType() != cmStateEnums::EXECUTABLE &&
-      this->GetType() != cmStateEnums::SHARED_LIBRARY &&
-      this->GetType() != cmStateEnums::MODULE_LIBRARY) {
+  if (this->GetType() != cm::TargetType::EXECUTABLE &&
+      this->GetType() != cm::TargetType::SHARED_LIBRARY &&
+      this->GetType() != cm::TargetType::MODULE_LIBRARY) {
     return false;
   }
 
@@ -1451,9 +1451,9 @@ bool cmGeneratorTarget::NeedRelinkBeforeInstall(
 bool cmGeneratorTarget::IsChrpathUsed(std::string const& config) const
 {
   // Only certain target types have an rpath.
-  if (!(this->GetType() == cmStateEnums::SHARED_LIBRARY ||
-        this->GetType() == cmStateEnums::MODULE_LIBRARY ||
-        this->GetType() == cmStateEnums::EXECUTABLE)) {
+  if (!(this->GetType() == cm::TargetType::SHARED_LIBRARY ||
+        this->GetType() == cm::TargetType::MODULE_LIBRARY ||
+        this->GetType() == cm::TargetType::EXECUTABLE)) {
     return false;
   }
 
@@ -1511,7 +1511,8 @@ bool cmGeneratorTarget::IsChrpathUsed(std::string const& config) const
 bool cmGeneratorTarget::IsImportedSharedLibWithoutSOName(
   std::string const& config) const
 {
-  if (this->IsImported() && this->GetType() == cmStateEnums::SHARED_LIBRARY) {
+  if (this->IsImported() &&
+      this->GetType() == cm::TargetType::SHARED_LIBRARY) {
     if (cmGeneratorTarget::ImportInfo const* info =
           this->GetImportInfo(config)) {
       return info->NoSOName;
@@ -1542,7 +1543,7 @@ bool cmGeneratorTarget::DetermineHasMacOSXRpathInstallNameDir(
   bool macosx_rpath = false;
 
   if (!this->IsImported()) {
-    if (this->GetType() != cmStateEnums::SHARED_LIBRARY) {
+    if (this->GetType() != cm::TargetType::SHARED_LIBRARY) {
       return false;
     }
     cmValue install_name = this->GetProperty("INSTALL_NAME_DIR");
@@ -1767,8 +1768,8 @@ std::string cmGeneratorTarget::GetFrameworkDirectory(
   fpath += (ext ? *ext : "framework");
   if (shouldAddFullLevel(level) &&
       !this->Makefile->PlatformIsAppleEmbedded()) {
-    fpath += "/Versions/";
-    fpath += this->GetFrameworkVersion();
+    fpath =
+      cmStrCat(std::move(fpath), "/Versions/", this->GetFrameworkVersion());
   }
   return fpath;
 }
@@ -1803,7 +1804,7 @@ std::string cmGeneratorTarget::GetInstallNameDirForBuildTree(
       } else {
         dir = this->GetDirectory(config);
       }
-      dir += "/";
+      dir += '/';
       return dir;
     }
   }
@@ -1851,18 +1852,18 @@ cmGeneratorTarget::GetUtilities() const
 
 bool cmGeneratorTarget::HaveWellDefinedOutputFiles() const
 {
-  return this->GetType() == cmStateEnums::STATIC_LIBRARY ||
-    this->GetType() == cmStateEnums::SHARED_LIBRARY ||
-    this->GetType() == cmStateEnums::MODULE_LIBRARY ||
-    this->GetType() == cmStateEnums::OBJECT_LIBRARY ||
-    this->GetType() == cmStateEnums::EXECUTABLE;
+  return this->GetType() == cm::TargetType::STATIC_LIBRARY ||
+    this->GetType() == cm::TargetType::SHARED_LIBRARY ||
+    this->GetType() == cm::TargetType::MODULE_LIBRARY ||
+    this->GetType() == cm::TargetType::OBJECT_LIBRARY ||
+    this->GetType() == cm::TargetType::EXECUTABLE;
 }
 
 std::string const* cmGeneratorTarget::GetExportMacro() const
 {
   // Define the symbol for targets that export symbols.
-  if (this->GetType() == cmStateEnums::SHARED_LIBRARY ||
-      this->GetType() == cmStateEnums::MODULE_LIBRARY ||
+  if (this->GetType() == cm::TargetType::SHARED_LIBRARY ||
+      this->GetType() == cm::TargetType::MODULE_LIBRARY ||
       this->IsExecutableWithExports()) {
     if (cmValue custom_export_name = this->GetProperty("DEFINE_SYMBOL")) {
       this->ExportMacro = *custom_export_name;
@@ -1888,8 +1889,8 @@ cmList const& cmGeneratorTarget::GetSharedLibraryCompileDefs(
   auto emplaceResult =
     this->SharedLibraryCompileDefs.emplace(config, cmList{});
   auto& defs = emplaceResult.first->second;
-  if (this->GetType() != cmStateEnums::SHARED_LIBRARY &&
-      this->GetType() != cmStateEnums::MODULE_LIBRARY) {
+  if (this->GetType() != cm::TargetType::SHARED_LIBRARY &&
+      this->GetType() != cm::TargetType::MODULE_LIBRARY) {
     return defs;
   }
 
@@ -1968,7 +1969,7 @@ cmGeneratorTarget::CompileInfo const* cmGeneratorTarget::GetCompileInfo(
     return nullptr;
   }
 
-  if (this->GetType() > cmStateEnums::OBJECT_LIBRARY) {
+  if (this->GetType() > cm::TargetType::OBJECT_LIBRARY) {
     std::string msg = cmStrCat("cmTarget::GetCompileInfo called for ",
                                this->GetName(), " which has type ",
                                cmState::GetTargetTypeName(this->GetType()));
@@ -1995,8 +1996,8 @@ cmGeneratorTarget::ModuleDefinitionInfo const*
 cmGeneratorTarget::GetModuleDefinitionInfo(std::string const& config) const
 {
   // A module definition file only makes sense on certain target types.
-  if (this->GetType() != cmStateEnums::SHARED_LIBRARY &&
-      this->GetType() != cmStateEnums::MODULE_LIBRARY &&
+  if (this->GetType() != cm::TargetType::SHARED_LIBRARY &&
+      this->GetType() != cm::TargetType::MODULE_LIBRARY &&
       !this->IsExecutableWithExports()) {
     return nullptr;
   }
@@ -2077,7 +2078,7 @@ void cmGeneratorTarget::TraceDependencies()
   // would find nothing anyway, but when building CMake itself the "install"
   // target command ends up referencing the "cmake" target but we do not
   // really want the dependency because "install" depend on "all" anyway.
-  if (this->GetType() == cmStateEnums::GLOBAL_TARGET) {
+  if (this->GetType() == cm::TargetType::GLOBAL_TARGET) {
     return;
   }
 
@@ -2571,7 +2572,7 @@ cmGeneratorTarget::SourceVariables cmGeneratorTarget::GetSourceVariables(
         mf->GetDefinition("MSVC_CUDA_ARCHITECTURE_ID")) {
       std::string pdbPath;
       std::string compilePdbPath;
-      if (targetType <= cmStateEnums::OBJECT_LIBRARY) {
+      if (targetType <= cm::TargetType::OBJECT_LIBRARY) {
         compilePdbPath = this->GetCompilePDBPath(config);
         if (compilePdbPath.empty()) {
           // Match VS default: `$(IntDir)vc$(PlatformToolsetVersion).pdb`.
@@ -2581,17 +2582,17 @@ cmGeneratorTarget::SourceVariables cmGeneratorTarget::GetSourceVariables(
             compilePdbPath = cmStrCat(compilePdbPath, '/', config);
           }
           compilePdbPath += '/';
-          if (targetType == cmStateEnums::STATIC_LIBRARY) {
+          if (targetType == cm::TargetType::STATIC_LIBRARY) {
             // Match VS default for static libs: `$(IntDir)$(ProjectName).pdb`.
             compilePdbPath = cmStrCat(compilePdbPath, this->GetName(), ".pdb");
           }
         }
       }
 
-      if (targetType == cmStateEnums::EXECUTABLE ||
-          targetType == cmStateEnums::STATIC_LIBRARY ||
-          targetType == cmStateEnums::SHARED_LIBRARY ||
-          targetType == cmStateEnums::MODULE_LIBRARY) {
+      if (targetType == cm::TargetType::EXECUTABLE ||
+          targetType == cm::TargetType::STATIC_LIBRARY ||
+          targetType == cm::TargetType::SHARED_LIBRARY ||
+          targetType == cm::TargetType::MODULE_LIBRARY) {
         pdbPath = cmStrCat(this->GetPDBDirectory(config), '/',
                            this->GetPDBName(config));
       }
@@ -2701,8 +2702,8 @@ void cmGeneratorTarget::AddCUDAArchitectureFlags(cmBuildStep compileOrLink,
       default:
         this->Makefile->IssueMessage(
           MessageType::FATAL_ERROR,
-          "CUDA_ARCHITECTURES is empty for target \"" + this->GetName() +
-            "\".");
+          cmStrCat("CUDA_ARCHITECTURES is empty for target \"",
+                   this->GetName(), "\"."));
     }
   }
 
@@ -2794,8 +2795,8 @@ void cmGeneratorTarget::AddCUDAArchitectureFlagsImpl(cmBuildStep compileOrLink,
         } else {
           this->Makefile->IssueMessage(
             MessageType::FATAL_ERROR,
-            "Unknown CUDA architecture specifier \"" + std::string(specifier) +
-              "\".");
+            cmStrCat("Unknown CUDA architecture specifier \"", specifier,
+                     "\"."));
         }
       }
 
@@ -2906,7 +2907,7 @@ void cmGeneratorTarget::AddHIPArchitectureFlags(cmBuildStep compileOrLink,
   cmList options(arch);
 
   for (std::string& option : options) {
-    flags += " --offload-arch=" + option;
+    flags = cmStrCat(std::move(flags), " --offload-arch=", option);
   }
 }
 
@@ -2914,7 +2915,7 @@ void cmGeneratorTarget::AddRustTargetFlags(std::string& flags) const
 {
   cmValue const edition = this->GetProperty("Rust_EDITION");
   if (edition && !edition->empty()) {
-    flags += " --edition=" + *edition;
+    flags = cmStrCat(std::move(flags), " --edition=", *edition);
   }
 }
 
@@ -2925,7 +2926,7 @@ void cmGeneratorTarget::AddSwiftTargetFlags(std::string& flags) const
           cmSystemTools::OP_GREATER_EQUAL,
           this->Makefile->GetDefinition("CMAKE_Swift_COMPILER_VERSION"),
           "4.2")) {
-      flags += " -swift-version " + *version;
+      flags = cmStrCat(std::move(flags), " -swift-version ", *version);
     }
   }
 
@@ -2941,7 +2942,7 @@ void cmGeneratorTarget::AddSwiftTargetFlags(std::string& flags) const
       std::string const packageFlag =
         this->Makefile->GetSafeDefinition("CMAKE_Swift_PACKAGE_NAME_FLAG");
       // Add the package name to the flags
-      flags += " " + packageFlag + " " + packageName;
+      flags = cmStrCat(std::move(flags), ' ', packageFlag, ' ', packageName);
     }
   }
 }
@@ -2961,9 +2962,9 @@ void cmGeneratorTarget::AddCUDAToolkitFlags(std::string& flags) const
       this->Makefile->GetSafeDefinition("CMAKE_CUDA_COMPILER_LIBRARY_ROOT");
 
     if (!toolkitRoot.empty()) {
-      flags += " --cuda-path=" +
-        this->LocalGenerator->ConvertToOutputFormat(toolkitRoot,
-                                                    cmOutputConverter::SHELL);
+      flags = cmStrCat(std::move(flags), " --cuda-path=",
+                       this->LocalGenerator->ConvertToOutputFormat(
+                         toolkitRoot, cmOutputConverter::SHELL));
     }
   }
 }
@@ -2988,18 +2989,18 @@ std::string cmGeneratorTarget::GetCreateRuleVariable(
   std::string const& lang, std::string const& config) const
 {
   switch (this->GetType()) {
-    case cmStateEnums::STATIC_LIBRARY: {
+    case cm::TargetType::STATIC_LIBRARY: {
       std::string var = cmStrCat("CMAKE_", lang, "_CREATE_STATIC_LIBRARY");
       return this->GetFeatureSpecificLinkRuleVariable(var, lang, config);
     }
-    case cmStateEnums::SHARED_LIBRARY:
+    case cm::TargetType::SHARED_LIBRARY:
       if (this->IsArchivedAIXSharedLibrary()) {
         return cmStrCat("CMAKE_", lang, "_CREATE_SHARED_LIBRARY_ARCHIVE");
       }
       return cmStrCat("CMAKE_", lang, "_CREATE_SHARED_LIBRARY");
-    case cmStateEnums::MODULE_LIBRARY:
+    case cm::TargetType::MODULE_LIBRARY:
       return cmStrCat("CMAKE_", lang, "_CREATE_SHARED_MODULE");
-    case cmStateEnums::EXECUTABLE:
+    case cm::TargetType::EXECUTABLE:
       if (this->IsExecutableWithExports()) {
         std::string linkExeWithExports =
           cmStrCat("CMAKE_", lang, "_LINK_EXECUTABLE_WITH_EXPORTS");
@@ -3530,11 +3531,11 @@ void cmGeneratorTarget::ComputeTargetManifest(std::string const& config) const
 
   // Get the names.
   cmGeneratorTarget::Names targetNames;
-  if (this->GetType() == cmStateEnums::EXECUTABLE) {
+  if (this->GetType() == cm::TargetType::EXECUTABLE) {
     targetNames = this->GetExecutableNames(config);
-  } else if (this->GetType() == cmStateEnums::STATIC_LIBRARY ||
-             this->GetType() == cmStateEnums::SHARED_LIBRARY ||
-             this->GetType() == cmStateEnums::MODULE_LIBRARY) {
+  } else if (this->GetType() == cm::TargetType::STATIC_LIBRARY ||
+             this->GetType() == cm::TargetType::SHARED_LIBRARY ||
+             this->GetType() == cm::TargetType::MODULE_LIBRARY) {
     targetNames = this->GetLibraryNames(config);
   } else {
     return;
@@ -3755,7 +3756,7 @@ std::string cmGeneratorTarget::NormalGetRealName(
     this->LocalGenerator->IssueMessage(MessageType::INTERNAL_ERROR, msg);
   }
 
-  Names names = this->GetType() == cmStateEnums::EXECUTABLE
+  Names names = this->GetType() == cm::TargetType::EXECUTABLE
     ? this->GetExecutableNames(config)
     : this->GetLibraryNames(config);
 
@@ -3811,17 +3812,18 @@ cmGeneratorTarget::Names cmGeneratorTarget::GetLibraryNames(
   if (this->IsFrameworkOnApple()) {
     targetNames.Real = components.prefix;
     if (!this->Makefile->PlatformIsAppleEmbedded()) {
-      targetNames.Real +=
-        cmStrCat("Versions/", this->GetFrameworkVersion(), '/');
+      targetNames.Real = cmStrCat(std::move(targetNames.Real), "Versions/",
+                                  this->GetFrameworkVersion(), '/');
     }
-    targetNames.Real += cmStrCat(targetNames.Base, components.suffix);
+    targetNames.Real = cmStrCat(std::move(targetNames.Real), targetNames.Base,
+                                components.suffix);
     targetNames.SharedObject = targetNames.Real;
   } else if (this->IsArchivedAIXSharedLibrary()) {
     targetNames.SharedObject =
       cmStrCat(components.prefix, targetNames.Base, ".so");
     if (soversion) {
-      targetNames.SharedObject += ".";
-      targetNames.SharedObject += *soversion;
+      targetNames.SharedObject =
+        cmStrCat(std::move(targetNames.SharedObject), '.', *soversion);
     }
     targetNames.Real = targetNames.Output;
   } else {
@@ -3837,8 +3839,8 @@ cmGeneratorTarget::Names cmGeneratorTarget::GetLibraryNames(
   }
 
   // The import library names.
-  if (this->GetType() == cmStateEnums::SHARED_LIBRARY ||
-      this->GetType() == cmStateEnums::MODULE_LIBRARY) {
+  if (this->GetType() == cm::TargetType::SHARED_LIBRARY ||
+      this->GetType() == cm::TargetType::MODULE_LIBRARY) {
     NameComponents const& importComponents =
       this->GetFullNameInternalComponents(config,
                                           cmStateEnums::ImportLibraryArtifact);
@@ -3848,11 +3850,13 @@ cmGeneratorTarget::Names cmGeneratorTarget::GetLibraryNames(
     if (this->IsFrameworkOnApple() && this->IsSharedLibraryWithExports()) {
       targetNames.ImportReal = components.prefix;
       if (!this->Makefile->PlatformIsAppleEmbedded()) {
-        targetNames.ImportReal +=
-          cmStrCat("Versions/", this->GetFrameworkVersion(), '/');
+        targetNames.ImportReal =
+          cmStrCat(std::move(targetNames.ImportReal), "Versions/",
+                   this->GetFrameworkVersion(), '/');
       }
-      targetNames.ImportReal +=
-        cmStrCat(importComponents.base, importComponents.suffix);
+      targetNames.ImportReal =
+        cmStrCat(std::move(targetNames.ImportReal), importComponents.base,
+                 importComponents.suffix);
       targetNames.ImportLibrary = targetNames.ImportOutput;
     } else {
       // The import library's soname.
@@ -3894,7 +3898,7 @@ cmGeneratorTarget::Names cmGeneratorTarget::GetExecutableNames(
 #else
   // Check for executable version properties.
   cmValue version = this->GetProperty("VERSION");
-  if (this->GetType() != cmStateEnums::EXECUTABLE ||
+  if (this->GetType() != cm::TargetType::EXECUTABLE ||
       this->Makefile->IsOn("XCODE")) {
     version = nullptr;
   }
@@ -3921,8 +3925,7 @@ cmGeneratorTarget::Names cmGeneratorTarget::GetExecutableNames(
   targetNames.Real = targetNames.Output;
 #endif
   if (version) {
-    targetNames.Real += "-";
-    targetNames.Real += *version;
+    targetNames.Real = cmStrCat(std::move(targetNames.Real), '-', *version);
   }
 #if defined(__CYGWIN__)
   targetNames.Real += components.suffix;
@@ -3977,10 +3980,10 @@ cmGeneratorTarget::GetFullNameInternalComponents(
     return search->second;
   }
   // Use just the target name for non-main target types.
-  if (this->GetType() != cmStateEnums::STATIC_LIBRARY &&
-      this->GetType() != cmStateEnums::SHARED_LIBRARY &&
-      this->GetType() != cmStateEnums::MODULE_LIBRARY &&
-      this->GetType() != cmStateEnums::EXECUTABLE) {
+  if (this->GetType() != cm::TargetType::STATIC_LIBRARY &&
+      this->GetType() != cm::TargetType::SHARED_LIBRARY &&
+      this->GetType() != cm::TargetType::MODULE_LIBRARY &&
+      this->GetType() != cm::TargetType::EXECUTABLE) {
     NameComponents components;
     components.base = this->GetName();
     return cache.emplace(config, std::move(components)).first->second;
@@ -4007,9 +4010,9 @@ cmGeneratorTarget::GetFullNameInternalComponents(
 
   // The implib option is only allowed for shared libraries, module
   // libraries, and executables.
-  if (this->GetType() != cmStateEnums::SHARED_LIBRARY &&
-      this->GetType() != cmStateEnums::MODULE_LIBRARY &&
-      this->GetType() != cmStateEnums::EXECUTABLE) {
+  if (this->GetType() != cm::TargetType::SHARED_LIBRARY &&
+      this->GetType() != cm::TargetType::MODULE_LIBRARY &&
+      this->GetType() != cm::TargetType::EXECUTABLE) {
     artifact = cmStateEnums::RuntimeBinaryArtifact;
   }
 
@@ -4057,13 +4060,12 @@ cmGeneratorTarget::GetFullNameInternalComponents(
     if (this->IsDLLPlatform()) {
       dllProp = this->GetProperty("DLL_NAME_WITH_SOVERSION");
     }
-    if (this->GetType() == cmStateEnums::SHARED_LIBRARY &&
+    if (this->GetType() == cm::TargetType::SHARED_LIBRARY &&
         !isImportedLibraryArtifact &&
         (dllProp.IsOn() ||
          (!dllProp.IsSet() &&
           this->Makefile->IsOn("CMAKE_SHARED_LIBRARY_NAME_WITH_VERSION")))) {
-      outBase += "-";
-      outBase += *soversion;
+      outBase = cmStrCat(std::move(outBase), '-', *soversion);
     }
   }
 
@@ -4433,7 +4435,7 @@ void cmGeneratorTarget::GetTargetVersion(std::string const& property,
   minor = 0;
   patch = 0;
 
-  assert(this->GetType() != cmStateEnums::INTERFACE_LIBRARY);
+  assert(this->GetType() != cm::TargetType::INTERFACE_LIBRARY);
 
   if (cmValue version = this->GetProperty(property)) {
     // Try to parse the version number and store the results that were
@@ -4599,7 +4601,7 @@ cmGeneratorTarget::GetGeneratedISPCObjects(std::string const& config) const
 
 std::string cmGeneratorTarget::GetFrameworkVersion() const
 {
-  assert(this->GetType() != cmStateEnums::INTERFACE_LIBRARY);
+  assert(this->GetType() != cm::TargetType::INTERFACE_LIBRARY);
 
   if (cmValue fversion = this->GetProperty("FRAMEWORK_VERSION")) {
     return *fversion;
@@ -4618,10 +4620,11 @@ std::string cmGeneratorTarget::ComputeVersionedName(std::string const& prefix,
 {
   std::string vName = this->IsApple() ? (prefix + base) : name;
   if (version) {
-    vName += ".";
-    vName += *version;
+    vName = cmStrCat(std::move(vName), '.', *version);
   }
-  vName += this->IsApple() ? suffix : std::string();
+  if (this->IsApple()) {
+    vName += suffix;
+  }
   return vName;
 }
 
@@ -4783,12 +4786,12 @@ bool cmGeneratorTarget::ComputeOutputDir(std::string const& config,
     if (out != *outdir) {
       conf.clear();
     }
-  } else if (this->GetType() == cmStateEnums::EXECUTABLE) {
+  } else if (this->GetType() == cm::TargetType::EXECUTABLE) {
     // Lookup the output path for executables.
     out = this->Makefile->GetSafeDefinition("EXECUTABLE_OUTPUT_PATH");
-  } else if (this->GetType() == cmStateEnums::STATIC_LIBRARY ||
-             this->GetType() == cmStateEnums::SHARED_LIBRARY ||
-             this->GetType() == cmStateEnums::MODULE_LIBRARY) {
+  } else if (this->GetType() == cm::TargetType::STATIC_LIBRARY ||
+             this->GetType() == cm::TargetType::SHARED_LIBRARY ||
+             this->GetType() == cm::TargetType::MODULE_LIBRARY) {
     // Lookup the output path for libraries.
     out = this->Makefile->GetSafeDefinition("LIBRARY_OUTPUT_PATH");
   }
@@ -4940,7 +4943,7 @@ cmGeneratorTarget::ImportInfo const* cmGeneratorTarget::GetImportInfo(
     i = this->ImportInfoMap.insert(entry).first;
   }
 
-  if (this->GetType() == cmStateEnums::INTERFACE_LIBRARY) {
+  if (this->GetType() == cm::TargetType::INTERFACE_LIBRARY) {
     return &i->second;
   }
   // If the location is empty then the target is not available for
@@ -4980,7 +4983,7 @@ void cmGeneratorTarget::ComputeImportInfo(std::string const& desired_config,
       for (BT<std::string> const& entry : entries) {
         info.Libraries.emplace_back(entry);
       }
-    } else if (this->GetType() != cmStateEnums::INTERFACE_LIBRARY) {
+    } else if (this->GetType() != cm::TargetType::INTERFACE_LIBRARY) {
       std::string linkProp =
         cmStrCat("IMPORTED_LINK_INTERFACE_LIBRARIES", suffix);
       cmValue propertyLibs = this->GetProperty(linkProp);
@@ -5002,7 +5005,7 @@ void cmGeneratorTarget::ComputeImportInfo(std::string const& desired_config,
        this->Target->GetLinkInterfaceDirectExcludeEntries()) {
     info.LibrariesHeadExclude.emplace_back(entry);
   }
-  if (this->GetType() == cmStateEnums::INTERFACE_LIBRARY) {
+  if (this->GetType() == cm::TargetType::INTERFACE_LIBRARY) {
     if (loc) {
       info.LibName = *loc;
     }
@@ -5025,7 +5028,7 @@ void cmGeneratorTarget::ComputeImportInfo(std::string const& desired_config,
   }
 
   // Get the soname.
-  if (this->GetType() == cmStateEnums::SHARED_LIBRARY) {
+  if (this->GetType() == cm::TargetType::SHARED_LIBRARY) {
     std::string soProp = cmStrCat("IMPORTED_SONAME", suffix);
     if (cmValue config_soname = this->GetProperty(soProp)) {
       info.SOName = *config_soname;
@@ -5035,7 +5038,7 @@ void cmGeneratorTarget::ComputeImportInfo(std::string const& desired_config,
   }
 
   // Get the "no-soname" mark.
-  if (this->GetType() == cmStateEnums::SHARED_LIBRARY) {
+  if (this->GetType() == cm::TargetType::SHARED_LIBRARY) {
     std::string soProp = cmStrCat("IMPORTED_NO_SONAME", suffix);
     if (cmValue config_no_soname = this->GetProperty(soProp)) {
       info.NoSOName = config_no_soname.IsOn();
@@ -5047,7 +5050,7 @@ void cmGeneratorTarget::ComputeImportInfo(std::string const& desired_config,
   // Get the import library.
   if (imp) {
     info.ImportLibrary = *imp;
-  } else if (this->GetType() == cmStateEnums::SHARED_LIBRARY ||
+  } else if (this->GetType() == cm::TargetType::SHARED_LIBRARY ||
              this->IsExecutableWithExports()) {
     std::string impProp = cmStrCat("IMPORTED_IMPLIB", suffix);
     if (cmValue config_implib = this->GetProperty(impProp)) {
@@ -5092,7 +5095,7 @@ void cmGeneratorTarget::ComputeImportInfo(std::string const& desired_config,
   }
 
   // Get the cyclic repetition count.
-  if (this->GetType() == cmStateEnums::STATIC_LIBRARY) {
+  if (this->GetType() == cm::TargetType::STATIC_LIBRARY) {
     std::string linkProp =
       cmStrCat("IMPORTED_LINK_INTERFACE_MULTIPLICITY", suffix);
     if (cmValue config_reps = this->GetProperty(linkProp)) {
@@ -5121,31 +5124,30 @@ bool cmGeneratorTarget::GetConfigCommonSourceFilesForXcode(
       std::string firstConfigFiles;
       char const* sep = "";
       for (cmSourceFile* f : files) {
-        firstConfigFiles += sep;
-        firstConfigFiles += f->ResolveFullPath();
+        firstConfigFiles =
+          cmStrCat(std::move(firstConfigFiles), sep, f->ResolveFullPath());
         sep = "\n  ";
       }
 
       std::string thisConfigFiles;
       sep = "";
       for (cmSourceFile* f : configFiles) {
-        thisConfigFiles += sep;
-        thisConfigFiles += f->ResolveFullPath();
+        thisConfigFiles =
+          cmStrCat(std::move(thisConfigFiles), sep, f->ResolveFullPath());
         sep = "\n  ";
       }
-      std::ostringstream e;
       /* clang-format off */
-      e << "Target \"" << this->GetName()
-        << "\" has source files which vary by "
-        "configuration. This is not supported by the \""
-        << this->GlobalGenerator->GetName()
-        << "\" generator.\n"
-          "Config \"" << firstConfig << "\":\n"
-          "  " << firstConfigFiles << "\n"
-          "Config \"" << *it << "\":\n"
-          "  " << thisConfigFiles << "\n";
+      std::string e = cmStrCat("Target \"", this->GetName(),
+        "\" has source files which vary by "
+        "configuration. This is not supported by the \"",
+         this->GlobalGenerator->GetName(),
+         "\" generator.\n"
+          "Config \"", firstConfig, "\":\n"
+          "  ", firstConfigFiles, "\n"
+          "Config \"", *it, "\":\n"
+          "  ", thisConfigFiles, '\n');
       /* clang-format on */
-      this->LocalGenerator->IssueMessage(MessageType::FATAL_ERROR, e.str());
+      this->LocalGenerator->IssueMessage(MessageType::FATAL_ERROR, e);
       return false;
     }
   }
@@ -5273,9 +5275,9 @@ bool cmGeneratorTarget::IsLanguageUsed(std::string const& language,
 bool cmGeneratorTarget::IsCSharpOnly() const
 {
   // Only certain target types may compile CSharp.
-  if (this->GetType() != cmStateEnums::SHARED_LIBRARY &&
-      this->GetType() != cmStateEnums::STATIC_LIBRARY &&
-      this->GetType() != cmStateEnums::EXECUTABLE) {
+  if (this->GetType() != cm::TargetType::SHARED_LIBRARY &&
+      this->GetType() != cm::TargetType::STATIC_LIBRARY &&
+      this->GetType() != cm::TargetType::EXECUTABLE) {
     return false;
   }
   std::set<std::string> languages = this->GetAllConfigCompileLanguages();
@@ -5376,7 +5378,7 @@ bool CreateCxxStdlibTarget(cmMakefile* makefile, cmLocalGenerator* lg,
   }
 
   auto* stdlibTgt = makefile->AddLibrary(
-    "@cmake_cxx_std", cmStateEnums::STATIC_LIBRARY, {}, true);
+    "@cmake_cxx_std", cm::TargetType::STATIC_LIBRARY, {}, true);
   cmCxxModuleMetadata::PopulateTarget(*stdlibTgt, *metadata, configs);
   cmStandardLevelResolver standardResolver(makefile);
   standardResolver.AddRequiredTargetFeature(stdlibTgt, "cxx_std_20");
@@ -5538,7 +5540,7 @@ cmGeneratorTarget const* cmGeneratorTarget::GetCxxSyntheticTarget(
   auto* mf = this->Makefile;
   auto* lg = this->GetLocalGenerator();
   auto* tgt =
-    mf->AddSynthesizedTarget(cmStateEnums::INTERFACE_LIBRARY, targetName);
+    mf->AddSynthesizedTarget(cm::TargetType::INTERFACE_LIBRARY, targetName);
 
   // Copy relevant information from the existing target.
 
@@ -5721,7 +5723,7 @@ bool cmGeneratorTarget::HasImportLibrary(std::string const& config) const
   }
 
   return (this->IsDLLPlatform() &&
-          (this->GetType() == cmStateEnums::SHARED_LIBRARY ||
+          (this->GetType() == cm::TargetType::SHARED_LIBRARY ||
            this->IsExecutableWithExports()) &&
           // Assemblies which have only managed code do not have
           // import libraries.
@@ -5737,8 +5739,8 @@ bool cmGeneratorTarget::NeedImportLibraryName(std::string const& config) const
     // On DLL platforms we always generate the import library name
     // just in case the sources have export markup.
     (this->IsDLLPlatform() &&
-     (this->GetType() == cmStateEnums::EXECUTABLE ||
-      this->GetType() == cmStateEnums::MODULE_LIBRARY));
+     (this->GetType() == cm::TargetType::EXECUTABLE ||
+      this->GetType() == cm::TargetType::MODULE_LIBRARY));
 }
 
 bool cmGeneratorTarget::GetUseShortObjectNames(
@@ -5807,20 +5809,20 @@ std::string cmGeneratorTarget::GetCMFSupportDirectory(
 
 bool cmGeneratorTarget::IsLinkable() const
 {
-  return (this->GetType() == cmStateEnums::STATIC_LIBRARY ||
-          this->GetType() == cmStateEnums::SHARED_LIBRARY ||
-          this->GetType() == cmStateEnums::MODULE_LIBRARY ||
-          this->GetType() == cmStateEnums::UNKNOWN_LIBRARY ||
-          this->GetType() == cmStateEnums::OBJECT_LIBRARY ||
-          this->GetType() == cmStateEnums::INTERFACE_LIBRARY ||
+  return (this->GetType() == cm::TargetType::STATIC_LIBRARY ||
+          this->GetType() == cm::TargetType::SHARED_LIBRARY ||
+          this->GetType() == cm::TargetType::MODULE_LIBRARY ||
+          this->GetType() == cm::TargetType::UNKNOWN_LIBRARY ||
+          this->GetType() == cm::TargetType::OBJECT_LIBRARY ||
+          this->GetType() == cm::TargetType::INTERFACE_LIBRARY ||
           this->IsExecutableWithExports());
 }
 
 bool cmGeneratorTarget::HasLinkDependencyFile(std::string const& config) const
 {
-  if (this->GetType() != cmStateEnums::EXECUTABLE &&
-      this->GetType() != cmStateEnums::SHARED_LIBRARY &&
-      this->GetType() != cmStateEnums::MODULE_LIBRARY) {
+  if (this->GetType() != cm::TargetType::EXECUTABLE &&
+      this->GetType() != cm::TargetType::SHARED_LIBRARY &&
+      this->GetType() != cm::TargetType::MODULE_LIBRARY) {
     return false;
   }
 
@@ -5854,9 +5856,9 @@ bool cmGeneratorTarget::IsImportedFrameworkFolderOnApple(
   std::string const& config) const
 {
   if (this->IsApple() && this->IsImported() &&
-      (this->GetType() == cmStateEnums::STATIC_LIBRARY ||
-       this->GetType() == cmStateEnums::SHARED_LIBRARY ||
-       this->GetType() == cmStateEnums::UNKNOWN_LIBRARY)) {
+      (this->GetType() == cm::TargetType::STATIC_LIBRARY ||
+       this->GetType() == cm::TargetType::SHARED_LIBRARY ||
+       this->GetType() == cm::TargetType::UNKNOWN_LIBRARY)) {
     std::string cfg = config;
     if (cfg.empty() && this->GetGlobalGenerator()->IsXcode()) {
       // FIXME(#25515): Remove the need for this workaround.
@@ -5884,8 +5886,8 @@ bool cmGeneratorTarget::IsXCTestOnApple() const
 
 bool cmGeneratorTarget::IsCFBundleOnApple() const
 {
-  return (this->GetType() == cmStateEnums::MODULE_LIBRARY && this->IsApple() &&
-          this->GetPropertyAsBool("BUNDLE"));
+  return (this->GetType() == cm::TargetType::MODULE_LIBRARY &&
+          this->IsApple() && this->GetPropertyAsBool("BUNDLE"));
 }
 
 cmGeneratorTarget::ManagedType cmGeneratorTarget::CheckManagedType(
@@ -5914,11 +5916,11 @@ cmGeneratorTarget::ManagedType cmGeneratorTarget::GetManagedType(
   std::string const& config) const
 {
   // Only libraries and executables can be managed targets.
-  if (this->GetType() > cmStateEnums::SHARED_LIBRARY) {
+  if (this->GetType() > cm::TargetType::SHARED_LIBRARY) {
     return ManagedType::Undefined;
   }
 
-  if (this->GetType() == cmStateEnums::STATIC_LIBRARY) {
+  if (this->GetType() == cm::TargetType::STATIC_LIBRARY) {
     return ManagedType::Native;
   }
 
@@ -5946,9 +5948,9 @@ std::string cmGeneratorTarget::GetImportedXcFrameworkPath(
   std::string const& config) const
 {
   if (!(this->IsApple() && this->IsImported() &&
-        (this->GetType() == cmStateEnums::SHARED_LIBRARY ||
-         this->GetType() == cmStateEnums::STATIC_LIBRARY ||
-         this->GetType() == cmStateEnums::UNKNOWN_LIBRARY))) {
+        (this->GetType() == cm::TargetType::SHARED_LIBRARY ||
+         this->GetType() == cm::TargetType::STATIC_LIBRARY ||
+         this->GetType() == cm::TargetType::UNKNOWN_LIBRARY))) {
     return {};
   }
 

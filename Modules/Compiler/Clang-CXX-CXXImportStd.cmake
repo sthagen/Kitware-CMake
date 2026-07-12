@@ -1,3 +1,10 @@
+if(CMAKE_CXX_COMPILER_FRONTEND_VARIANT STREQUAL "MSVC" OR
+    CMAKE_CXX_STANDARD_LIBRARY STREQUAL "msvc" OR
+    CMAKE_CXX_COMPILER_TARGET MATCHES "(^|-)windows-msvc($|-)")
+  include(Compiler/MSVC-CXX-CXXImportStd)
+  return()
+endif()
+
 function (_cmake_cxx_find_modules_json)
   if (NOT CMAKE_CXX_STDLIB_MODULES_JSON)
     if (CMAKE_CXX_STANDARD_LIBRARY STREQUAL "libc++")

@@ -26,6 +26,7 @@
 #include "cmStateSnapshot.h"
 #include "cmStringAlgorithms.h"
 #include "cmSystemTools.h"
+#include "cmTargetTypes.h"
 #include "cmake.h"
 
 namespace cmStateDetail {
@@ -42,8 +43,7 @@ cmState::cmState(Role role, TryCompile isTryCompile)
 
 cmState::~cmState() = default;
 
-std::string const& cmState::GetTargetTypeName(
-  cmStateEnums::TargetType targetType)
+std::string const& cmState::GetTargetTypeName(cm::TargetType targetType)
 {
 #define MAKE_STATIC_PROP(PROP) static const std::string prop##PROP = #PROP
   MAKE_STATIC_PROP(STATIC_LIBRARY);
@@ -59,23 +59,23 @@ std::string const& cmState::GetTargetTypeName(
 #undef MAKE_STATIC_PROP
 
   switch (targetType) {
-    case cmStateEnums::STATIC_LIBRARY:
+    case cm::TargetType::STATIC_LIBRARY:
       return propSTATIC_LIBRARY;
-    case cmStateEnums::MODULE_LIBRARY:
+    case cm::TargetType::MODULE_LIBRARY:
       return propMODULE_LIBRARY;
-    case cmStateEnums::SHARED_LIBRARY:
+    case cm::TargetType::SHARED_LIBRARY:
       return propSHARED_LIBRARY;
-    case cmStateEnums::OBJECT_LIBRARY:
+    case cm::TargetType::OBJECT_LIBRARY:
       return propOBJECT_LIBRARY;
-    case cmStateEnums::EXECUTABLE:
+    case cm::TargetType::EXECUTABLE:
       return propEXECUTABLE;
-    case cmStateEnums::UTILITY:
+    case cm::TargetType::UTILITY:
       return propUTILITY;
-    case cmStateEnums::GLOBAL_TARGET:
+    case cm::TargetType::GLOBAL_TARGET:
       return propGLOBAL_TARGET;
-    case cmStateEnums::INTERFACE_LIBRARY:
+    case cm::TargetType::INTERFACE_LIBRARY:
       return propINTERFACE_LIBRARY;
-    case cmStateEnums::UNKNOWN_LIBRARY:
+    case cm::TargetType::UNKNOWN_LIBRARY:
       return propUNKNOWN_LIBRARY;
   }
   assert(false && "Unexpected target type");

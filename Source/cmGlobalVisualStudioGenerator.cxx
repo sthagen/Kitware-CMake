@@ -111,8 +111,6 @@ std::string const& cmGlobalVisualStudioGenerator::GetPlatformName() const
 char const* cmGlobalVisualStudioGenerator::GetIDEVersion() const
 {
   switch (this->Version) {
-    case cmGlobalVisualStudioGenerator::VSVersion::VS14:
-      return "14.0";
     case cmGlobalVisualStudioGenerator::VSVersion::VS15:
       return "15.0";
     case cmGlobalVisualStudioGenerator::VSVersion::VS16:
@@ -165,7 +163,7 @@ void cmGlobalVisualStudioGenerator::AddExtraIDETargets()
       // Now make all targets depend on the ALL_BUILD target
       for (cmLocalGenerator const* i : gen) {
         for (auto const& tgt : i->GetGeneratorTargets()) {
-          if (tgt->GetType() == cmStateEnums::GLOBAL_TARGET ||
+          if (tgt->GetType() == cm::TargetType::GLOBAL_TARGET ||
               tgt->IsImported()) {
             continue;
           }
@@ -832,8 +830,8 @@ std::set<std::string> cmGlobalVisualStudioGenerator::IsPartOfDefaultBuild(
   std::set<std::string> activeConfigs;
   // if it is a utility target then only make it part of the
   // default build if another target depends on it
-  int type = target->GetType();
-  if (type == cmStateEnums::GLOBAL_TARGET) {
+  cm::TargetType type = target->GetType();
+  if (type == cm::TargetType::GLOBAL_TARGET) {
     std::vector<std::string> targetNames;
     targetNames.push_back("INSTALL");
     targetNames.push_back("PACKAGE");
@@ -856,7 +854,7 @@ std::set<std::string> cmGlobalVisualStudioGenerator::IsPartOfDefaultBuild(
     }
     return activeConfigs;
   }
-  if (type == cmStateEnums::UTILITY &&
+  if (type == cm::TargetType::UTILITY &&
       !this->IsDependedOn(projectTargets, target)) {
     return activeConfigs;
   }
@@ -930,8 +928,6 @@ cm::VS::Solution cmGlobalVisualStudioGenerator::CreateSolution(
   using namespace cm::VS;
   Solution solution;
   solution.VSVersion = this->Version;
-  solution.VSExpress =
-    this->ExpressEdition ? VersionExpress::Yes : VersionExpress::No;
   solution.Platform = this->GetPlatformName();
   solution.Configs =
     root->GetMakefile()->GetGeneratorConfigs(cmMakefile::ExcludeEmptyConfig);
@@ -1175,26 +1171,6 @@ void cmGlobalVisualStudioGenerator::Generate()
       !this->LocalGenerators.empty()) {
     this->CallVisualStudioMacro(MacroReload,
                                 GetSLNFile(this->LocalGenerators[0].get()));
-  }
-
-  if (this->Version == VSVersion::VS14 &&
-      !this->CMakeInstance->GetIsInTryCompile()) {
-    std::string cmakeWarnVS14;
-    if (cmValue cached = this->CMakeInstance->GetState()->GetCacheEntryValue(
-          "CMAKE_WARN_VS14")) {
-      this->CMakeInstance->MarkCliAsUsed("CMAKE_WARN_VS14");
-      cmakeWarnVS14 = *cached;
-    } else {
-      cmSystemTools::GetEnv("CMAKE_WARN_VS14", cmakeWarnVS14);
-    }
-    if (cmakeWarnVS14.empty() || !cmIsOff(cmakeWarnVS14)) {
-      this->CMakeInstance->IssueMessage(
-        MessageType::WARNING,
-        "The \"Visual Studio 14 2015\" generator is deprecated "
-        "and will be removed in a future version of CMake."
-        "\n"
-        "Add CMAKE_WARN_VS14=OFF to the cache to disable this warning.");
-    }
   }
 }
 

@@ -29,6 +29,7 @@
 #include "cmStandardLevel.h"
 #include "cmStateTypes.h"
 #include "cmTargetPropertyEntry.h"
+#include "cmTargetTypes.h"
 #include "cmValue.h"
 
 namespace cm {
@@ -119,7 +120,7 @@ public:
     ~CheckLinkLibrariesSuppressionRAII();
   };
 
-  cmStateEnums::TargetType GetType() const;
+  cm::TargetType GetType() const;
   std::string const& GetName() const;
   std::string GetFamilyName() const;
   std::string GetExportName() const;
@@ -392,7 +393,7 @@ public:
 
   bool LinkLanguagePropagatesToDependents() const
   {
-    return this->GetType() == cmStateEnums::STATIC_LIBRARY;
+    return this->GetType() == cm::TargetType::STATIC_LIBRARY;
   }
 
   /** Get the macro to define when building sources in this target.

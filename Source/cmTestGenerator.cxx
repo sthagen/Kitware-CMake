@@ -22,9 +22,9 @@
 #include "cmPropertyMap.h"
 #include "cmRange.h"
 #include "cmScriptGenerator.h"
-#include "cmStateTypes.h"
 #include "cmStringAlgorithms.h"
 #include "cmSystemTools.h"
+#include "cmTargetTypes.h"
 #include "cmTest.h"
 #include "cmValue.h"
 
@@ -62,6 +62,27 @@ std::string TestName(cmTest* test)
     name = cmScriptGenerator::Quote(name);
   }
   return name;
+}
+
+// Whether a path is produced by the build (a custom-command output or
+// byproduct) rather than a pre-existing file.  The output-to-source map
+// records every generated path regardless of which target, if any, builds it.
+bool fileIsGenerated(cmGlobalGenerator* gg, std::string const& file)
+{
+  std::string const collapsed = cmSystemTools::CollapseFullPath(file);
+  for (auto const& lg : gg->GetLocalGenerators()) {
+    cmSourcesWithOutput so = lg->GetSourcesWithOutput(collapsed);
+    if (so.Source || so.Target) {
+      return true;
+    }
+    if (file != collapsed) {
+      so = lg->GetSourcesWithOutput(file);
+      if (so.Source || so.Target) {
+        return true;
+      }
+    }
+  }
+  return false;
 }
 
 } // End: anonymous namespace
@@ -122,7 +143,7 @@ bool cmTestGenerator::GetBuildDependencies(cmLocalGenerator* lg,
   if (!this->Test->GetCommand().empty()) {
     std::string exe = this->Test->GetCommand().front();
     cmGeneratorTarget* target = lg->FindGeneratorTargetToUse(exe);
-    if (target && target->GetType() == cmStateEnums::EXECUTABLE &&
+    if (target && target->GetType() == cm::TargetType::EXECUTABLE &&
         !target->IsImported()) {
       dependencies.insert(target);
     }
@@ -135,7 +156,12 @@ bool cmTestGenerator::GetBuildDependencies(cmLocalGenerator* lg,
     }
     cmGeneratorTarget* depTarget = lg->FindGeneratorTargetToUse(depName);
     if (!depTarget) {
-      info.Files.push_back(depName);
+      cmGlobalGenerator* gg = lg->GetGlobalGenerator();
+      BuildDependencies::FileDependency file;
+      file.Path = depName;
+      file.Owner = gg->FindOutputOwningTarget(depName);
+      file.Generated = fileIsGenerated(gg, depName);
+      info.Files.push_back(std::move(file));
       continue;
     }
     if (depTarget->IsImported()) {
@@ -149,8 +175,11 @@ bool cmTestGenerator::GetBuildDependencies(cmLocalGenerator* lg,
     dependencies.insert(depTarget);
   }
 
-  info.Targets.insert(info.Targets.end(), dependencies.begin(),
-                      dependencies.end());
+  for (cmGeneratorTarget* gt : dependencies) {
+    if (gt->IsInBuildSystem()) {
+      info.Targets.push_back(gt);
+    }
+  }
   return true;
 }
 
@@ -191,7 +220,7 @@ void cmTestGenerator::GenerateCommand(std::ostream& os,
   // be translated.
   std::string exe = argv[0];
   cmGeneratorTarget* target = this->LG->FindGeneratorTargetToUse(exe);
-  if (target && target->GetType() == cmStateEnums::EXECUTABLE) {
+  if (target && target->GetType() == cm::TargetType::EXECUTABLE) {
     // Use the target file on disk.
     exe = target->GetFullPath(config);
 
@@ -273,6 +302,17 @@ void cmTestGenerator::GenerateScriptForConfig(std::ostream& os,
     os << " " << i.first << " "
        << cmScriptGenerator::Quote(
             ge.Parse(i.second)->Evaluate(this->LG, config));
+  }
+  BuildDependencies deps;
+  if (this->GetBuildDependencies(this->LG, deps)) {
+    cmList depList;
+    for (std::string const& dep :
+         this->LG->GetGlobalGenerator()->GetTestBuildDependencyPaths(config,
+                                                                     deps)) {
+      depList.append(dep);
+    }
+    os << " _CMAKE_TEST_BUILD_DEPENDS "
+       << cmScriptGenerator::Quote(depList.to_string());
   }
   os << ' ';
   this->GenerateBacktrace(os, this->Test->GetBacktrace());

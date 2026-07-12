@@ -8,3 +8,6 @@ instrumentation-interrupt
   ``interruptSignal`` field, recording the signal that interrupted the build,
   so that consumers can distinguish an interrupted build from one that ran
   to completion.
+* Similarly, :manual:`cmake-instrumentation(7)` API now records an overall
+  ``cmakeInstall`` snippet, marked with the same ``interruptSignal`` field,
+  when a :option:`cmake --install` invocation is interrupted by the user.

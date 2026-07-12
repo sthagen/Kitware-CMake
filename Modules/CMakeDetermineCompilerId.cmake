@@ -395,13 +395,29 @@ function(CMAKE_DETERMINE_COMPILER_ID lang flagvar src)
   set(CMAKE_${lang}_STANDARD_LIBRARY "")
   if ("x${lang}" STREQUAL "xCXX" AND
       EXISTS "${CMAKE_CURRENT_FUNCTION_LIST_DIR}/${lang}-DetectStdlib.h" AND
-      ("x${CMAKE_${lang}_COMPILER_ID}" STREQUAL "xClang" AND
-       "x${CMAKE_${lang}_COMPILER_FRONTEND_VARIANT}" STREQUAL "xGNU") OR
+      ("x${CMAKE_${lang}_COMPILER_ID}" STREQUAL "xClang") OR
       ("x${CMAKE_${lang}_COMPILER_ID}" STREQUAL "xGNU"))
     # See #20851 for a proper abstraction for this.
+
+    # Forward configured stdlib include dirs so this probe can find <version>
+    # in non-default toolchain layouts (e.g. clang-cl with MSVC STL).
+    set(_inc_dirs)
+    set(_inc_opt "")
+    if (CMAKE_${lang}_COMPILER_FRONTEND_VARIANT STREQUAL "GNU")
+      set(_inc_opt -isystem)
+    elseif (CMAKE_${lang}_COMPILER_FRONTEND_VARIANT STREQUAL "MSVC")
+      set(_inc_opt -imsvc)
+    endif ()
+    if (_inc_opt)
+      foreach(_inc_path IN LISTS CMAKE_CXX_STANDARD_INCLUDE_DIRECTORIES)
+        list(APPEND _inc_dirs "${_inc_opt}" "${_inc_path}")
+      endforeach()
+    endif ()
+
     execute_process(
       COMMAND "${CMAKE_${lang}_COMPILER}"
         ${CMAKE_${lang}_COMPILER_ID_ARG1}
+        ${_inc_dirs}
         ${CMAKE_CXX_COMPILER_ID_FLAGS_LIST}
         -E
         -x c++-header

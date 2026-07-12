@@ -79,3 +79,13 @@ if (INTERRUPT_BUILD_SRC)
     COMMAND ${CMAKE_COMMAND} -E echo "interruptSlow: end"
   )
 endif()
+
+if (INSTALL_INTERRUPT)
+  # Enable parallel install and add several slow install subdirectories so that
+  # a `cmake --install -j 1` runs long enough to be interrupted with install
+  # scripts still pending.
+  set_property(GLOBAL PROPERTY INSTALL_PARALLEL ON)
+  add_subdirectory(installSlow1)
+  add_subdirectory(installSlow2)
+  add_subdirectory(installSlow3)
+endif()

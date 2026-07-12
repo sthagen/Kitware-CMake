@@ -40,7 +40,9 @@ It must be one of the following:
   Scope may name zero or more existing targets.
   See also the :command:`set_target_properties` command.
 
-  :ref:`Alias Targets` do not support setting target properties.
+  .. versionchanged:: 4.5
+    If ``<target>`` is an :ref:`Alias Target <Alias Targets>`, properties are
+    set on the target which the alias references.
 
 ``FILE_SET``
   .. versionadded:: 4.3

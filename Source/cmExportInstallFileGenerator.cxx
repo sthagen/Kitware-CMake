@@ -174,7 +174,7 @@ void cmExportInstallFileGenerator::SetImportLocationProperty(
     // Store the property.
     properties[prop] = value;
     importedLocations.insert(prop);
-  } else if (itgen->GetTarget()->GetType() == cmStateEnums::OBJECT_LIBRARY) {
+  } else if (itgen->GetTarget()->GetType() == cm::TargetType::OBJECT_LIBRARY) {
     // Construct the property name.
     std::string prop = cmStrCat("IMPORTED_OBJECTS", suffix);
 
@@ -225,15 +225,15 @@ void cmExportInstallFileGenerator::SetImportLocationProperty(
   }
 }
 
-cmStateEnums::TargetType cmExportInstallFileGenerator::GetExportTargetType(
+cm::TargetType cmExportInstallFileGenerator::GetExportTargetType(
   cmTargetExport const* targetExport) const
 {
-  cmStateEnums::TargetType targetType = targetExport->Target->GetType();
+  cm::TargetType targetType = targetExport->Target->GetType();
   // An OBJECT library installed with no OBJECTS DESTINATION
   // is transformed to an INTERFACE library.
-  if (targetType == cmStateEnums::OBJECT_LIBRARY &&
+  if (targetType == cm::TargetType::OBJECT_LIBRARY &&
       !targetExport->ObjectsGenerator) {
-    targetType = cmStateEnums::INTERFACE_LIBRARY;
+    targetType = cm::TargetType::INTERFACE_LIBRARY;
   }
   return targetType;
 }

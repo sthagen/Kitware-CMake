@@ -56,6 +56,7 @@
 #include "cmStateTypes.h"
 #include "cmStringAlgorithms.h"
 #include "cmSystemTools.h"
+#include "cmTargetTypes.h"
 #include "cmValue.h"
 #include "cmake.h"
 
@@ -95,17 +96,17 @@ std::unique_ptr<cmMakefileTargetGenerator> cmMakefileTargetGenerator::New(
   std::unique_ptr<cmMakefileTargetGenerator> result;
 
   switch (tgt->GetType()) {
-    case cmStateEnums::EXECUTABLE:
+    case cm::TargetType::EXECUTABLE:
       result = cm::make_unique<cmMakefileExecutableTargetGenerator>(tgt);
       break;
-    case cmStateEnums::STATIC_LIBRARY:
-    case cmStateEnums::SHARED_LIBRARY:
-    case cmStateEnums::MODULE_LIBRARY:
-    case cmStateEnums::OBJECT_LIBRARY:
+    case cm::TargetType::STATIC_LIBRARY:
+    case cm::TargetType::SHARED_LIBRARY:
+    case cm::TargetType::MODULE_LIBRARY:
+    case cm::TargetType::OBJECT_LIBRARY:
       result = cm::make_unique<cmMakefileLibraryTargetGenerator>(tgt);
       break;
-    case cmStateEnums::INTERFACE_LIBRARY:
-    case cmStateEnums::UTILITY:
+    case cm::TargetType::INTERFACE_LIBRARY:
+    case cm::TargetType::UTILITY:
       result = cm::make_unique<cmMakefileUtilityTargetGenerator>(tgt);
       break;
     default:
@@ -915,10 +916,10 @@ void cmMakefileTargetGenerator::WriteObjectRuleFiles(
     std::string targetFullPathPDB;
     std::string targetFullPathCompilePDB =
       this->ComputeTargetCompilePDB(this->GetConfigName());
-    if (this->GeneratorTarget->GetType() == cmStateEnums::EXECUTABLE ||
-        this->GeneratorTarget->GetType() == cmStateEnums::STATIC_LIBRARY ||
-        this->GeneratorTarget->GetType() == cmStateEnums::SHARED_LIBRARY ||
-        this->GeneratorTarget->GetType() == cmStateEnums::MODULE_LIBRARY) {
+    if (this->GeneratorTarget->GetType() == cm::TargetType::EXECUTABLE ||
+        this->GeneratorTarget->GetType() == cm::TargetType::STATIC_LIBRARY ||
+        this->GeneratorTarget->GetType() == cm::TargetType::SHARED_LIBRARY ||
+        this->GeneratorTarget->GetType() == cm::TargetType::MODULE_LIBRARY) {
       targetFullPathReal = this->GeneratorTarget->GetFullPath(
         this->GetConfigName(), cmStateEnums::RuntimeBinaryArtifact, true);
       targetFullPathPDB = cmStrCat(
@@ -2023,7 +2024,7 @@ void cmMakefileTargetGenerator::AppendTargetDepends(
   std::vector<std::string>& depends, bool ignoreType)
 {
   // Static libraries never depend on anything for linking.
-  if (this->GeneratorTarget->GetType() == cmStateEnums::STATIC_LIBRARY &&
+  if (this->GeneratorTarget->GetType() == cm::TargetType::STATIC_LIBRARY &&
       !ignoreType) {
     return;
   }

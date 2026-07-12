@@ -21,6 +21,7 @@
 #include "cmStateTypes.h"
 #include "cmStringAlgorithms.h"
 #include "cmTargetLinkLibraryType.h"
+#include "cmTargetTypes.h"
 #include "cmValue.h"
 
 namespace cm {
@@ -70,7 +71,14 @@ public:
     No
   };
 
-  cmTarget(std::string name, cmStateEnums::TargetType type, Visibility vis,
+  static Visibility ImportedVisibility(cm::ImportedTargetScope scope)
+  {
+    return (scope == cm::ImportedTargetScope::Global
+              ? Visibility::ImportedGlobally
+              : Visibility::Imported);
+  }
+
+  cmTarget(std::string name, cm::TargetType type, Visibility vis,
            cmMakefile* mf, PerConfig perConfig);
 
   cmTarget(cmTarget const&) = delete;
@@ -81,7 +89,7 @@ public:
   cmTarget& operator=(cmTarget&&) noexcept;
 
   //! Return the type of target.
-  cmStateEnums::TargetType GetType() const;
+  cm::TargetType GetType() const;
 
   //! Set the origin of the target.
   void SetOrigin(Origin origin);

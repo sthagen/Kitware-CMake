@@ -34,11 +34,11 @@
 #include "cmPolicies.h"
 #include "cmRange.h"
 #include "cmSbomArguments.h"
-#include "cmStateTypes.h"
 #include "cmStringAlgorithms.h"
 #include "cmSubcommandTable.h"
 #include "cmSystemTools.h"
 #include "cmTarget.h"
+#include "cmTargetTypes.h"
 #include "cmValue.h"
 
 #if defined(__HAIKU__)
@@ -104,7 +104,7 @@ static bool ValidateExportableTarget(std::string const& name, cmMakefile& mf,
                              "\" which is not built by this project."));
     return false;
   }
-  if (target->GetType() == cmStateEnums::UTILITY) {
+  if (target->GetType() == cm::TargetType::UTILITY) {
     status.SetError(cmStrCat("given custom target \"", name,
                              "\" which may not be exported."));
     return false;

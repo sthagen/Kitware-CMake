@@ -22,6 +22,7 @@
 #include "cmStateTypes.h"
 #include "cmStringAlgorithms.h"
 #include "cmSystemTools.h"
+#include "cmTargetTypes.h"
 #include "cmValue.h"
 #include "cmake.h"
 
@@ -163,7 +164,7 @@ bool TryRunCommandImpl::TryRunCode(std::vector<std::string> const& argv)
 
   // do the try compile
   cm::optional<cmTryCompileResult> compileResult =
-    this->TryCompileCode(arguments, cmStateEnums::EXECUTABLE);
+    this->TryCompileCode(arguments, cm::TargetType::EXECUTABLE);
 
   cmTryRunResult runResult;
   runResult.Variable = this->RunResultVariable;

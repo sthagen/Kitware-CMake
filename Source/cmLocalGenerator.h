@@ -52,6 +52,10 @@ class cmake;
 template <typename Iter>
 class cmRange;
 
+namespace cm {
+enum class TargetType;
+} // namespace cm
+
 /** Target and source file which have a specific output.  */
 struct cmSourcesWithOutput
 {
@@ -726,7 +730,7 @@ private:
                                cmCommandOrigin origin);
 
   void AddPositionIndependentFlags(std::string& flags, std::string const& l,
-                                   int targetType);
+                                   cm::TargetType targetType);
 
   void ComputeObjectMaxPath();
   bool AllAppleArchSysrootsAreTheSame(std::vector<std::string> const& archs,

@@ -13,8 +13,11 @@ library target.
     [{INTERFACE|PUBLIC|PRIVATE} <item>...]...)
 
 The named ``<target>`` must have been created by a command such as
-:command:`add_executable` or :command:`add_library` and must not be an
-:ref:`ALIAS target <Alias Targets>`.
+:command:`add_executable` or :command:`add_library`.
+
+.. versionchanged:: 4.5
+  If ``<target>`` is an :ref:`Alias Target <Alias Targets>`, the command
+  operates on the target which the alias references.
 
 This command can be used to add any link options, but alternative commands
 exist to add libraries (:command:`target_link_libraries` or

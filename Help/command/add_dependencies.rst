@@ -35,6 +35,10 @@ transitively in its place since the target itself does not build.
   The command may be called with no dependencies.
   Previously, at least one dependency was required.
 
+.. versionchanged:: 4.5
+  If ``<target>`` is an :ref:`Alias Target <Alias Targets>`, dependencies are
+  added to the target which the alias references.
+
 See Also
 ^^^^^^^^
 

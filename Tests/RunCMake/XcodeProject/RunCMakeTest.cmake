@@ -200,6 +200,11 @@ if(XCODE_VERSION VERSION_GREATER_EQUAL 12)
     run_cmake_command(XcodeWorkspace-build ${CMAKE_COMMAND} --build . --config Debug)
     run_cmake_command(XcodeWorkspace-build2 ${CMAKE_COMMAND} --build . --config Debug --target custom1 custom2)
   endblock()
+
+  block()
+    set(RunCMake_TEST_BINARY_DIR ${RunCMake_BINARY_DIR}/XcodeCustomCommandComment-build)
+    run_cmake(XcodeCustomCommandComment)
+  endblock()
 endif()
 
 # Please add device-specific tests to '../XcodeProject-Device/RunCMakeTest.cmake'.

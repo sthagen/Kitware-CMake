@@ -32,11 +32,11 @@
 #include "cmPolicies.h"
 #include "cmSourceFile.h"
 #include "cmSourceFileLocation.h"
-#include "cmStateTypes.h"
 #include "cmStringAlgorithms.h"
 #include "cmSystemTools.h"
 #include "cmTarget.h"
 #include "cmTargetLinkLibraryType.h"
+#include "cmTargetTypes.h"
 #include "cmValue.h"
 
 bool cmGeneratorTarget::AddHeaderSetVerification()
@@ -47,13 +47,13 @@ bool cmGeneratorTarget::AddHeaderSetVerification()
       continue;
     }
 
-    if (this->GetType() != cmStateEnums::STATIC_LIBRARY &&
-        this->GetType() != cmStateEnums::SHARED_LIBRARY &&
-        (this->GetType() != cmStateEnums::MODULE_LIBRARY || isInterface) &&
-        this->GetType() != cmStateEnums::UNKNOWN_LIBRARY &&
-        this->GetType() != cmStateEnums::OBJECT_LIBRARY &&
-        this->GetType() != cmStateEnums::INTERFACE_LIBRARY &&
-        this->GetType() != cmStateEnums::EXECUTABLE) {
+    if (this->GetType() != cm::TargetType::STATIC_LIBRARY &&
+        this->GetType() != cm::TargetType::SHARED_LIBRARY &&
+        (this->GetType() != cm::TargetType::MODULE_LIBRARY || isInterface) &&
+        this->GetType() != cm::TargetType::UNKNOWN_LIBRARY &&
+        this->GetType() != cm::TargetType::OBJECT_LIBRARY &&
+        this->GetType() != cm::TargetType::INTERFACE_LIBRARY &&
+        this->GetType() != cm::TargetType::EXECUTABLE) {
       continue;
     }
 
@@ -80,7 +80,7 @@ bool cmGeneratorTarget::AddHeaderSetVerification()
       : "all_verify_private_header_sets";
     cmTarget* allVerifyTarget =
       this->GlobalGenerator->GetMakefiles().front()->FindTargetToUse(
-        allVerifyTargetName, { cmStateEnums::TargetDomain::NATIVE });
+        allVerifyTargetName, { cm::TargetDomain::NATIVE });
 
     auto fileSetEntries = isInterface
       ? this->GetInterfaceFileSets(cm::FileSetMetadata::HEADERS)
@@ -100,7 +100,7 @@ bool cmGeneratorTarget::AddHeaderSetVerification()
     if (isInterface) {
       cmPolicies::PolicyStatus const cmp0209 = this->GetPolicyStatusCMP0209();
       if (cmp0209 != cmPolicies::NEW &&
-          this->GetType() == cmStateEnums::EXECUTABLE &&
+          this->GetType() == cm::TargetType::EXECUTABLE &&
           !this->GetPropertyAsBool("ENABLE_EXPORTS")) {
         if (cmp0209 == cmPolicies::WARN && !fileSets.empty()) {
           this->Makefile->IssuePolicyWarning(
@@ -202,7 +202,7 @@ bool cmGeneratorTarget::AddHeaderSetVerification()
         cmMakefile::PolicyPushPop polScope(this->Makefile);
         this->Makefile->SetPolicy(cmPolicies::CMP0119, cmPolicies::NEW);
         verifyTarget = this->Makefile->AddLibrary(
-          verifyTargetName, cmStateEnums::OBJECT_LIBRARY, {}, true);
+          verifyTargetName, cm::TargetType::OBJECT_LIBRARY, {}, true);
       }
 
       if (isInterface) {

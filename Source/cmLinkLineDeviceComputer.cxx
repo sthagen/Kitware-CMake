@@ -19,8 +19,8 @@
 #include "cmMakefile.h"
 #include "cmStateDirectory.h"
 #include "cmStateSnapshot.h"
-#include "cmStateTypes.h"
 #include "cmStringAlgorithms.h"
+#include "cmTargetTypes.h"
 #include "cmValue.h"
 
 class cmOutputConverter;
@@ -62,7 +62,7 @@ bool cmLinkLineDeviceComputer::ComputeRequiresDeviceLinking(
     items.begin(), items.end(),
     [](cmComputeLinkInformation::Item const& item) -> bool {
       return item.Target &&
-        item.Target->GetType() == cmStateEnums::STATIC_LIBRARY &&
+        item.Target->GetType() == cm::TargetType::STATIC_LIBRARY &&
         // this dependency requires us to device link it
         !item.Target->GetPropertyAsBool("CUDA_RESOLVE_DEVICE_SYMBOLS") &&
         item.Target->GetPropertyAsBool("CUDA_SEPARABLE_COMPILATION");
@@ -81,7 +81,7 @@ bool cmLinkLineDeviceComputer::ComputeRequiresDeviceLinkingIPOFlag(
     items.begin(), items.end(),
     [config](cmComputeLinkInformation::Item const& item) -> bool {
       return item.Target &&
-        item.Target->GetType() == cmStateEnums::STATIC_LIBRARY &&
+        item.Target->GetType() == cm::TargetType::STATIC_LIBRARY &&
         // this dependency requires us to device link it
         !item.Target->GetPropertyAsBool("CUDA_RESOLVE_DEVICE_SYMBOLS") &&
         item.Target->GetPropertyAsBool("CUDA_SEPARABLE_COMPILATION") &&
@@ -112,13 +112,13 @@ void cmLinkLineDeviceComputer::ComputeLinkLibraries(
     if (item.Target) {
       bool skip = false;
       switch (item.Target->GetType()) {
-        case cmStateEnums::SHARED_LIBRARY:
-        case cmStateEnums::MODULE_LIBRARY:
-        case cmStateEnums::OBJECT_LIBRARY:
-        case cmStateEnums::INTERFACE_LIBRARY:
+        case cm::TargetType::SHARED_LIBRARY:
+        case cm::TargetType::MODULE_LIBRARY:
+        case cm::TargetType::OBJECT_LIBRARY:
+        case cm::TargetType::INTERFACE_LIBRARY:
           skip = true;
           break;
-        case cmStateEnums::STATIC_LIBRARY:
+        case cm::TargetType::STATIC_LIBRARY:
           skip = item.Target->GetPropertyAsBool("CUDA_RESOLVE_DEVICE_SYMBOLS");
           break;
         default:
@@ -162,7 +162,7 @@ void cmLinkLineDeviceComputer::ComputeLinkLibraries(
 
       for (cmLinkItem const& iter : linkImpl->Libraries) {
         if (iter.Target &&
-            iter.Target->GetType() != cmStateEnums::INTERFACE_LIBRARY) {
+            iter.Target->GetType() != cm::TargetType::INTERFACE_LIBRARY) {
           std::string libPath = iter.Target->GetLocation(cli.GetConfig());
           if (item.Value == libPath) {
             linkLib.Backtrace = iter.Backtrace;
@@ -193,7 +193,7 @@ bool requireDeviceLinking(cmGeneratorTarget& target, cmLocalGenerator& lg,
     return false;
   }
 
-  if (target.GetType() == cmStateEnums::OBJECT_LIBRARY) {
+  if (target.GetType() == cm::TargetType::OBJECT_LIBRARY) {
     return false;
   }
 
@@ -217,9 +217,9 @@ bool requireDeviceLinking(cmGeneratorTarget& target, cmLocalGenerator& lg,
     if (target.GetProperty("CUDA_SEPARABLE_COMPILATION").IsOn()) {
       bool doDeviceLinking = false;
       switch (target.GetType()) {
-        case cmStateEnums::SHARED_LIBRARY:
-        case cmStateEnums::MODULE_LIBRARY:
-        case cmStateEnums::EXECUTABLE:
+        case cm::TargetType::SHARED_LIBRARY:
+        case cm::TargetType::MODULE_LIBRARY:
+        case cm::TargetType::EXECUTABLE:
           doDeviceLinking = true;
           break;
         default:

@@ -41,6 +41,7 @@
 #include "cmCTestMultiProcessHandler.h"
 #include "cmCTestResourceGroupsLexerHelper.h"
 #include "cmCTestTestMeasurementXMLParser.h"
+#include "cmCryptoHash.h"
 #include "cmDuration.h"
 #include "cmExecutionStatus.h"
 #include "cmGeneratedFileStream.h"
@@ -51,6 +52,7 @@
 #include "cmMakefile.h"
 #include "cmState.h"
 #include "cmStateSnapshot.h"
+#include "cmStdIoTerminal.h"
 #include "cmStringAlgorithms.h"
 #include "cmSystemTools.h"
 #include "cmTestDiscovery.h"
@@ -654,27 +656,21 @@ void cmCTestTestHandler::LogTestSummary(std::vector<std::string> const& passed,
     percent = 99;
   }
 
-  std::string passColorCode;
-  std::string failedColorCode;
+  cm::StdIo::TermAttrSet summaryAttrs;
   if (failed.empty()) {
-    passColorCode = this->CTest->GetColorCode(cmCTest::Color::GREEN);
+    summaryAttrs = cm::StdIo::TermAttr::ForegroundGreen;
   } else {
-    failedColorCode = this->CTest->GetColorCode(cmCTest::Color::RED);
+    summaryAttrs = cm::StdIo::TermAttr::ForegroundRed;
   }
   if (failed.empty()) {
-    cmCTestLog(this->CTest, HANDLER_OUTPUT,
-               std::endl
-                 << passColorCode << std::lround(percent) << "% tests passed"
-                 << this->CTest->GetColorCode(cmCTest::Color::CLEAR_COLOR)
-                 << " out of " << total << std::endl);
+    cmCTestColorLog(this->CTest, HANDLER_OUTPUT, summaryAttrs,
+                    cmStrCat("\n", std::lround(percent),
+                             "% tests passed out of ", total, "\n"));
   } else {
-    cmCTestLog(this->CTest, HANDLER_OUTPUT,
-               std::endl
-                 << passColorCode << std::lround(percent) << "% tests passed"
-                 << this->CTest->GetColorCode(cmCTest::Color::CLEAR_COLOR)
-                 << ", " << failedColorCode << failed.size() << " tests failed"
-                 << this->CTest->GetColorCode(cmCTest::Color::CLEAR_COLOR)
-                 << " out of " << total << std::endl);
+    cmCTestColorLog(this->CTest, HANDLER_OUTPUT, summaryAttrs,
+                    cmStrCat("\n", std::lround(percent), "% tests passed, ",
+                             failed.size(), " tests failed out of ", total,
+                             "\n"));
   }
   if ((!this->CTest->GetLabelsForSubprojects().empty() &&
        this->CTest->GetSubprojectSummary())) {
@@ -701,8 +697,7 @@ void cmCTestTestHandler::LogDisabledTests(
     this->StartLogFile("TestsDisabled", ofs);
 
     char const* disabled_reason;
-    cmCTestLog(this->CTest, HANDLER_OUTPUT,
-               this->CTest->GetColorCode(cmCTest::Color::BLUE));
+    cm::StdIo::TermAttrSet disabledAttrs = cm::StdIo::TermAttr::ForegroundBlue;
     for (cmCTestTestResult const& dt : disabledTests) {
       ofs << dt.TestCount << ":" << dt.Name << std::endl;
       if (dt.CompletionStatus == "Disabled") {
@@ -710,12 +705,11 @@ void cmCTestTestHandler::LogDisabledTests(
       } else {
         disabled_reason = "Skipped";
       }
-      cmCTestLog(this->CTest, HANDLER_OUTPUT,
-                 "\t" << std::setw(3) << dt.TestCount << " - " << dt.Name
-                      << " (" << disabled_reason << ")" << std::endl);
+      std::ostringstream msg;
+      msg << "\t" << std::setw(3) << dt.TestCount << " - " << dt.Name << " ("
+          << disabled_reason << ")\n";
+      cmCTestColorLog(this->CTest, HANDLER_OUTPUT, disabledAttrs, msg.str());
     }
-    cmCTestLog(this->CTest, HANDLER_OUTPUT,
-               this->CTest->GetColorCode(cmCTest::Color::CLEAR_COLOR));
   }
 }
 
@@ -734,9 +728,9 @@ void cmCTestTestHandler::LogFailedTests(std::vector<std::string> const& failed,
           !cmHasLiteralPrefix(ft.CompletionStatus, "SKIP_") &&
           ft.CompletionStatus != "Disabled") {
         ofs << ft.TestCount << ":" << ft.Name << std::endl;
-        auto testColor = cmCTest::Color::RED;
+        cm::StdIo::TermAttrSet testAttrs = cm::StdIo::TermAttr::ForegroundRed;
         if (this->GetTestStatus(ft) == "Not Run") {
-          testColor = cmCTest::Color::YELLOW;
+          testAttrs = cm::StdIo::TermAttr::ForegroundYellow;
         }
         std::string ft_name_and_status =
           cmStrCat(ft.Name, " (", this->GetTestStatus(ft), ')');
@@ -749,12 +743,10 @@ void cmCTestTestHandler::LogFailedTests(std::vector<std::string> const& failed,
             : maxLen - ft_name_and_status.size();
           labels = cmStrCat(std::string(ns, ' '), cmJoin(p.Labels, " "));
         }
-        cmCTestLog(
-          this->CTest, HANDLER_OUTPUT,
-          "\t" << this->CTest->GetColorCode(testColor) << std::setw(3)
-               << ft.TestCount << " - " << ft_name_and_status
-               << this->CTest->GetColorCode(cmCTest::Color::CLEAR_COLOR)
-               << labels << std::endl);
+        std::ostringstream msg;
+        msg << "\t" << std::setw(3) << ft.TestCount << " - "
+            << ft_name_and_status << labels << "\n";
+        cmCTestColorLog(this->CTest, HANDLER_OUTPUT, testAttrs, msg.str());
       }
     }
   }
@@ -967,6 +959,9 @@ bool cmCTestTestHandler::ComputeTestList()
   if (this->TestOptions.RerunFailed) {
     return this->ComputeTestListForRerunFailed();
   }
+  if (this->TestOptions.OutOfDateOnly) {
+    this->ComputeOutOfDateTests();
+  }
 
   cmCTestTestHandler::ListOfTests::size_type tmsize = this->TestList.size();
   // how many tests are in based on RegExp?
@@ -1067,6 +1062,49 @@ bool cmCTestTestHandler::ComputeTestListForRerunFailed()
   this->UpdateMaxTestNameWidth();
 
   return true;
+}
+
+void cmCTestTestHandler::ComputeOutOfDateTests()
+{
+  ListOfTests finalList;
+  std::string const stampDir = this->CTest->GetStampDir();
+  cmSystemTools::MakeDirectory(stampDir);
+
+  for (cmCTestTestProperties& tp : this->TestList) {
+    if (tp.BuildDepends.empty()) {
+      continue;
+    }
+
+    std::string const stampFile = stampDir + "/" + tp.GetStampFile();
+
+    if (!cmSystemTools::FileExists(stampFile)) {
+      finalList.push_back(tp);
+      continue;
+    }
+
+    cmList deps{ tp.BuildDepends };
+    bool outOfDate = false;
+    for (std::string const& dep : deps) {
+      if (dep.empty()) {
+        continue;
+      }
+      if (!cmSystemTools::FileExists(dep)) {
+        // If any dependencies don't exist, skip the test
+        outOfDate = false;
+        break;
+      }
+      int result = 0;
+      cmSystemTools::FileTimeCompare(dep, stampFile, &result);
+      if (result >= 0) {
+        // At least one newer dependency, add to list
+        outOfDate = true;
+      }
+    }
+    if (outOfDate) {
+      finalList.push_back(tp);
+    }
+  }
+  this->TestList = finalList;
 }
 
 void cmCTestTestHandler::UpdateForFixtures(ListOfTests& tests) const
@@ -2298,6 +2336,11 @@ void cmCTestTestHandler::cmCTestTestProperties::AppendError(
   }
 }
 
+std::string cmCTestTestHandler::cmCTestTestProperties::GetStampFile()
+{
+  return cmCryptoHash(cmCryptoHash::AlgoMD5).HashString(this->Name) + ".stamp";
+}
+
 bool cmCTestTestHandler::SetTestsProperties(
   std::vector<std::string> const& args)
 {
@@ -2498,6 +2541,8 @@ bool cmCTestTestHandler::SetTestsProperties(
                 rt.TimeoutRegularExpressions.emplace_back(cr, cr);
               }
             }
+          } else if (key == "_CMAKE_TEST_BUILD_DEPENDS"_s) {
+            rt.BuildDepends = val;
           } else {
             rt.CustomProperties[key] = val;
           }

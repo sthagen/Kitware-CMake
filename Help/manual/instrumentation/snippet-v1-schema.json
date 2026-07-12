@@ -237,7 +237,7 @@
       },
       "interruptSignal": {
         "type": "integer",
-        "description": "The signal number that interrupted the build before it completed. Only included when role is cmakeBuild and the build was interrupted.",
+        "description": "The signal number that interrupted the command before it completed. Only included when role is cmakeBuild or cmakeInstall and the command was interrupted.",
         "minimum": 1
       },
       "role": {

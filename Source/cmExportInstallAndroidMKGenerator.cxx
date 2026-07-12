@@ -13,11 +13,11 @@
 #include "cmGeneratorTarget.h"
 #include "cmInstallExportGenerator.h"
 #include "cmInstallTargetGenerator.h"
-#include "cmStateTypes.h"
 #include "cmStringAlgorithms.h"
 #include "cmSystemTools.h"
 #include "cmTarget.h"
 #include "cmTargetExport.h"
+#include "cmTargetTypes.h"
 
 cmExportInstallAndroidMKGenerator::cmExportInstallAndroidMKGenerator(
   cmInstallExportGenerator* iegen)
@@ -82,7 +82,7 @@ void cmExportInstallAndroidMKGenerator::GenerateImportHeaderCode(
   for (std::unique_ptr<cmTargetExport> const& te :
        this->IEGen->GetExportSet()->GetTargetExports()) {
     // Collect import properties for this target.
-    if (te->Target->GetType() == cmStateEnums::INTERFACE_LIBRARY) {
+    if (te->Target->GetType() == cm::TargetType::INTERFACE_LIBRARY) {
       continue;
     }
     std::string dest;
@@ -98,7 +98,7 @@ void cmExportInstallAndroidMKGenerator::GenerateImportHeaderCode(
 
 void cmExportInstallAndroidMKGenerator::GenerateImportTargetCode(
   std::ostream& os, cmGeneratorTarget const* target,
-  cmStateEnums::TargetType /*targetType*/)
+  cm::TargetType /*targetType*/)
 {
   std::string targetName = cmStrCat(this->Namespace, target->GetExportName());
   os << "include $(CLEAR_VARS)\n";

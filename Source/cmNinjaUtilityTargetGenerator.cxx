@@ -21,10 +21,10 @@
 #include "cmNinjaTypes.h"
 #include "cmOutputConverter.h"
 #include "cmSourceFile.h"
-#include "cmStateTypes.h"
 #include "cmStringAlgorithms.h"
 #include "cmSystemTools.h"
 #include "cmTarget.h"
+#include "cmTargetTypes.h"
 #include "cmValue.h"
 
 cmNinjaUtilityTargetGenerator::cmNinjaUtilityTargetGenerator(
@@ -49,7 +49,8 @@ void cmNinjaUtilityTargetGenerator::Generate(std::string const& config)
       continue;
     }
     if (fileConfig != config &&
-        this->GetGeneratorTarget()->GetType() == cmStateEnums::GLOBAL_TARGET) {
+        this->GetGeneratorTarget()->GetType() ==
+          cm::TargetType::GLOBAL_TARGET) {
       continue;
     }
     this->WriteUtilBuildStatements(config, fileConfig);
@@ -130,7 +131,7 @@ void cmNinjaUtilityTargetGenerator::WriteUtilBuildStatements(
     outputConfig = config;
   }
   lg->AppendTargetOutputs(genTarget, phonyBuild.Outputs, outputConfig);
-  if (genTarget->Target->GetType() != cmStateEnums::GLOBAL_TARGET) {
+  if (genTarget->Target->GetType() != cm::TargetType::GLOBAL_TARGET) {
     lg->AppendTargetOutputs(genTarget, gg->GetByproductsForCleanTarget(),
                             config);
     std::copy(util_outputs.ExplicitOuts.begin(),
@@ -143,7 +144,7 @@ void cmNinjaUtilityTargetGenerator::WriteUtilBuildStatements(
   if (commands.empty()) {
     phonyBuild.Comment = "Utility command for " + this->GetTargetName();
     phonyBuild.ExplicitDeps = std::move(deps);
-    if (genTarget->GetType() != cmStateEnums::GLOBAL_TARGET) {
+    if (genTarget->GetType() != cm::TargetType::GLOBAL_TARGET) {
       gg->WriteBuild(this->GetImplFileStream(fileConfig), phonyBuild);
     } else {
       gg->WriteBuild(this->GetCommonFileStream(), phonyBuild);
@@ -176,7 +177,7 @@ void cmNinjaUtilityTargetGenerator::WriteUtilBuildStatements(
 
     std::string ccConfig;
     if (genTarget->Target->IsPerConfig() &&
-        genTarget->GetType() != cmStateEnums::GLOBAL_TARGET) {
+        genTarget->GetType() != cm::TargetType::GLOBAL_TARGET) {
       ccConfig = config;
     }
     if (config == fileConfig ||
@@ -188,7 +189,7 @@ void cmNinjaUtilityTargetGenerator::WriteUtilBuildStatements(
     }
 
     phonyBuild.ExplicitDeps.push_back(utilCommandName);
-    if (genTarget->GetType() != cmStateEnums::GLOBAL_TARGET) {
+    if (genTarget->GetType() != cm::TargetType::GLOBAL_TARGET) {
       gg->WriteBuild(this->GetImplFileStream(fileConfig), phonyBuild);
     } else {
       gg->WriteBuild(this->GetCommonFileStream(), phonyBuild);
@@ -201,7 +202,7 @@ void cmNinjaUtilityTargetGenerator::WriteUtilBuildStatements(
   // Add an alias for the logical target name regardless of what directory
   // contains it.  Skip this for GLOBAL_TARGET because they are meant to
   // be per-directory and have one at the top-level anyway.
-  if (genTarget->GetType() != cmStateEnums::GLOBAL_TARGET) {
+  if (genTarget->GetType() != cm::TargetType::GLOBAL_TARGET) {
     gg->AddTargetAlias(this->GetTargetName(), genTarget, config);
   }
 }

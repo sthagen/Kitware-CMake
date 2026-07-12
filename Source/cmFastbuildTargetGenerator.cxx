@@ -35,6 +35,7 @@
 #include "cmStringAlgorithms.h"
 #include "cmSystemTools.h"
 #include "cmTarget.h"
+#include "cmTargetTypes.h"
 #include "cmValue.h"
 
 #define FASTBUILD_DOLLAR_TAG "FASTBUILD_DOLLAR_TAG"
@@ -48,16 +49,16 @@ cmFastbuildTargetGenerator* cmFastbuildTargetGenerator::New(
   cmGeneratorTarget* target, std::string config)
 {
   switch (target->GetType()) {
-    case cmStateEnums::EXECUTABLE:
-    case cmStateEnums::SHARED_LIBRARY:
-    case cmStateEnums::STATIC_LIBRARY:
-    case cmStateEnums::MODULE_LIBRARY:
-    case cmStateEnums::OBJECT_LIBRARY:
+    case cm::TargetType::EXECUTABLE:
+    case cm::TargetType::SHARED_LIBRARY:
+    case cm::TargetType::STATIC_LIBRARY:
+    case cm::TargetType::MODULE_LIBRARY:
+    case cm::TargetType::OBJECT_LIBRARY:
       return new cmFastbuildNormalTargetGenerator(target, std::move(config));
 
-    case cmStateEnums::UTILITY:
-    case cmStateEnums::GLOBAL_TARGET:
-    case cmStateEnums::INTERFACE_LIBRARY:
+    case cm::TargetType::UTILITY:
+    case cm::TargetType::GLOBAL_TARGET:
+    case cm::TargetType::INTERFACE_LIBRARY:
       return new cmFastbuildUtilityTargetGenerator(target, std::move(config));
 
     default:
@@ -735,7 +736,7 @@ std::string cmFastbuildTargetGenerator::MakeCustomLauncher(
 
 std::string cmFastbuildTargetGenerator::GetTargetName() const
 {
-  if (this->GeneratorTarget->GetType() == cmStateEnums::GLOBAL_TARGET) {
+  if (this->GeneratorTarget->GetType() == cm::TargetType::GLOBAL_TARGET) {
     return this->GetGlobalGenerator()->GetTargetName(GeneratorTarget);
   }
   return this->GeneratorTarget->GetName();
@@ -743,7 +744,7 @@ std::string cmFastbuildTargetGenerator::GetTargetName() const
 
 cmGeneratorTarget::Names cmFastbuildTargetGenerator::DetectOutput() const
 {
-  if (GeneratorTarget->GetType() == cmStateEnums::EXECUTABLE) {
+  if (GeneratorTarget->GetType() == cm::TargetType::EXECUTABLE) {
     return GeneratorTarget->GetExecutableNames(Config);
   }
   return GeneratorTarget->GetLibraryNames(Config);

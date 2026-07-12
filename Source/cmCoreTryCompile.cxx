@@ -29,9 +29,11 @@
 #include "cmRange.h"
 #include "cmScriptGenerator.h"
 #include "cmState.h"
+#include "cmStateTypes.h"
 #include "cmStringAlgorithms.h"
 #include "cmSystemTools.h"
 #include "cmTarget.h"
+#include "cmTargetTypes.h"
 #include "cmValue.h"
 #include "cmVersion.h"
 #include "cmake.h"
@@ -312,7 +314,7 @@ Arguments cmCoreTryCompile::ParseArgs(
 }
 
 cm::optional<cmTryCompileResult> cmCoreTryCompile::TryCompileCode(
-  Arguments& arguments, cmStateEnums::TargetType targetType)
+  Arguments& arguments, cm::TargetType targetType)
 {
   this->OutputFile.clear();
   // which signature were we called with ?
@@ -376,12 +378,12 @@ cm::optional<cmTryCompileResult> cmCoreTryCompile::TryCompileCode(
     for (std::string const& i : *arguments.LinkLibraries) {
       if (cmTarget* tgt = this->Makefile->FindTargetToUse(i)) {
         switch (tgt->GetType()) {
-          case cmStateEnums::SHARED_LIBRARY:
-          case cmStateEnums::STATIC_LIBRARY:
-          case cmStateEnums::INTERFACE_LIBRARY:
-          case cmStateEnums::UNKNOWN_LIBRARY:
+          case cm::TargetType::SHARED_LIBRARY:
+          case cm::TargetType::STATIC_LIBRARY:
+          case cm::TargetType::INTERFACE_LIBRARY:
+          case cm::TargetType::UNKNOWN_LIBRARY:
             break;
-          case cmStateEnums::EXECUTABLE:
+          case cm::TargetType::EXECUTABLE:
             if (tgt->IsExecutableWithExports()) {
               break;
             }
@@ -598,7 +600,7 @@ cm::optional<cmTryCompileResult> cmCoreTryCompile::TryCompileCode(
     // when the only language is ISPC we know that the output
     // type must by a static library
     if (testLangs.size() == 1 && testLangs.count("ISPC") == 1) {
-      targetType = cmStateEnums::STATIC_LIBRARY;
+      targetType = cm::TargetType::STATIC_LIBRARY;
     }
 
     std::string const tcConfig =
@@ -860,7 +862,7 @@ cm::optional<cmTryCompileResult> cmCoreTryCompile::TryCompileCode(
             auto const& aliasTarget =
               this->Makefile->FindTargetToUse(alias->second);
             // Create equivalent library/executable alias
-            if (aliasTarget->GetType() == cmStateEnums::EXECUTABLE) {
+            if (aliasTarget->GetType() == cm::TargetType::EXECUTABLE) {
               fprintf(fout, "add_executable(\"%s\" ALIAS \"%s\")\n", i.c_str(),
                       alias->second.c_str());
             } else {
@@ -929,13 +931,13 @@ cm::optional<cmTryCompileResult> cmCoreTryCompile::TryCompileCode(
             "include(\"${CMAKE_ROOT}/Modules/Internal/"
             "HeaderpadWorkaround.cmake\")\n");
 
-    if (targetType == cmStateEnums::EXECUTABLE) {
+    if (targetType == cm::TargetType::EXECUTABLE) {
       /* Put the executable at a known location (for COPY_FILE).  */
       fprintf(fout, "set(CMAKE_RUNTIME_OUTPUT_DIRECTORY \"%s\")\n",
               this->BinaryDirectory.c_str());
       /* Create the actual executable.  */
       fprintf(fout, "add_executable(%s)\n", targetName.c_str());
-    } else // if (targetType == cmStateEnums::STATIC_LIBRARY)
+    } else // if (targetType == cm::TargetType::STATIC_LIBRARY)
     {
       /* Put the static library at a known location (for COPY_FILE).  */
       fprintf(fout, "set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY \"%s\")\n",
@@ -1067,7 +1069,7 @@ cm::optional<cmTryCompileResult> cmCoreTryCompile::TryCompileCode(
         options.emplace_back(cmScriptGenerator::Quote(option));
       }
 
-      if (targetType == cmStateEnums::STATIC_LIBRARY) {
+      if (targetType == cm::TargetType::STATIC_LIBRARY) {
         fprintf(fout,
                 "set_property(TARGET %s PROPERTY STATIC_LIBRARY_OPTIONS %s)\n",
                 targetName.c_str(), cmJoin(options, " ").c_str());

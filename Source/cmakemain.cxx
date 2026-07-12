@@ -28,6 +28,7 @@
 #include "cmGlobalGenerator.h"
 #include "cmInstallScriptHandler.h"
 #include "cmInstrumentation.h"
+#include "cmInstrumentationInterrupt.h"
 #include "cmInstrumentationQuery.h"
 #include "cmList.h"
 #include "cmMakefile.h"
@@ -958,6 +959,12 @@ int do_install(int ac, char const* const* av)
       ret_ = handler.Install(jobs, instrumentation);
     } else {
       for (auto const& script : handler.GetScripts()) {
+        if (cmInstrumentationInterrupt::PendingInterruptSignal() != 0) {
+          // Interrupted (e.g. Ctrl+C): launch no further scripts.  The script
+          // currently running executes in-process and finishes on its own; we
+          // simply stop starting new ones.
+          break;
+        }
         std::vector<std::string> cmd = script.command;
         cmake cm(cmState::Role::Script);
         cmSystemTools::SetMessageCallback(
@@ -969,17 +976,48 @@ int do_install(int ac, char const* const* av)
         });
         cm.SetDebugOutputOn(verbose);
         ret_ = int(bool(cm.Run(cmd)));
+        if (ret_ != 0) {
+          // Serial install is fail-fast: stop at the first failed script
+          // instead of attempting the remaining components or configs.
+          break;
+        }
       }
+    }
+    if (cmInstrumentationInterrupt::PendingInterruptSignal() != 0) {
+      // Any caught interrupt makes the install unsuccessful even if the work
+      // that did run happened to succeed.  Windows has no signal to re-raise,
+      // so this is what forces a non-zero exit status there; on POSIX it also
+      // keeps the snippet `result` consistent with the re-raised signal.
+      ret_ = 1;
     }
     return int(ret_ > 0);
   };
 
   std::vector<std::string> cmd;
   cm::append(cmd, av, av + ac);
-  ret = instrumentation.InstrumentCommand(
-    "cmakeInstall", cmd, [doInstall]() -> cmInstrumentation::CommandResult {
-      return { doInstall(), cm::nullopt, cm::nullopt };
-    });
+  // Run the install under an interrupt handler so that a user interrupt (e.g.
+  // Ctrl+C) still writes the overall `cmakeInstall` snippet before we exit.
+  cmInstrumentationInterrupt::InterruptOutcome installOutcome =
+    cmInstrumentationInterrupt::HandleInterrupt(
+      instrumentation.HasQuery(),
+      [&instrumentation, &cmd, &doInstall]() -> int {
+        return instrumentation.InstrumentCommand(
+          "cmakeInstall", cmd,
+          [&doInstall]() -> cmInstrumentation::CommandResult {
+            return { doInstall(), cm::nullopt, cm::nullopt };
+          });
+      });
+  ret = installOutcome.ExitCode;
+  if (installOutcome.Interrupted) {
+    // The install was interrupted and its snippet has been written.  Skip the
+    // post-install indexing hook (which would run callbacks and delete data).
+    // For a real OS interrupt, re-raise so the exit status reflects it; for a
+    // test-injected interrupt, exit cleanly.
+    if (installOutcome.ShouldRaise) {
+      cmInstrumentationInterrupt::RaiseInterrupt(installOutcome.Signal);
+    }
+    return ret;
+  }
   instrumentation.CollectTimingData(
     cmInstrumentationQuery::Hook::PostCMakeInstall);
   return ret;

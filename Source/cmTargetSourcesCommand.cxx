@@ -18,11 +18,11 @@
 #include "cmMakefile.h"
 #include "cmMessageType.h"
 #include "cmPolicies.h"
-#include "cmStateTypes.h"
 #include "cmStringAlgorithms.h"
 #include "cmSystemTools.h"
 #include "cmTarget.h"
 #include "cmTargetPropCommandBase.h"
+#include "cmTargetTypes.h"
 
 namespace {
 
@@ -213,7 +213,7 @@ bool TargetSourcesImpl::HandleOneFileSet(
     return false;
   }
 
-  if (this->Target->GetType() == cmStateEnums::UTILITY) {
+  if (this->Target->GetType() == cm::TargetType::UTILITY) {
     this->SetError("FILE_SETs may not be added to custom targets");
     return false;
   }
@@ -270,7 +270,7 @@ bool TargetSourcesImpl::HandleOneFileSet(
     }
 
     if (cm::FileSetMetadata::VisibilityIsForSelf(visibility) &&
-        this->Target->GetType() == cmStateEnums::INTERFACE_LIBRARY &&
+        this->Target->GetType() == cm::TargetType::INTERFACE_LIBRARY &&
         !this->Target->IsImported()) {
       if (type == cm::FileSetMetadata::CXX_MODULES) {
         this->SetError(
@@ -295,7 +295,7 @@ bool TargetSourcesImpl::HandleOneFileSet(
     }
 
     if (cm::FileSetMetadata::VisibilityIsForSelf(visibility) &&
-        this->Target->GetType() == cmStateEnums::INTERFACE_LIBRARY &&
+        this->Target->GetType() == cm::TargetType::INTERFACE_LIBRARY &&
         type == cm::FileSetMetadata::SOURCES) {
       this->SetError(
         cmStrCat(R"(File set TYPE ")", cm::FileSetMetadata::SOURCES,

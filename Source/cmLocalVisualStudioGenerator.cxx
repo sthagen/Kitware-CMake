@@ -135,8 +135,8 @@ cmLocalVisualStudioGenerator::MaybeCreateImplibDir(cmGeneratorTarget* target,
   // If an executable exports symbols then VS wants to create an
   // import library but forgets to create the output directory.
   // The Intel Fortran plugin always forgets to the directory.
-  if (target->GetType() != cmStateEnums::EXECUTABLE &&
-      !(isFortran && target->GetType() == cmStateEnums::SHARED_LIBRARY)) {
+  if (target->GetType() != cm::TargetType::EXECUTABLE &&
+      !(isFortran && target->GetType() == cm::TargetType::SHARED_LIBRARY)) {
     return pcc;
   }
   std::string outDir =

@@ -84,6 +84,7 @@
 #  include <cm3p/json/writer.h>
 
 #  include "cmCMakePresetsArgs.h"
+#  include "cmCMakeSarifLogger.h"
 #  include "cmConfigureLog.h"
 #  include "cmFileAPI.h"
 #  include "cmGraphVizWriter.h"
@@ -91,7 +92,6 @@
 #  include "cmInstrumentationInterrupt.h"
 #  include "cmInstrumentationQuery.h"
 #  include "cmMakefileProfilingData.h"
-#  include "cmSarifLog.h"
 #  include "cmVariableWatch.h"
 #endif
 
@@ -108,7 +108,6 @@
 #    include "cmGlobalFastbuildGenerator.h"
 #    include "cmGlobalJOMMakefileGenerator.h"
 #    include "cmGlobalNMakeMakefileGenerator.h"
-#    include "cmGlobalVisualStudio14Generator.h"
 #    include "cmGlobalVisualStudioVersionedGenerator.h"
 #    include "cmVSSetupHelper.h"
 
@@ -2192,6 +2191,9 @@ bool cmake::SetArgsFromPreset(cmCMakePresetsConfigureArgs const& args,
     this->SetTraceFile(expandedPreset->TraceRedirect);
   }
 
+  // Store preset variables in case of cache reset.
+  this->InitialPresetVariables = this->UnprocessedPresetVariables;
+
   return true;
 }
 
@@ -2374,11 +2376,11 @@ struct SaveCacheEntry
   cmStateEnums::CacheEntryType type;
 };
 
-int cmake::HandleDeleteCacheVariables(std::string const& var)
+int cmake::HandleDeleteCacheVariables(
+  std::map<std::string, std::string> const& vars)
 {
-  cmList argsSplit{ var, cmList::EmptyElements::Yes };
-  // erase the property to avoid infinite recursion
-  this->State->SetGlobalProperty("__CMAKE_DELETE_CACHE_CHANGE_VARS_", "");
+  // erase the set to avoid infinite recursion
+  this->State->ClearDeleteCacheChangeVars();
   if (this->GetIsInTryCompile()) {
     return 0;
   }
@@ -2388,18 +2390,11 @@ int cmake::HandleDeleteCacheVariables(std::string const& var)
     << "You have changed variables that require your cache to be deleted.\n"
        "Configure will be re-run and you may have to reset some variables.\n"
        "The following variables have changed:\n";
-  for (auto i = argsSplit.begin(); i != argsSplit.end(); ++i) {
+  for (auto const& var : vars) {
     SaveCacheEntry save;
-    save.key = *i;
-    warning << *i << "= ";
-    i++;
-    if (i != argsSplit.end()) {
-      save.value = *i;
-      warning << *i << '\n';
-    } else {
-      warning << '\n';
-      i -= 1;
-    }
+    save.key = var.first;
+    save.value = var.second;
+    warning << save.key << "= " << save.value << '\n';
     cmValue existingValue = this->State->GetCacheEntryValue(save.key);
     if (existingValue) {
       save.type = this->State->GetCacheEntryType(save.key);
@@ -2417,6 +2412,15 @@ int cmake::HandleDeleteCacheVariables(std::string const& var)
   this->DeleteCache(this->GetHomeOutputDirectory());
   // load the empty cache
   this->LoadCache();
+#ifndef CMAKE_BOOTSTRAP
+  // Restore preset cache variables.
+  this->UnprocessedPresetVariables = this->InitialPresetVariables;
+  this->ProcessPresetVariables();
+#endif
+  // Restore command line cache variables (from this invocation cmake only).
+  bool resetArgsSuccess = this->SetCacheArgs(this->cmdArgs);
+  assert(resetArgsSuccess);
+  (void)resetArgsSuccess;
   // restore the changed compilers
   for (SaveCacheEntry const& i : saved) {
     this->AddCacheEntry(i.key, i.value, i.help, i.type);
@@ -2425,6 +2429,15 @@ int cmake::HandleDeleteCacheVariables(std::string const& var)
   // avoid reconfigure if there were errors
   if (!cmSystemTools::GetErrorOccurredFlag()) {
     // re-run configure
+    this->State->SetReconfiguring(true);
+    return this->Configure();
+  }
+
+  // Toolchain changes trigger a fatal error, but reconfiguring with the new
+  // toolchain should fix them.
+  if (vars.count("CMAKE_TOOLCHAIN_FILE") && !this->State->IsReconfiguring()) {
+    cmSystemTools::ResetErrorOccurredFlag();
+    this->State->SetReconfiguring(true);
     return this->Configure();
   }
   return 0;
@@ -2523,10 +2536,10 @@ int cmake::Configure()
                       cmStateEnums::INTERNAL);
 
   int ret = this->ActualConfigure();
-  cmValue delCacheVars =
-    this->State->GetGlobalProperty("__CMAKE_DELETE_CACHE_CHANGE_VARS_");
-  if (delCacheVars && !delCacheVars->empty()) {
-    return this->HandleDeleteCacheVariables(*delCacheVars);
+  std::map<std::string, std::string> delCacheVars =
+    this->State->GetDeleteCacheChangeVars();
+  if (!delCacheVars.empty()) {
+    return this->HandleDeleteCacheVariables(delCacheVars);
   }
   return ret;
 }
@@ -2910,23 +2923,6 @@ std::unique_ptr<cmGlobalGenerator> cmake::EvaluateDefaultGlobalGenerator()
   std::string found;
   // Try to find the newest VS installed on the computer and
   // use that as a default if -G is not specified
-  std::string const vsregBase = "HKEY_LOCAL_MACHINE\\SOFTWARE\\Microsoft\\";
-  static char const* const vsVariants[] = {
-    /* clang-format needs this comment to break after the opening brace */
-    "VisualStudio\\", "VCExpress\\", "WDExpress\\"
-  };
-  struct VSVersionedGenerator
-  {
-    char const* MSVersion;
-    char const* GeneratorName;
-  };
-  static VSVersionedGenerator const vsGenerators[] = {
-    { "14.0", "Visual Studio 14 2015" }, //
-  };
-  static char const* const vsEntries[] = {
-    "\\Setup\\VC;ProductDir", //
-    ";InstallDir"             //
-  };
   if (cmVSSetupAPIHelper(18).IsVSInstalled()) {
     found = "Visual Studio 18 2026";
   } else if (cmVSSetupAPIHelper(17).IsVSInstalled()) {
@@ -2935,23 +2931,6 @@ std::unique_ptr<cmGlobalGenerator> cmake::EvaluateDefaultGlobalGenerator()
     found = "Visual Studio 16 2019";
   } else if (cmVSSetupAPIHelper(15).IsVSInstalled()) {
     found = "Visual Studio 15 2017";
-  } else {
-    for (VSVersionedGenerator const* g = cm::cbegin(vsGenerators);
-         found.empty() && g != cm::cend(vsGenerators); ++g) {
-      for (char const* const* v = cm::cbegin(vsVariants);
-           found.empty() && v != cm::cend(vsVariants); ++v) {
-        for (char const* const* e = cm::cbegin(vsEntries);
-             found.empty() && e != cm::cend(vsEntries); ++e) {
-          std::string const reg = vsregBase + *v + g->MSVersion + *e;
-          std::string dir;
-          if (cmSystemTools::ReadRegistryValue(reg, dir,
-                                               cmSystemTools::KeyWOW64_32) &&
-              cmSystemTools::PathExists(dir)) {
-            found = g->GeneratorName;
-          }
-        }
-      }
-    }
   }
   auto gen = this->CreateGlobalGenerator(found);
   if (!gen) {
@@ -3076,11 +3055,7 @@ int cmake::Run(std::vector<std::string> const& args, bool noconfigure)
 
 #ifndef CMAKE_BOOTSTRAP
   // Configure the SARIF log for the current run
-  cmSarif::LogFileWriter sarifLogFileWriter(
-    this->GetMessenger()->GetSarifResultsLog());
-  if (!sarifLogFileWriter.ConfigureForCMakeRun(*this)) {
-    return -1;
-  }
+  cmCMakeSarifLogger sarifLogger(*this);
 
   this->VariableWatch->AddWatch("CMAKE_WARN_DEPRECATED", cmDeprecatedWatch);
   this->VariableWatch->AddWatch("CMAKE_ERROR_DEPRECATED", cmDeprecatedWatch);
@@ -3112,16 +3087,6 @@ int cmake::Run(std::vector<std::string> const& args, bool noconfigure)
       cmSystemTools::Error("Error executing cmake::LoadCache(). Aborting.\n");
       return -1;
     }
-#ifndef CMAKE_BOOTSTRAP
-    // If no SARIF file has been explicitly specified, use the default path
-    if (!this->SarifFileOutput) {
-      // If no output file is specified, use the default path
-      // Enable parent directory creation for the default path
-      sarifLogFileWriter.SetPath(cmStrCat(this->GetHomeOutputDirectory(), '/',
-                                          cmSarif::PROJECT_DEFAULT_SARIF_FILE),
-                                 true);
-    }
-#endif
   } else {
     if (this->FreshCache) {
       cmSystemTools::Error("--fresh allowed only when configuring a project");
@@ -3155,11 +3120,6 @@ int cmake::Run(std::vector<std::string> const& args, bool noconfigure)
     }
     return this->HasScriptModeExitCode() ? this->GetScriptModeExitCode() : 0;
   }
-
-#ifndef CMAKE_BOOTSTRAP
-  // CMake only responds to the SARIF variable in normal mode
-  this->MarkCliAsUsed(cmSarif::PROJECT_SARIF_FILE_VARIABLE);
-#endif
 
   // If MAKEFLAGS are given in the environment, remove the environment
   // variable.  This will prevent try-compile from succeeding when it
@@ -3400,7 +3360,6 @@ void cmake::AddDefaultGenerators()
     cmGlobalVisualStudioVersionedGenerator::NewFactory16());
   this->Generators.push_back(
     cmGlobalVisualStudioVersionedGenerator::NewFactory15());
-  this->Generators.push_back(cmGlobalVisualStudio14Generator::NewFactory());
   this->Generators.push_back(cmGlobalBorlandMakefileGenerator::NewFactory());
   this->Generators.push_back(cmGlobalNMakeMakefileGenerator::NewFactory());
   this->Generators.push_back(cmGlobalJOMMakefileGenerator::NewFactory());
@@ -3880,9 +3839,10 @@ int cmake::GetSystemInformation(std::vector<std::string>& args)
       return 1;
     }
     std::vector<std::string> args2;
-    args2.push_back(args[0]);
-    args2.push_back(destPath);
-    args2.push_back("-DRESULT_FILE=" + resultFile);
+    args2.reserve(3);
+    args2.emplace_back(args[0]);
+    args2.emplace_back(destPath);
+    args2.emplace_back("-DRESULT_FILE=" + resultFile);
     int res = this->Run(args2, false);
 
     if (res != 0) {
@@ -4136,7 +4096,7 @@ int cmake::Build(cmBuildArgs buildArgs, std::vector<std::string> targets,
   // to limitations of the underlying build system.
   std::string const stampList =
     cmStrCat(cachePath, "/CMakeFiles/",
-             cmGlobalVisualStudio14Generator::GetGenerateStampList());
+             cmGlobalVisualStudioVersionedGenerator::GetGenerateStampList());
 
   // Note that the stampList file only exists for VS generators.
   if (cmSystemTools::FileExists(stampList) &&

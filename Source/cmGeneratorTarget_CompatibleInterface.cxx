@@ -27,9 +27,9 @@
 #include "cmLocalGenerator.h"
 #include "cmMessageType.h"
 #include "cmRange.h"
-#include "cmStateTypes.h"
 #include "cmStringAlgorithms.h"
 #include "cmSystemTools.h"
+#include "cmTargetTypes.h"
 #include "cmValue.h"
 
 namespace {
@@ -66,8 +66,8 @@ cmGeneratorTarget::GetCompatibleInterfaces(std::string const& config) const
 bool cmGeneratorTarget::IsLinkInterfaceDependentBoolProperty(
   std::string const& p, std::string const& config) const
 {
-  if (this->GetType() == cmStateEnums::OBJECT_LIBRARY ||
-      this->GetType() == cmStateEnums::INTERFACE_LIBRARY) {
+  if (this->GetType() == cm::TargetType::OBJECT_LIBRARY ||
+      this->GetType() == cm::TargetType::INTERFACE_LIBRARY) {
     return false;
   }
   return this->GetCompatibleInterfaces(config).PropsBool.count(p) > 0;
@@ -76,8 +76,8 @@ bool cmGeneratorTarget::IsLinkInterfaceDependentBoolProperty(
 bool cmGeneratorTarget::IsLinkInterfaceDependentStringProperty(
   std::string const& p, std::string const& config) const
 {
-  if (this->GetType() == cmStateEnums::OBJECT_LIBRARY ||
-      this->GetType() == cmStateEnums::INTERFACE_LIBRARY) {
+  if (this->GetType() == cm::TargetType::OBJECT_LIBRARY ||
+      this->GetType() == cm::TargetType::INTERFACE_LIBRARY) {
     return false;
   }
   return this->GetCompatibleInterfaces(config).PropsString.count(p) > 0;
@@ -86,8 +86,8 @@ bool cmGeneratorTarget::IsLinkInterfaceDependentStringProperty(
 bool cmGeneratorTarget::IsLinkInterfaceDependentNumberMinProperty(
   std::string const& p, std::string const& config) const
 {
-  if (this->GetType() == cmStateEnums::OBJECT_LIBRARY ||
-      this->GetType() == cmStateEnums::INTERFACE_LIBRARY) {
+  if (this->GetType() == cm::TargetType::OBJECT_LIBRARY ||
+      this->GetType() == cm::TargetType::INTERFACE_LIBRARY) {
     return false;
   }
   return this->GetCompatibleInterfaces(config).PropsNumberMin.count(p) > 0;
@@ -96,8 +96,8 @@ bool cmGeneratorTarget::IsLinkInterfaceDependentNumberMinProperty(
 bool cmGeneratorTarget::IsLinkInterfaceDependentNumberMaxProperty(
   std::string const& p, std::string const& config) const
 {
-  if (this->GetType() == cmStateEnums::OBJECT_LIBRARY ||
-      this->GetType() == cmStateEnums::INTERFACE_LIBRARY) {
+  if (this->GetType() == cm::TargetType::OBJECT_LIBRARY ||
+      this->GetType() == cm::TargetType::INTERFACE_LIBRARY) {
     return false;
   }
   return this->GetCompatibleInterfaces(config).PropsNumberMax.count(p) > 0;
@@ -258,7 +258,8 @@ void cmGeneratorTarget::CheckPropertyCompatibility(
   static std::string const strNumMax = "COMPATIBLE_INTERFACE_NUMBER_MAX";
 
   for (auto const& dep : deps) {
-    if (!dep.Target || dep.Target->GetType() == cmStateEnums::OBJECT_LIBRARY) {
+    if (!dep.Target ||
+        dep.Target->GetType() == cm::TargetType::OBJECT_LIBRARY) {
       continue;
     }
 

@@ -14,12 +14,15 @@ Add sources to a target.
 Specifies sources to use when building a target and/or its dependents.
 The named ``<target>`` must have been created by a command such as
 :command:`add_executable` or :command:`add_library` or
-:command:`add_custom_target` and must not be an
-:ref:`ALIAS target <Alias Targets>`.  The ``<items>`` may use
+:command:`add_custom_target`.  The ``<items>`` may use
 :manual:`generator expressions <cmake-generator-expressions(7)>`.
 
 .. versionadded:: 3.20
   ``<target>`` can be a custom target.
+
+.. versionchanged:: 4.5
+  If ``<target>`` is an :ref:`Alias Target <Alias Targets>`, the command
+  operates on the target which the alias references.
 
 The ``INTERFACE``, ``PUBLIC`` and ``PRIVATE`` keywords are required to
 specify the :ref:`scope <Target Command Scope>` of the source file paths

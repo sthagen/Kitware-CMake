@@ -273,7 +273,6 @@ private:
   std::string MSBuildCommand;
   std::set<std::string> AndroidExecutableWarnings;
   virtual std::string FindMSBuildCommand();
-  std::string FindDevEnvCommand() override;
   std::string GetVSMakeProgram() override { return this->GetMSBuildCommand(); }
 
   std::string GeneratorToolsetVersion;

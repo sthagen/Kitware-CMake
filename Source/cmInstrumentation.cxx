@@ -40,6 +40,7 @@
 #include "cmState.h"
 #include "cmStringAlgorithms.h"
 #include "cmSystemTools.h"
+#include "cmTargetTypes.h"
 #include "cmTimestamp.h"
 #include "cmUVProcessChain.h"
 #include "cmValue.h"
@@ -769,8 +770,8 @@ int cmInstrumentation::InstrumentCommand(
   // See SpawnBuildDaemon(); this data is currently meaningless for build.
   root["result"] = command_type == "build" ? Json::nullValue : ret;
 
-  // If the build was interrupted (e.g. by Ctrl+C), record the signal number
-  // that stopped it, so consumers can distinguish an interrupted build from
+  // If the command was interrupted (e.g. by Ctrl+C), record the signal number
+  // that stopped it, so consumers can distinguish an interrupted command from
   // one that ran to completion.  Omitted when no interrupt occurred; only a
   // command wrapped by HandleInterrupt can observe a pending signal here.
   int sig = cmInstrumentationInterrupt::PendingInterruptSignal();
@@ -839,14 +840,15 @@ int cmInstrumentation::InstrumentCommand(
       }
       this->configureSnippetData.clear();
     }
-    // Write the cmakeBuild envelope atomically (temp file + rename).  This is
-    // the snippet flushed while unwinding from a user interrupt, where a
-    // second Ctrl+C could otherwise truncate it mid-write; the atomic write
-    // guarantees it is either absent or complete.  Per-step snippets are never
-    // flushed under interrupt and are left non-atomic.
+    // Write the cmakeBuild/cmakeInstall envelope atomically (temp file +
+    // rename).  This is the snippet flushed while unwinding from a user
+    // interrupt, where a second Ctrl+C could otherwise truncate it mid-write;
+    // the atomic write guarantees it is either absent or complete.  Per-step
+    // snippets are never flushed under interrupt and are left non-atomic.
+    bool const atomicEnvelope =
+      command_type == "cmakeBuild" || command_type == "cmakeInstall";
     this->WriteInstrumentationJson(latestDataVersion, root, "data", file_name,
-                                   command_type == "cmakeBuild" ? Atomic::Yes
-                                                                : Atomic::No);
+                                   atomicEnvelope ? Atomic::Yes : Atomic::No);
   }
   return ret;
 }
@@ -897,14 +899,13 @@ std::string cmInstrumentation::ComputeSuffixTime(
   return ss.str();
 }
 
-bool cmInstrumentation::IsInstrumentableTargetType(
-  cmStateEnums::TargetType type)
+bool cmInstrumentation::IsInstrumentableTargetType(cm::TargetType type)
 {
-  return type == cmStateEnums::TargetType::EXECUTABLE ||
-    type == cmStateEnums::TargetType::SHARED_LIBRARY ||
-    type == cmStateEnums::TargetType::STATIC_LIBRARY ||
-    type == cmStateEnums::TargetType::MODULE_LIBRARY ||
-    type == cmStateEnums::TargetType::OBJECT_LIBRARY;
+  return type == cm::TargetType::EXECUTABLE ||
+    type == cm::TargetType::SHARED_LIBRARY ||
+    type == cm::TargetType::STATIC_LIBRARY ||
+    type == cm::TargetType::MODULE_LIBRARY ||
+    type == cm::TargetType::OBJECT_LIBRARY;
 }
 
 /*
@@ -1121,7 +1122,9 @@ std::string cmInstrumentation::GetCompileTraceFile(
 {
   cm::string_view const prefix = "-ftime-trace=";
   std::string traceFile;
-  for (auto it = command.rbegin(); it != command.rend(); ++it) {
+  std::vector<std::string> fullCommand =
+    cmSystemTools::HandleResponseFile(command.cbegin(), command.cend());
+  for (auto it = fullCommand.rbegin(); it != fullCommand.rend(); ++it) {
     std::string const& arg = *it;
     if (cmHasPrefix(arg, prefix)) {
       traceFile = arg.substr(prefix.size());
@@ -1136,8 +1139,16 @@ std::string cmInstrumentation::GetCompileTraceFile(
         outputPath.substr(0, outputPath.size() - ext.size()), ".json");
     }
   }
-  if (!cmSystemTools::FileIsFullPath(traceFile)) {
-    traceFile = cmStrCat(workingDir, '/', traceFile);
+
+  if (cmSystemTools::FileIsFullPath(traceFile)) {
+    return traceFile;
+  }
+  if (cmSystemTools::FileExists(cmStrCat(workingDir, '/', traceFile), true)) {
+    return cmStrCat(workingDir, '/', traceFile);
+  }
+  if (cmSystemTools::FileExists(cmStrCat(this->binaryDir, '/', traceFile),
+                                true)) {
+    return cmStrCat(this->binaryDir, '/', traceFile);
   }
 
   return traceFile;

@@ -30,6 +30,7 @@
 #include "cmStateTypes.h"
 #include "cmStringAlgorithms.h"
 #include "cmSystemTools.h"
+#include "cmTargetTypes.h"
 #include "cmValue.h"
 
 cmMakefileLibraryTargetGenerator::cmMakefileLibraryTargetGenerator(
@@ -37,7 +38,7 @@ cmMakefileLibraryTargetGenerator::cmMakefileLibraryTargetGenerator(
   : cmMakefileTargetGenerator(target)
 {
   this->CustomCommandDriver = OnDepends;
-  if (this->GeneratorTarget->GetType() != cmStateEnums::INTERFACE_LIBRARY) {
+  if (this->GeneratorTarget->GetType() != cm::TargetType::INTERFACE_LIBRARY) {
     this->TargetNames =
       this->GeneratorTarget->GetLibraryNames(this->GetConfigName());
   }
@@ -69,10 +70,10 @@ void cmMakefileLibraryTargetGenerator::WriteRuleFiles()
   // write the link rules
   // Write the rule for this target type.
   switch (this->GeneratorTarget->GetType()) {
-    case cmStateEnums::STATIC_LIBRARY:
+    case cm::TargetType::STATIC_LIBRARY:
       this->WriteStaticLibraryRules();
       break;
-    case cmStateEnums::SHARED_LIBRARY:
+    case cm::TargetType::SHARED_LIBRARY:
       this->WriteSharedLibraryRules(false);
       if (this->GeneratorTarget->NeedRelinkBeforeInstall(
             this->GetConfigName())) {
@@ -80,7 +81,7 @@ void cmMakefileLibraryTargetGenerator::WriteRuleFiles()
         this->WriteSharedLibraryRules(true);
       }
       break;
-    case cmStateEnums::MODULE_LIBRARY:
+    case cm::TargetType::MODULE_LIBRARY:
       this->WriteModuleLibraryRules(false);
       if (this->GeneratorTarget->NeedRelinkBeforeInstall(
             this->GetConfigName())) {
@@ -88,7 +89,7 @@ void cmMakefileLibraryTargetGenerator::WriteRuleFiles()
         this->WriteModuleLibraryRules(true);
       }
       break;
-    case cmStateEnums::OBJECT_LIBRARY:
+    case cm::TargetType::OBJECT_LIBRARY:
       this->WriteObjectLibraryRules();
       break;
     default:
@@ -486,8 +487,8 @@ void cmMakefileLibraryTargetGenerator::WriteLibraryRules(
     linkFlags, this->GeneratorTarget, this->GetConfigName(), linkLanguage);
 
   // Add OSX version flags, if any.
-  if (this->GeneratorTarget->GetType() == cmStateEnums::SHARED_LIBRARY ||
-      this->GeneratorTarget->GetType() == cmStateEnums::MODULE_LIBRARY) {
+  if (this->GeneratorTarget->GetType() == cm::TargetType::SHARED_LIBRARY ||
+      this->GeneratorTarget->GetType() == cm::TargetType::MODULE_LIBRARY) {
     this->AppendOSXVerFlag(linkFlags, linkLanguage, "COMPATIBILITY", true);
     this->AppendOSXVerFlag(linkFlags, linkLanguage, "CURRENT", false);
   }
@@ -581,13 +582,13 @@ void cmMakefileLibraryTargetGenerator::WriteLibraryRules(
     // Add the link message.
     std::string buildEcho = cmStrCat("Linking ", linkLanguage);
     switch (this->GeneratorTarget->GetType()) {
-      case cmStateEnums::STATIC_LIBRARY:
+      case cm::TargetType::STATIC_LIBRARY:
         buildEcho += " static library ";
         break;
-      case cmStateEnums::SHARED_LIBRARY:
+      case cm::TargetType::SHARED_LIBRARY:
         buildEcho += " shared library ";
         break;
-      case cmStateEnums::MODULE_LIBRARY:
+      case cm::TargetType::MODULE_LIBRARY:
         if (this->GeneratorTarget->IsCFBundleOnApple()) {
           buildEcho += " CFBundle";
         }
@@ -610,7 +611,7 @@ void cmMakefileLibraryTargetGenerator::WriteLibraryRules(
   std::vector<std::string> commands1;
   // Add a command to remove any existing files for this library.
   // for static libs only
-  if (this->GeneratorTarget->GetType() == cmStateEnums::STATIC_LIBRARY) {
+  if (this->GeneratorTarget->GetType() == cm::TargetType::STATIC_LIBRARY) {
     this->LocalGenerator->AppendCleanCommand(commands1, libCleanFiles,
                                              this->GeneratorTarget, "target");
     this->LocalGenerator->CreateCDCommand(
@@ -649,7 +650,7 @@ void cmMakefileLibraryTargetGenerator::WriteLibraryRules(
 #ifdef _WIN32
   // There may be a manifest file for this target.  Add it to the
   // clean set just in case.
-  if (this->GeneratorTarget->GetType() != cmStateEnums::STATIC_LIBRARY) {
+  if (this->GeneratorTarget->GetType() != cm::TargetType::STATIC_LIBRARY) {
     libCleanFiles.insert(this->LocalGenerator->MaybeRelativeToCurBinDir(
       targetFullPath + ".manifest"));
   }
@@ -679,7 +680,7 @@ void cmMakefileLibraryTargetGenerator::WriteLibraryRules(
   cmList archiveAppendCommands;
   cmList archiveFinishCommands;
   std::string::size_type archiveCommandLimit = std::string::npos;
-  if (this->GeneratorTarget->GetType() == cmStateEnums::STATIC_LIBRARY) {
+  if (this->GeneratorTarget->GetType() == cm::TargetType::STATIC_LIBRARY) {
     haveStaticLibraryRule = this->Makefile->IsDefinitionSet(linkRuleVar);
     std::string arCreateVar =
       cmStrCat("CMAKE_", linkLanguage, "_ARCHIVE_CREATE");
@@ -738,7 +739,7 @@ void cmMakefileLibraryTargetGenerator::WriteLibraryRules(
 
     // Collect up flags to link in needed libraries.
     std::string linkLibs;
-    if (this->GeneratorTarget->GetType() != cmStateEnums::STATIC_LIBRARY) {
+    if (this->GeneratorTarget->GetType() != cm::TargetType::STATIC_LIBRARY) {
 
       std::unique_ptr<cmLinkLineComputer> linkLineComputer =
         this->CreateLinkLineComputer(
@@ -756,7 +757,7 @@ void cmMakefileLibraryTargetGenerator::WriteLibraryRules(
     // rule.
     std::string buildObjs;
     cmMakefileTargetGenerator::ResponseFlagFor responseMode =
-      this->GeneratorTarget->GetType() == cmStateEnums::STATIC_LIBRARY
+      this->GeneratorTarget->GetType() == cm::TargetType::STATIC_LIBRARY
       ? cmMakefileTargetGenerator::ResponseFlagFor::Archive
       : cmMakefileTargetGenerator::ResponseFlagFor::Link;
     this->CreateObjectLists(useLinkScript, useArchiveRules,
@@ -849,7 +850,7 @@ void cmMakefileLibraryTargetGenerator::WriteLibraryRules(
 
     // Compute the directory portion of the install_name setting.
     std::string install_name_dir;
-    if (this->GeneratorTarget->GetType() == cmStateEnums::SHARED_LIBRARY) {
+    if (this->GeneratorTarget->GetType() == cm::TargetType::SHARED_LIBRARY) {
       // Get the install_name directory for the build tree.
       install_name_dir = this->GeneratorTarget->GetInstallNameDirForBuildTree(
         this->GetConfigName());

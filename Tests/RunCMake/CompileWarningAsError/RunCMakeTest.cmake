@@ -1,5 +1,14 @@
 include(RunCMake)
 
+# Isolate the following cases from certain flags in the environment.
+foreach(var IN ITEMS CFLAGS CXXFLAGS)
+  if(DEFINED ENV{${var}})
+    string(REGEX REPLACE "(^| )-w( |$)" " " env_flags "$ENV{${var}}")
+    set(ENV{${var}} "${env_flags}")
+    unset(env_flags)
+  endif()
+endforeach()
+
 function(run_compile_warn test lang extension)
   set(RunCMake_TEST_BINARY_DIR ${RunCMake_BINARY_DIR}/${test}_${lang}-build)
   set(RunCMake_TEST_OUTPUT_MERGE 1)

@@ -52,13 +52,6 @@ set(ENV{HOME} \"${TEST_HOME}\")
 ")
 endif()
 
-# Suppress generator deprecation warnings in test suite.
-if(CMAKE_GENERATOR MATCHES "^Visual Studio 14 2015")
-  set(TEST_WARN_VS_CODE "set(ENV{CMAKE_WARN_VS14} OFF)")
-else()
-  set(TEST_WARN_VS_CODE "")
-endif()
-
 # 3.9 or later provides a definitive answer to whether we are multi-config
 # through a global property. Prior to 3.9, CMAKE_CONFIGURATION_TYPES being set
 # is assumed to mean multi-config, but developers might modify it so it is
@@ -208,11 +201,9 @@ if(BUILD_TESTING)
   endif()
 
   if(WIN32)
-    set(reg_vs14 "[HKEY_LOCAL_MACHINE\\SOFTWARE\\Microsoft\\VisualStudio\\14.0;InstallDir]")
     set(reg_ws10_0 "[HKEY_LOCAL_MACHINE\\SOFTWARE\\Microsoft\\VisualStudio\\14.0\\Setup\\Build Tools for Windows 10;srcPath]")
-    set(reg_tegra "[HKEY_LOCAL_MACHINE\\SOFTWARE\\NVIDIA Corporation\\Nsight Tegra;sdkRoot]")
     set(reg_nasm "[HKEY_CURRENT_USER\\SOFTWARE\\nasm]")
-    foreach(reg IN ITEMS vs14 ws10_0 tegra nasm)
+    foreach(reg IN ITEMS ws10_0 nasm)
       get_filename_component(r "${reg_${reg}}" ABSOLUTE)
       if(IS_DIRECTORY "${r}" AND NOT "${r}" STREQUAL "/registry")
         set(${reg} 1)
@@ -2284,11 +2275,6 @@ if(BUILD_TESTING)
       add_test_VSWinStorePhone(vs15-store10_0-X64 "Visual Studio 15 2017" WindowsStore 10.0 x64)
       add_test_VSWinStorePhone(vs15-store10_0-ARM64 "Visual Studio 15 2017" WindowsStore 10.0 ARM64)
     endif()
-    if(vs14 AND ws10_0)
-      add_test_VSWinStorePhone(vs14-store10_0-X86 "Visual Studio 14 2015" WindowsStore 10.0 Win32)
-      add_test_VSWinStorePhone(vs14-store10_0-ARM "Visual Studio 14 2015" WindowsStore 10.0 ARM)
-      add_test_VSWinStorePhone(vs14-store10_0-X64 "Visual Studio 14 2015" WindowsStore 10.0 x64)
-    endif()
   endif()
 
   if(CMAKE_GENERATOR MATCHES "Visual Studio" AND nasm)
@@ -2410,14 +2396,6 @@ if(BUILD_TESTING)
       )
     list(APPEND TEST_BUILD_DIRS "${CMake_BINARY_DIR}/Tests/VSAndroid/${name}")
   endmacro()
-  if(tegra AND NOT "${CMake_SOURCE_DIR};${CMake_BINARY_DIR}" MATCHES " ")
-    if(vs14)
-      add_test_VSAndroid(vs14 "Visual Studio 14 2015" "Tegra-Android")
-    endif()
-  endif()
-  if(vs14 AND CMake_TEST_ANDROID_VS14)
-    add_test_VSAndroid(vs14 "Visual Studio 14 2015" "ARM")
-  endif()
   if(vs15 AND CMake_TEST_ANDROID_VS15)
     add_test_VSAndroid(vs15 "Visual Studio 15 2017" "ARM")
   endif()
@@ -3198,6 +3176,7 @@ if(BUILD_TESTING)
         -D "bootstrap=${bootstrap}"
         -D "bin_dir=${CMake_BINARY_DIR}/Tests/BootstrapTest"
         -D "generator=${CMAKE_GENERATOR}"
+        -D "args=${CMake_TEST_BOOTSTRAP_ARGS}"
         -P ${CMAKE_CURRENT_SOURCE_DIR}/BootstrapTest.cmake
       )
     list(APPEND TEST_BUILD_DIRS "${CMake_BINARY_DIR}/Tests/BootstrapTest")

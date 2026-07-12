@@ -14,6 +14,7 @@
 #include "cmRuntimeDependencyArchive.h"
 #include "cmStringAlgorithms.h"
 #include "cmSystemTools.h"
+#include "cmTargetTypes.h"
 
 namespace {
 bool IsMissingSystemDylib(std::string const& path)
@@ -73,11 +74,11 @@ auto cmBinUtilsMacOSMachOLinker::GetFileInfo(std::string const& file)
   return &iter_inserted.first->second;
 }
 
-bool cmBinUtilsMacOSMachOLinker::ScanDependencies(
-  std::string const& file, cmStateEnums::TargetType type)
+bool cmBinUtilsMacOSMachOLinker::ScanDependencies(std::string const& file,
+                                                  cm::TargetType type)
 {
   std::string executableFile;
-  if (type == cmStateEnums::EXECUTABLE) {
+  if (type == cm::TargetType::EXECUTABLE) {
     executableFile = file;
   } else {
     executableFile = this->Archive->GetBundleExecutable();

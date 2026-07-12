@@ -882,6 +882,25 @@ List Transformations
   (``EXCLUDE``) the regular expression ``regex``.  The result is the same as
   :genex:`$<FILTER:list,INCLUDE|EXCLUDE,regex>`.
 
+  .. versionadded:: 4.5
+
+    The regular expression may be introduced explicitly with a ``REGEX``
+    keyword, and a ``PREDICATE`` keyword selects items using a generator
+    expression instead:
+
+    .. code-block:: cmake
+
+      $<LIST:FILTER,list,INCLUDE|EXCLUDE,REGEX,regex>
+      $<LIST:FILTER,list,INCLUDE|EXCLUDE,PREDICATE,body>
+
+    With ``PREDICATE``, ``body`` is evaluated once per item with the bound
+    operand :genex:`$<_0>` expanding to the current item.  The body must
+    evaluate to exactly ``0`` or ``1``; ``INCLUDE`` keeps items whose body
+    yields ``1`` and ``EXCLUDE`` removes them.  Use ``$<BOOL:...>`` to
+    coerce other values.  Because ``REGEX`` and ``PREDICATE`` are now keywords,
+    a bare regular expression equal to ``REGEX`` or ``PREDICATE`` must use the
+    explicit ``REGEX`` form.
+
 .. genex:: $<LIST:TRANSFORM,list,ACTION[,SELECTOR]>
 
   .. versionadded:: 3.27
@@ -933,20 +952,18 @@ List Transformations
         element instead of the beginning of each repeated search.
         See policy :policy:`CMP0186`.
 
-    ``APPLY``
+    :command:`APPLY <list(TRANSFORM_APPLY)>`
       Transform each selected element by evaluating an arbitrary generator
       expression ``<body>`` once per element.  Within ``<body>``, the bound
-      operand ``$<_0>`` expands to the current element.  Unlike the
-      configure-time ``list(TRANSFORM ... APPLY <function>)`` command, the
-      genex form returns the body's value directly and has no side effects.  A
-      list-valued body result expands into multiple elements, like any other
-      list-valued generator expression.
+      operand :genex:`$<_0>` expands to the current element.  Unlike the
+      configure-time :command:`list(TRANSFORM APPLY) <list(TRANSFORM_APPLY)>`
+      command, the genex form returns the body's value directly and has no side
+      effects.  A list-valued body result expands into multiple elements, like
+      any other list-valued generator expression.
 
       .. code-block:: cmake
 
         $<LIST:TRANSFORM,list,APPLY,body[,SELECTOR]>
-
-      See ``$<_0>`` below for the bound operand.
 
       .. versionadded:: 4.5
 
@@ -976,6 +993,22 @@ List Transformations
       .. code-block:: cmake
 
         $<LIST:TRANSFORM,list,ACTION,REGEX,regular_expression>
+
+    ``PREDICATE``
+      Specify a generator expression ``body`` evaluated once per item with the
+      bound operand :genex:`$<_0>` expanding to the current item.  Only items
+      whose body evaluates to ``1`` are transformed; the body must evaluate to
+      exactly ``0`` or ``1``.  ``PREDICATE`` may be combined with any action,
+      including ``APPLY`` (in which case both bodies bind :genex:`$<_0>`
+      independently).
+      Like all selectors, only one selector may be given; ``PREDICATE`` cannot
+      be combined with ``AT``, ``FOR``, or ``REGEX``.
+
+      .. code-block:: cmake
+
+        $<LIST:TRANSFORM,list,ACTION,PREDICATE,body>
+
+      .. versionadded:: 4.5
 
 .. genex:: $<JOIN:list,glue>
 
@@ -1065,6 +1098,24 @@ List Ordering
 
     $<LIST:SORT,list,CASE:SENSITIVE,COMPARE:STRING,ORDER:DESCENDING>
 
+  .. versionadded:: 4.5
+
+  A ``COMPARATOR`` option sorts using a generator-expression ``body`` instead
+  of a built-in ordering:
+
+  .. code-block:: cmake
+
+    $<LIST:SORT,list,COMPARATOR,body[,ORDER:ASCENDING|DESCENDING][,CASE:SENSITIVE|INSENSITIVE]>
+
+  ``body`` is evaluated once per comparison with the two items being compared
+  bound to :genex:`$<_0>` and :genex:`$<_1>`.  It must evaluate to exactly
+  ``0`` or ``1``; ``1`` means :genex:`$<_0>` sorts before :genex:`$<_1>`.
+  ``COMPARATOR`` is incompatible with ``COMPARE:``.  ``ORDER:DESCENDING``
+  reverses the comparator and ``CASE:INSENSITIVE`` case-folds the values the
+  body sees, both as in the configure-time :command:`list(SORT)`.  The body
+  must induce a `strict weak ordering
+  <https://en.wikipedia.org/wiki/Weak_ordering#Strict_weak_orderings>`_.
+
 .. _GenEx Bound Operands:
 
 Bound Operands
@@ -1078,11 +1129,25 @@ Bound Operands
   generator expression that evaluates a ``<body>`` once for each value it
   supplies, with ``$<_0>`` expanding to that value.
 
-  For example, ``$<LIST:TRANSFORM,...,APPLY,body>`` evaluates ``body`` once per
-  list element with ``$<_0>`` bound to the current element.
+  For example, :genex:`$<LIST:TRANSFORM,...,APPLY,body>` evaluates ``body``
+  once per list element with ``$<_0>`` bound to the current element.
 
   ``$<_0>`` is only valid inside the body of a binding operation.  Using it
   anywhere else is an error.
+
+.. genex:: $<_1>
+
+  .. versionadded:: 4.5
+
+  The second *bound operand* of a *binding operation* that binds at least two
+  operands, expanding to the second supplied value.
+
+  For example, :genex:`$<LIST:SORT,...,COMPARATOR,body>` evaluates ``body``
+  once per comparison with :genex:`$<_0>` and ``$<_1>`` bound to the two items
+  being compared.
+
+  ``$<_1>`` is only valid inside the body of a binding operation that binds at
+  least two operands.  Using it anywhere else is an error.
 
 Path Expressions
 ----------------

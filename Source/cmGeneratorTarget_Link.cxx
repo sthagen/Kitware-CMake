@@ -39,11 +39,11 @@
 #include "cmRange.h"
 #include "cmSourceFile.h"
 #include "cmSourceFileLocationKind.h"
-#include "cmStateTypes.h"
 #include "cmStringAlgorithms.h"
 #include "cmSystemTools.h"
 #include "cmTarget.h"
 #include "cmTargetLinkLibraryType.h"
+#include "cmTargetTypes.h"
 #include "cmValue.h"
 #include "cmake.h"
 
@@ -637,7 +637,7 @@ cmLinkInterface const* cmGeneratorTarget::GetLinkInterface(
 
   // Link interfaces are not supported for executables that do not
   // export symbols.
-  if (this->GetType() == cmStateEnums::EXECUTABLE &&
+  if (this->GetType() == cm::TargetType::EXECUTABLE &&
       !this->IsExecutableWithExports()) {
     return nullptr;
   }
@@ -675,23 +675,23 @@ void cmGeneratorTarget::ComputeLinkInterface(std::string const& config,
                                              cmOptionalLinkInterface& iface,
                                              bool secondPass) const
 {
-  if (this->GetType() == cmStateEnums::SHARED_LIBRARY ||
-      this->GetType() == cmStateEnums::STATIC_LIBRARY ||
-      this->GetType() == cmStateEnums::INTERFACE_LIBRARY) {
+  if (this->GetType() == cm::TargetType::SHARED_LIBRARY ||
+      this->GetType() == cm::TargetType::STATIC_LIBRARY ||
+      this->GetType() == cm::TargetType::INTERFACE_LIBRARY) {
     // Shared libraries may have runtime implementation dependencies
     // on other shared libraries that are not in the interface.
     std::set<cmLinkItem> emitted;
     for (cmLinkItem const& lib : iface.Libraries) {
       emitted.insert(lib);
     }
-    if (this->GetType() != cmStateEnums::INTERFACE_LIBRARY) {
+    if (this->GetType() != cm::TargetType::INTERFACE_LIBRARY) {
       cmLinkImplementation const* impl =
         this->GetLinkImplementation(config, UseTo::Link, secondPass);
       for (cmLinkItem const& lib : impl->Libraries) {
         if (emitted.insert(lib).second) {
           if (lib.Target) {
             // This is a runtime dependency on another shared library.
-            if (lib.Target->GetType() == cmStateEnums::SHARED_LIBRARY) {
+            if (lib.Target->GetType() == cm::TargetType::SHARED_LIBRARY) {
               iface.SharedDeps.push_back(lib);
             }
           } else {
@@ -713,7 +713,7 @@ void cmGeneratorTarget::ComputeLinkInterface(std::string const& config,
     }
   }
 
-  if (this->GetType() == cmStateEnums::STATIC_LIBRARY) {
+  if (this->GetType() == cm::TargetType::STATIC_LIBRARY) {
     // Construct the property name suffix for this configuration.
     std::string suffix = "_";
     if (!config.empty()) {
@@ -744,7 +744,7 @@ cmLinkInterfaceLibraries const* cmGeneratorTarget::GetLinkInterfaceLibraries(
 
   // Link interfaces are not supported for executables that do not
   // export symbols.
-  if (this->GetType() == cmStateEnums::EXECUTABLE &&
+  if (this->GetType() == cm::TargetType::EXECUTABLE &&
       !this->IsExecutableWithExports()) {
     return nullptr;
   }
@@ -793,8 +793,8 @@ void cmGeneratorTarget::ComputeLinkInterfaceLibraries(
   // There is no implicit link interface for executables or modules
   // so if none was explicitly set then there is no link interface.
   if (!haveExplicitLibraries &&
-      (this->GetType() == cmStateEnums::EXECUTABLE ||
-       (this->GetType() == cmStateEnums::MODULE_LIBRARY))) {
+      (this->GetType() == cm::TargetType::EXECUTABLE ||
+       (this->GetType() == cm::TargetType::MODULE_LIBRARY))) {
     return;
   }
   iface.Exists = true;
@@ -1172,8 +1172,8 @@ void cmGeneratorTarget::ComputeLinkImplementationLibraries(
       std::string name = this->CheckCMP0004(lib);
       if (this->GetPolicyStatusCMP0108() == cmPolicies::NEW) {
         // resolve alias name
-        auto* target = this->Makefile->FindTargetToUse(
-          name, cmStateEnums::AllTargetDomains);
+        auto* target =
+          this->Makefile->FindTargetToUse(name, cm::AllTargetDomains);
         if (target) {
           name = target->GetName();
         }
@@ -1306,7 +1306,7 @@ cmLinkItem cmGeneratorTarget::ResolveLinkItem(
   // Skip targets that will not really be linked.  This is probably a
   // name conflict between an external library and an executable
   // within the project.
-  if (resolved.Target->GetType() == cmStateEnums::EXECUTABLE &&
+  if (resolved.Target->GetType() == cm::TargetType::EXECUTABLE &&
       !resolved.Target->IsExecutableWithExports()) {
     return cmLinkItem(resolved.Target->GetName(), false, bt, linkFeature);
   }

@@ -6,9 +6,9 @@
 
 #include <string>
 
-#include "cmStateTypes.h"
 #include "cmStringAlgorithms.h"
 #include "cmSystemTools.h"
+#include "cmTargetTypes.h"
 #include "cmValue.h"
 
 class cmMakefile;
@@ -47,11 +47,11 @@ private:
   {
     // Watch for special "computed" properties that are dependent on
     // other properties or variables.  Always recompute them.
-    if (tgt->GetType() == cmStateEnums::EXECUTABLE ||
-        tgt->GetType() == cmStateEnums::STATIC_LIBRARY ||
-        tgt->GetType() == cmStateEnums::SHARED_LIBRARY ||
-        tgt->GetType() == cmStateEnums::MODULE_LIBRARY ||
-        tgt->GetType() == cmStateEnums::UNKNOWN_LIBRARY) {
+    if (tgt->GetType() == cm::TargetType::EXECUTABLE ||
+        tgt->GetType() == cm::TargetType::STATIC_LIBRARY ||
+        tgt->GetType() == cm::TargetType::SHARED_LIBRARY ||
+        tgt->GetType() == cm::TargetType::MODULE_LIBRARY ||
+        tgt->GetType() == cm::TargetType::UNKNOWN_LIBRARY) {
       static std::string const propLOCATION = "LOCATION";
       if (prop == propLOCATION) {
         if (!tgt->IsImported()) {

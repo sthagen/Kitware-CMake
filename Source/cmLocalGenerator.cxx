@@ -61,6 +61,7 @@
 #include "cmStringAlgorithms.h"
 #include "cmSystemTools.h"
 #include "cmTarget.h"
+#include "cmTargetTypes.h"
 #include "cmTestGenerator.h"
 #include "cmValue.h"
 #include "cmake.h"
@@ -1528,12 +1529,12 @@ void cmLocalGenerator::GetTargetFlags(
   }
 
   switch (target->GetType()) {
-    case cmStateEnums::STATIC_LIBRARY:
+    case cm::TargetType::STATIC_LIBRARY:
       linkFlags = this->GetStaticLibraryFlags(config, linkLanguage, target);
       break;
-    case cmStateEnums::MODULE_LIBRARY:
+    case cm::TargetType::MODULE_LIBRARY:
       CM_FALLTHROUGH;
-    case cmStateEnums::SHARED_LIBRARY: {
+    case cm::TargetType::SHARED_LIBRARY: {
       if (this->IsSplitSwiftBuild() || linkLanguage != "Swift") {
         std::string libFlags;
         this->AddTargetTypeLinkerFlags(libFlags, target, linkLanguage, config);
@@ -1568,7 +1569,7 @@ void cmLocalGenerator::GetTargetFlags(
                                   frameworkPath, linkPath);
       }
     } break;
-    case cmStateEnums::EXECUTABLE: {
+    case cm::TargetType::EXECUTABLE: {
       if (linkLanguage != "Swift" ||
           (this->IsSplitSwiftBuild() &&
            target->GetPolicyStatusCMP0214() == cmPolicies::NEW)) {
@@ -1945,7 +1946,7 @@ std::string cmLocalGenerator::GetExeExportFlags(
   std::string linkFlags;
 
   // Flags to export symbols from an executable.
-  if (tgt.GetType() == cmStateEnums::EXECUTABLE &&
+  if (tgt.GetType() == cm::TargetType::EXECUTABLE &&
       this->StateSnapshot.GetState()->GetGlobalPropertyAsBool(
         "TARGET_SUPPORTS_SHARED_LIBS")) {
     // Only add the flags if ENABLE_EXPORTS is on,
@@ -2355,8 +2356,8 @@ bool cmLocalGenerator::GetRealDependency(std::string const& inName,
     // found is part of the inName
     if (cmSystemTools::FileIsFullPath(inName)) {
       std::string tLocation;
-      if (target->GetType() >= cmStateEnums::EXECUTABLE &&
-          target->GetType() <= cmStateEnums::MODULE_LIBRARY) {
+      if (target->GetType() >= cm::TargetType::EXECUTABLE &&
+          target->GetType() <= cm::TargetType::MODULE_LIBRARY) {
         tLocation = target->GetLocation(config);
         tLocation = cmSystemTools::GetFilenamePath(tLocation);
         tLocation = cmSystemTools::CollapseFullPath(tLocation);
@@ -2373,22 +2374,22 @@ bool cmLocalGenerator::GetRealDependency(std::string const& inName,
       }
     }
     switch (target->GetType()) {
-      case cmStateEnums::EXECUTABLE:
-      case cmStateEnums::STATIC_LIBRARY:
-      case cmStateEnums::SHARED_LIBRARY:
-      case cmStateEnums::MODULE_LIBRARY:
-      case cmStateEnums::UNKNOWN_LIBRARY:
+      case cm::TargetType::EXECUTABLE:
+      case cm::TargetType::STATIC_LIBRARY:
+      case cm::TargetType::SHARED_LIBRARY:
+      case cm::TargetType::MODULE_LIBRARY:
+      case cm::TargetType::UNKNOWN_LIBRARY:
         dep = target->GetFullPath(config, cmStateEnums::RuntimeBinaryArtifact,
                                   /*realname=*/true);
         return true;
-      case cmStateEnums::OBJECT_LIBRARY:
+      case cm::TargetType::OBJECT_LIBRARY:
         // An object library has no single file on which to depend.
         // This was listed to get the target-level dependency.
-      case cmStateEnums::INTERFACE_LIBRARY:
+      case cm::TargetType::INTERFACE_LIBRARY:
         // An interface library has no file on which to depend.
         // This was listed to get the target-level dependency.
-      case cmStateEnums::UTILITY:
-      case cmStateEnums::GLOBAL_TARGET:
+      case cm::TargetType::UTILITY:
+      case cm::TargetType::GLOBAL_TARGET:
         // A utility target has no file on which to depend.  This was listed
         // only to get the target-level dependency.
         return false;
@@ -2492,10 +2493,10 @@ void cmLocalGenerator::AddFeatureFlags(std::string& flags,
                                        std::string const& lang,
                                        std::string const& config)
 {
-  int targetType = target->GetType();
+  cm::TargetType const targetType = target->GetType();
 
-  bool shared = ((targetType == cmStateEnums::SHARED_LIBRARY) ||
-                 (targetType == cmStateEnums::MODULE_LIBRARY));
+  bool shared = ((targetType == cm::TargetType::SHARED_LIBRARY) ||
+                 (targetType == cm::TargetType::MODULE_LIBRARY));
 
   if (target->GetLinkInterfaceDependentBoolProperty(
         "POSITION_INDEPENDENT_CODE", config)) {
@@ -2508,11 +2509,11 @@ void cmLocalGenerator::AddFeatureFlags(std::string& flags,
 
 void cmLocalGenerator::AddPositionIndependentFlags(std::string& flags,
                                                    std::string const& lang,
-                                                   int targetType)
+                                                   cm::TargetType targetType)
 {
   std::string picFlags;
 
-  if (targetType == cmStateEnums::EXECUTABLE) {
+  if (targetType == cm::TargetType::EXECUTABLE) {
     picFlags = this->Makefile->GetSafeDefinition(
       cmStrCat("CMAKE_", lang, "_COMPILE_OPTIONS_PIE"));
   }
@@ -2876,9 +2877,9 @@ void cmLocalGenerator::AddPchDependencies(cmGeneratorTarget* target)
                   reuseTarget->GetPchFileObject(config, lang, arch);
               }
 
-              if (target->GetType() != cmStateEnums::OBJECT_LIBRARY) {
+              if (target->GetType() != cm::TargetType::OBJECT_LIBRARY) {
                 std::string linkerProperty = "LINK_FLAGS_";
-                if (target->GetType() == cmStateEnums::STATIC_LIBRARY) {
+                if (target->GetType() == cm::TargetType::STATIC_LIBRARY) {
                   linkerProperty = "STATIC_LIBRARY_FLAGS_";
                 }
                 target->Target->AppendProperty(
@@ -2887,7 +2888,7 @@ void cmLocalGenerator::AddPchDependencies(cmGeneratorTarget* target)
                            this->ConvertToOutputFormat(pchSourceObj, SHELL)),
                   cm::nullopt, true);
               } else if (reuseTarget->GetType() ==
-                         cmStateEnums::OBJECT_LIBRARY) {
+                         cm::TargetType::OBJECT_LIBRARY) {
                 target->Target->AppendProperty(
                   "INTERFACE_LINK_LIBRARIES",
                   cmStrCat("$<$<CONFIG:", config,
@@ -3418,9 +3419,9 @@ void cmLocalGenerator::AddPerLanguageLinkFlags(std::string& flags,
                                                std::string const& config)
 {
   switch (target->GetType()) {
-    case cmStateEnums::MODULE_LIBRARY:
-    case cmStateEnums::SHARED_LIBRARY:
-    case cmStateEnums::EXECUTABLE:
+    case cm::TargetType::MODULE_LIBRARY:
+    case cm::TargetType::SHARED_LIBRARY:
+    case cm::TargetType::EXECUTABLE:
       break;
     default:
       return;
@@ -3441,7 +3442,7 @@ void cmLocalGenerator::AddPerLanguageLinkFlags(std::string& flags,
       // Additionally, WARN at most once per language, instead of on every
       // target.
       if (!langLinkFlags.empty() &&
-          target->GetType() != cmStateEnums::EXECUTABLE &&
+          target->GetType() != cm::TargetType::EXECUTABLE &&
           langLinkFlags !=
             this->Makefile->GetSafeDefinition(
               cmStrCat("CMAKE_EXECUTABLE_CREATE_", lang, "_FLAGS")) &&
@@ -3480,22 +3481,22 @@ void cmLocalGenerator::AppendTargetCreationLinkFlags(
   std::string createFlagsVar;
   cmValue createFlagsVal;
   switch (target->GetType()) {
-    case cmStateEnums::STATIC_LIBRARY:
+    case cm::TargetType::STATIC_LIBRARY:
       break;
-    case cmStateEnums::MODULE_LIBRARY:
+    case cm::TargetType::MODULE_LIBRARY:
       createFlagsVar =
         cmStrCat("CMAKE_SHARED_MODULE_CREATE_", linkLanguage, "_FLAGS");
       createFlagsVal = this->Makefile->GetDefinition(createFlagsVar);
       // On some platforms we use shared library creation flags for modules.
       CM_FALLTHROUGH;
-    case cmStateEnums::SHARED_LIBRARY:
+    case cm::TargetType::SHARED_LIBRARY:
       if (!createFlagsVal) {
         createFlagsVar =
           cmStrCat("CMAKE_SHARED_LIBRARY_CREATE_", linkLanguage, "_FLAGS");
         createFlagsVal = this->Makefile->GetDefinition(createFlagsVar);
       }
       break;
-    case cmStateEnums::EXECUTABLE:
+    case cm::TargetType::EXECUTABLE:
       createFlagsVar = target->GetPolicyStatusCMP0210() == cmPolicies::NEW
         ? cmStrCat("CMAKE_EXECUTABLE_CREATE_", linkLanguage, "_FLAGS")
         : cmStrCat("CMAKE_", linkLanguage, "_LINK_FLAGS");
@@ -3516,9 +3517,9 @@ void cmLocalGenerator::AppendLinkerTypeFlags(std::string& flags,
                                              std::string const& linkLanguage)
 {
   switch (target->GetType()) {
-    case cmStateEnums::EXECUTABLE:
-    case cmStateEnums::SHARED_LIBRARY:
-    case cmStateEnums::MODULE_LIBRARY:
+    case cm::TargetType::EXECUTABLE:
+    case cm::TargetType::SHARED_LIBRARY:
+    case cm::TargetType::MODULE_LIBRARY:
       break;
     default:
       return;
@@ -3571,13 +3572,13 @@ void cmLocalGenerator::AddTargetTypeLinkerFlags(
 {
   std::string linkerFlagsVar;
   switch (target->GetType()) {
-    case cmStateEnums::EXECUTABLE:
+    case cm::TargetType::EXECUTABLE:
       linkerFlagsVar = "CMAKE_EXE_LINKER_FLAGS";
       break;
-    case cmStateEnums::SHARED_LIBRARY:
+    case cm::TargetType::SHARED_LIBRARY:
       linkerFlagsVar = "CMAKE_SHARED_LINKER_FLAGS";
       break;
-    case cmStateEnums::MODULE_LIBRARY:
+    case cm::TargetType::MODULE_LIBRARY:
       linkerFlagsVar = "CMAKE_MODULE_LINKER_FLAGS";
       break;
     default:
@@ -3614,9 +3615,9 @@ void cmLocalGenerator::AppendIPOLinkerFlags(std::string& flags,
   }
 
   switch (target->GetType()) {
-    case cmStateEnums::EXECUTABLE:
-    case cmStateEnums::SHARED_LIBRARY:
-    case cmStateEnums::MODULE_LIBRARY:
+    case cm::TargetType::EXECUTABLE:
+    case cm::TargetType::SHARED_LIBRARY:
+    case cm::TargetType::MODULE_LIBRARY:
       break;
     default:
       return;
@@ -3639,7 +3640,7 @@ void cmLocalGenerator::AppendPositionIndependentLinkerFlags(
   std::string const& lang)
 {
   // For now, only EXECUTABLE is concerned
-  if (target->GetType() != cmStateEnums::EXECUTABLE) {
+  if (target->GetType() != cm::TargetType::EXECUTABLE) {
     return;
   }
 
@@ -3681,9 +3682,9 @@ void cmLocalGenerator::AppendWarningAsErrorLinkerFlags(
   }
 
   switch (target->GetType()) {
-    case cmStateEnums::EXECUTABLE:
-    case cmStateEnums::SHARED_LIBRARY:
-    case cmStateEnums::MODULE_LIBRARY:
+    case cm::TargetType::EXECUTABLE:
+    case cm::TargetType::SHARED_LIBRARY:
+    case cm::TargetType::MODULE_LIBRARY:
       break;
     default:
       return;
@@ -3811,9 +3812,9 @@ bool cmLocalGenerator::AppendLWYUFlags(std::string& flags,
                                        std::string const& lang)
 {
   auto useLWYU = target->GetPropertyAsBool("LINK_WHAT_YOU_USE") &&
-    (target->GetType() == cmStateEnums::TargetType::EXECUTABLE ||
-     target->GetType() == cmStateEnums::TargetType::SHARED_LIBRARY ||
-     target->GetType() == cmStateEnums::TargetType::MODULE_LIBRARY);
+    (target->GetType() == cm::TargetType::EXECUTABLE ||
+     target->GetType() == cm::TargetType::SHARED_LIBRARY ||
+     target->GetType() == cm::TargetType::MODULE_LIBRARY);
 
   if (useLWYU) {
     auto const& lwyuFlag = this->GetMakefile()->GetSafeDefinition(
@@ -4120,7 +4121,7 @@ void cmLocalGenerator::GenerateTargetInstallRules(
   // an install generator and run it.
   auto const& tgts = this->GetGeneratorTargets();
   for (auto const& l : tgts) {
-    if (l->GetType() == cmStateEnums::INTERFACE_LIBRARY) {
+    if (l->GetType() == cm::TargetType::INTERFACE_LIBRARY) {
       continue;
     }
 
@@ -4143,15 +4144,15 @@ void cmLocalGenerator::GenerateTargetInstallRules(
 
       // Generate the proper install generator for this target type.
       switch (l->GetType()) {
-        case cmStateEnums::EXECUTABLE:
-        case cmStateEnums::STATIC_LIBRARY:
-        case cmStateEnums::MODULE_LIBRARY: {
+        case cm::TargetType::EXECUTABLE:
+        case cm::TargetType::STATIC_LIBRARY:
+        case cm::TargetType::MODULE_LIBRARY: {
           // Use a target install generator.
           cmInstallTargetGeneratorLocal g(this, l->GetName(), destination,
                                           false);
           g.Generate(os, config, configurationTypes);
         } break;
-        case cmStateEnums::SHARED_LIBRARY: {
+        case cm::TargetType::SHARED_LIBRARY: {
 #if defined(_WIN32) || defined(__CYGWIN__)
           // Special code to handle DLL.  Install the import library
           // to the normal destination and the DLL to the runtime

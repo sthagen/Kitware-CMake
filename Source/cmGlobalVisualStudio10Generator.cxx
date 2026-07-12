@@ -876,20 +876,6 @@ std::string cmGlobalVisualStudio10Generator::FindMSBuildCommand()
   return msbuild;
 }
 
-std::string cmGlobalVisualStudio10Generator::FindDevEnvCommand()
-{
-  if (this->ExpressEdition) {
-    // Visual Studio Express >= 10 do not have "devenv.com" or
-    // "VCExpress.exe" that we can use to build reliably.
-    // Tell the caller it needs to use MSBuild instead.
-    return "";
-  }
-  // Skip over the cmGlobalVisualStudio8Generator implementation because
-  // we expect a real devenv and do not want to look for VCExpress.
-  // NOLINTNEXTLINE(bugprone-parent-virtual-call)
-  return this->cmGlobalVisualStudio7Generator::FindDevEnvCommand();
-}
-
 bool cmGlobalVisualStudio10Generator::FindVCTargetsPath(cmMakefile* mf)
 {
   // Skip this in special cases within our own test suite.
@@ -1089,12 +1075,7 @@ cmGlobalVisualStudio10Generator::GenerateBuildCommand(
   // Check if the caller explicitly requested a devenv tool.
   std::string makeProgramLower = makeProgramSelected;
   cmSystemTools::LowerCase(makeProgramLower);
-  bool useDevEnv = (makeProgramLower.find("devenv") != std::string::npos ||
-                    makeProgramLower.find("vcexpress") != std::string::npos);
-
-  // Workaround to convince VCExpress.exe to produce output.
-  bool const requiresOutputForward =
-    (makeProgramLower.find("vcexpress") != std::string::npos);
+  bool useDevEnv = makeProgramLower.find("devenv") != std::string::npos;
 
   // MSBuild is preferred (and required for VS Express), but if the .sln has
   // an Intel Fortran .vfproj then we have to use devenv. Parse it to find out.
@@ -1144,7 +1125,6 @@ cmGlobalVisualStudio10Generator::GenerateBuildCommand(
     }
 
     GeneratedMakeCommand makeCommand;
-    makeCommand.RequiresOutputForward = requiresOutputForward;
     makeCommand.Add(makeProgramSelected);
 
     if (tname == "clean"_s) {
@@ -1289,8 +1269,6 @@ std::string cmGlobalVisualStudio10Generator::Encoding()
 char const* cmGlobalVisualStudio10Generator::GetToolsVersion() const
 {
   switch (this->Version) {
-    case cmGlobalVisualStudioGenerator::VSVersion::VS14:
-      return "14.0";
     case cmGlobalVisualStudioGenerator::VSVersion::VS15:
       return "15.0";
     case cmGlobalVisualStudioGenerator::VSVersion::VS16:

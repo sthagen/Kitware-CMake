@@ -22,6 +22,8 @@
 #include "cmExportSet.h"
 #include "cmFindPackageStack.h"
 #include "cmGeneratorExpression.h"
+#include "cmGeneratorFileSet.h"
+#include "cmGeneratorFileSets.h"
 #include "cmGeneratorTarget.h"
 #include "cmList.h"
 #include "cmMakefile.h"
@@ -30,6 +32,7 @@
 #include "cmStringAlgorithms.h"
 #include "cmSystemTools.h"
 #include "cmTarget.h"
+#include "cmTargetTypes.h"
 
 static std::string const kCPS_VERSION_STR = "0.14.1";
 
@@ -232,7 +235,7 @@ void cmExportPackageInfoGenerator::GeneratePackageRequires(
 
 Json::Value* cmExportPackageInfoGenerator::GenerateImportTarget(
   Json::Value& components, cmGeneratorTarget const* target,
-  cmStateEnums::TargetType targetType) const
+  cm::TargetType targetType) const
 {
   auto const& name = target->GetExportName();
   if (name.empty()) {
@@ -243,19 +246,19 @@ Json::Value* cmExportPackageInfoGenerator::GenerateImportTarget(
   Json::Value& type = component["type"];
 
   switch (targetType) {
-    case cmStateEnums::EXECUTABLE:
+    case cm::TargetType::EXECUTABLE:
       type = "executable";
       break;
-    case cmStateEnums::STATIC_LIBRARY:
+    case cm::TargetType::STATIC_LIBRARY:
       type = "archive";
       break;
-    case cmStateEnums::SHARED_LIBRARY:
+    case cm::TargetType::SHARED_LIBRARY:
       type = "dylib";
       break;
-    case cmStateEnums::MODULE_LIBRARY:
+    case cm::TargetType::MODULE_LIBRARY:
       type = "module";
       break;
-    case cmStateEnums::INTERFACE_LIBRARY:
+    case cm::TargetType::INTERFACE_LIBRARY:
       type = target->IsSymbolic() ? "symbolic" : "interface";
       break;
     default:
@@ -294,6 +297,54 @@ bool cmExportPackageInfoGenerator::GenerateInterfaceProperties(
   // TODO: description
 
   return result;
+}
+
+void cmExportPackageInfoGenerator::GenerateTargetFileSets(
+  Json::Value& component, cmGeneratorTarget const* target,
+  cmTargetExport const* targetExport) const
+{
+  cmGeneratorFileSets const* gfs = target->GetGeneratorFileSets();
+
+  for (auto const& type : gfs->GetInterfaceFileSetTypes()) {
+    // Do we support this file set type?
+    std::string fsType;
+    if (type == "HEADERS") {
+      fsType = "includes";
+    } else {
+      continue;
+    }
+
+    // Generate CPS file set(s) for each CMake file set
+    Json::Value fileSets;
+    for (cmGeneratorFileSet const* fileSet : gfs->GetInterfaceFileSets(type)) {
+      this->GenerateTargetFileSets(fileSets, target, fileSet, targetExport,
+                                   fsType);
+    }
+
+    if (!fileSets.empty()) {
+      component["file_sets"] = fileSets;
+    }
+  }
+}
+
+void cmExportPackageInfoGenerator::GenerateTargetFileSet(
+  Json::Value& fileSets, cmGeneratorFileSet const* fileSet,
+  std::string const& type, std::string const& root,
+  std::vector<std::string> const& files)
+{
+  Json::Value fileSetOut;
+  fileSetOut["type"] = type;
+  fileSetOut["root"] = root;
+
+  Json::Value filesOut;
+  for (auto const& f : files) {
+    filesOut.append(f);
+  }
+  fileSetOut["files"] = filesOut;
+
+  fileSetOut["extensions"]["cmake"]["name@v1"] = fileSet->GetName();
+
+  fileSets.append(fileSetOut);
 }
 
 bool cmExportPackageInfoGenerator::NoteLinkedTarget(

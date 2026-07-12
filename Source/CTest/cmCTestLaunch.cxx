@@ -8,7 +8,6 @@
 #include <iostream>
 #include <map>
 #include <memory>
-#include <utility>
 
 #include <cm/optional>
 
@@ -291,8 +290,10 @@ void cmCTestLaunch::RunChild()
     uv_run(&chain.GetLoop(), UV_RUN_ONCE);
   }
   this->Reporter.Status = chain.GetStatus(0);
-  if (this->Reporter.Status.GetException().first ==
-      cmUVProcessChain::ExceptionCode::Spawn) {
+  if (this->Reporter.Status.SpawnResult != 0 ||
+      this->Reporter.Status.TermSignal != 0) {
+    // The child process could not be spawned or was terminated by a signal
+    // (POSIX).
     this->Reporter.ExitCode = 1;
   } else {
     this->Reporter.ExitCode =

@@ -258,7 +258,7 @@ int main()
     cmSystemTools::ReplaceString(rest, "/nologo ", " ");
     std::string clrest = rest;
     if (haveNologo) {
-      rest = "/nologo " + rest;
+      rest = cmStrCat("/nologo ", std::move(rest));
     }
 
     // rc /fo X.dir\x.rc.res  =>  cl -FoX.dir\x.rc.res.obj

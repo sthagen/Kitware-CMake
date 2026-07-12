@@ -14,11 +14,14 @@
 
 #include <cm3p/json/value.h>
 
-#include "cmStateTypes.h"
-
 class cmExecutionStatus;
 class cmMakefile;
 class cmTarget;
+
+namespace cm {
+enum class ImportedTargetScope;
+enum class TargetType;
+} // namespace cm
 
 struct cmPackageRequirement
 {
@@ -78,7 +81,7 @@ public:
 
   /// Create targets for components specified in the CPS file.
   bool ImportTargets(cmMakefile* makefile, cmExecutionStatus& status,
-                     bool global);
+                     cm::ImportedTargetScope scope);
 
   /// Add configuration-specific properties for targets.
   bool ImportTargetConfigurations(cmMakefile* makefile,
@@ -87,11 +90,11 @@ public:
 private:
   cmPackageInfoReader() = default;
 
-  cmTarget* AddLibraryComponent(cmMakefile* makefile,
-                                cmStateEnums::TargetType type,
+  cmTarget* AddLibraryComponent(cmMakefile* makefile, cm::TargetType type,
                                 std::string const& name,
                                 Json::Value const& data,
-                                std::string const& package, bool global) const;
+                                std::string const& package,
+                                cm::ImportedTargetScope scope) const;
 
   void AddTargetConfiguration(cmTarget* target,
                               cm::string_view configuration) const;

@@ -14,6 +14,7 @@
 #include "cmOutputConverter.h"
 #include "cmStateTypes.h"
 #include "cmStringAlgorithms.h"
+#include "cmTargetTypes.h"
 
 cmLinkLineComputer::cmLinkLineComputer(cmOutputConverter* outputConverter,
                                        cmStateDirectory const& stateDir)
@@ -66,8 +67,8 @@ void cmLinkLineComputer::ComputeLinkLibs(
   ItemVector const& items = cli.GetItems();
   for (auto const& item : items) {
     if (item.Target &&
-        (item.Target->GetType() == cmStateEnums::INTERFACE_LIBRARY ||
-         item.Target->GetType() == cmStateEnums::OBJECT_LIBRARY)) {
+        (item.Target->GetType() == cm::TargetType::INTERFACE_LIBRARY ||
+         item.Target->GetType() == cm::TargetType::OBJECT_LIBRARY)) {
       continue;
     }
 
@@ -137,8 +138,8 @@ void cmLinkLineComputer::ComputeLinkPath(
         continue;
       }
 
-      if (target->GetType() == cmStateEnums::STATIC_LIBRARY ||
-          target->GetType() == cmStateEnums::SHARED_LIBRARY) {
+      if (target->GetType() == cm::TargetType::STATIC_LIBRARY ||
+          target->GetType() == cm::TargetType::SHARED_LIBRARY) {
         cmStateEnums::ArtifactType type = cmStateEnums::RuntimeBinaryArtifact;
         if (target->HasImportLibrary(cli.GetConfig())) {
           type = cmStateEnums::ImportLibraryArtifact;

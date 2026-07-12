@@ -13,7 +13,11 @@ Adds options to the :prop_tgt:`COMPILE_OPTIONS` or
 :prop_tgt:`INTERFACE_COMPILE_OPTIONS` target properties. These options
 are used when compiling the given ``<target>``, which must have been
 created by a command such as :command:`add_executable` or
-:command:`add_library` and must not be an :ref:`ALIAS target <Alias Targets>`.
+:command:`add_library`.
+
+.. versionchanged:: 4.5
+  If ``<target>`` is an :ref:`Alias Target <Alias Targets>`, the command
+  operates on the target which the alias references.
 
 .. note::
 

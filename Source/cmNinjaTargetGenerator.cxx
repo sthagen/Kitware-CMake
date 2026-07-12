@@ -51,11 +51,11 @@
 #include "cmRulePlaceholderExpander.h"
 #include "cmSourceFile.h"
 #include "cmState.h"
-#include "cmStateTypes.h"
 #include "cmStringAlgorithms.h"
 #include "cmSystemTools.h"
 #include "cmTarget.h"
 #include "cmTargetDepend.h"
+#include "cmTargetTypes.h"
 #include "cmValue.h"
 #include "cmake.h"
 
@@ -63,21 +63,21 @@ std::unique_ptr<cmNinjaTargetGenerator> cmNinjaTargetGenerator::New(
   cmGeneratorTarget* target)
 {
   switch (target->GetType()) {
-    case cmStateEnums::EXECUTABLE:
-    case cmStateEnums::SHARED_LIBRARY:
-    case cmStateEnums::STATIC_LIBRARY:
-    case cmStateEnums::MODULE_LIBRARY:
-    case cmStateEnums::OBJECT_LIBRARY:
+    case cm::TargetType::EXECUTABLE:
+    case cm::TargetType::SHARED_LIBRARY:
+    case cm::TargetType::STATIC_LIBRARY:
+    case cm::TargetType::MODULE_LIBRARY:
+    case cm::TargetType::OBJECT_LIBRARY:
       return cm::make_unique<cmNinjaNormalTargetGenerator>(target);
 
-    case cmStateEnums::INTERFACE_LIBRARY:
+    case cm::TargetType::INTERFACE_LIBRARY:
       if (target->HaveCxx20ModuleSources()) {
         return cm::make_unique<cmNinjaNormalTargetGenerator>(target);
       }
       CM_FALLTHROUGH;
 
-    case cmStateEnums::UTILITY:
-    case cmStateEnums::GLOBAL_TARGET:
+    case cm::TargetType::UTILITY:
+    case cm::TargetType::GLOBAL_TARGET:
       return cm::make_unique<cmNinjaUtilityTargetGenerator>(target);
 
     default:
@@ -416,8 +416,8 @@ cmNinjaDeps cmNinjaTargetGenerator::ComputeLinkDeps(
 {
   // Static libraries never depend on other targets for linking.
   if (!ignoreType &&
-      (this->GeneratorTarget->GetType() == cmStateEnums::STATIC_LIBRARY ||
-       this->GeneratorTarget->GetType() == cmStateEnums::OBJECT_LIBRARY)) {
+      (this->GeneratorTarget->GetType() == cm::TargetType::STATIC_LIBRARY ||
+       this->GeneratorTarget->GetType() == cm::TargetType::OBJECT_LIBRARY)) {
     return cmNinjaDeps();
   }
 
@@ -595,10 +595,10 @@ bool cmNinjaTargetGenerator::SetMsvcTargetPdbVariable(
   if (supportsPDB) {
     std::string pdbPath;
     std::string compilePdbPath = this->ComputeTargetCompilePDB(config);
-    if (this->GeneratorTarget->GetType() == cmStateEnums::EXECUTABLE ||
-        this->GeneratorTarget->GetType() == cmStateEnums::STATIC_LIBRARY ||
-        this->GeneratorTarget->GetType() == cmStateEnums::SHARED_LIBRARY ||
-        this->GeneratorTarget->GetType() == cmStateEnums::MODULE_LIBRARY) {
+    if (this->GeneratorTarget->GetType() == cm::TargetType::EXECUTABLE ||
+        this->GeneratorTarget->GetType() == cm::TargetType::STATIC_LIBRARY ||
+        this->GeneratorTarget->GetType() == cm::TargetType::SHARED_LIBRARY ||
+        this->GeneratorTarget->GetType() == cm::TargetType::MODULE_LIBRARY) {
       pdbPath = cmStrCat(this->GeneratorTarget->GetPDBDirectory(config), '/',
                          this->GeneratorTarget->GetPDBName(config));
     }
@@ -2168,7 +2168,7 @@ void cmNinjaTargetGenerator::WriteSwiftObjectBuildStatement(
   auto isImportableTarget = [](cmGeneratorTarget const& tgt) -> bool {
     // Everything except for executables that don't export anything should emit
     // some way to import them.
-    if (tgt.GetType() == cmStateEnums::EXECUTABLE) {
+    if (tgt.GetType() == cm::TargetType::EXECUTABLE) {
       return tgt.IsExecutableWithExports();
     }
     return true;
@@ -2191,20 +2191,20 @@ void cmNinjaTargetGenerator::WriteSwiftObjectBuildStatement(
   }();
 
   // Build flags common to both compile and emit-module edges.
-  if (target.GetType() != cmStateEnums::EXECUTABLE) {
+  if (target.GetType() != cm::TargetType::EXECUTABLE) {
     // Without `-emit-library` or `-emit-executable`, targets with a single
     // source file parse as a Swift script instead of like normal source. For
     // non-executable targets, append this to ensure that they are parsed like
     // a normal source.
     this->LocalGenerator->AppendFlags(vars["FLAGS"], "-parse-as-library");
   }
-  if (target.GetType() == cmStateEnums::STATIC_LIBRARY) {
+  if (target.GetType() == cm::TargetType::STATIC_LIBRARY) {
     this->LocalGenerator->AppendFlags(vars["FLAGS"], "-static");
   }
   this->LocalGenerator->AppendFlags(vars["FLAGS"],
                                     cmStrCat("-module-name ", moduleName));
 
-  if (target.GetType() != cmStateEnums::EXECUTABLE) {
+  if (target.GetType() != cm::TargetType::EXECUTABLE) {
     std::string const libraryLinkNameFlag = "-module-link-name";
     std::string const libraryLinkName =
       this->GetGeneratorTarget()->GetLibraryNames(config).Base;

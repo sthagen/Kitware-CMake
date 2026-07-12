@@ -14,8 +14,8 @@
 #include "cmGlobalGenerator.h"
 #include "cmInstallType.h"
 #include "cmLocalGenerator.h"
-#include "cmStateTypes.h"
 #include "cmStringAlgorithms.h"
+#include "cmTargetTypes.h"
 
 namespace {
 cmsys::RegularExpression const FrameworkRegularExpression(
@@ -72,7 +72,7 @@ void cmInstallImportedRuntimeArtifactsGenerator::GenerateScriptForConfig(
   auto location = this->Target->GetFullPath(config);
 
   switch (this->Target->GetType()) {
-    case cmStateEnums::EXECUTABLE:
+    case cm::TargetType::EXECUTABLE:
       if (this->Target->IsBundleOnApple()) {
         cmsys::RegularExpressionMatch match;
         if (BundleRegularExpression.find(location.c_str(), match)) {
@@ -92,7 +92,7 @@ void cmInstallImportedRuntimeArtifactsGenerator::GenerateScriptForConfig(
                              nullptr, nullptr, nullptr, indent);
       }
       break;
-    case cmStateEnums::SHARED_LIBRARY:
+    case cm::TargetType::SHARED_LIBRARY:
       if (this->Target->IsFrameworkOnApple()) {
         cmsys::RegularExpressionMatch match;
         if (FrameworkRegularExpression.find(location.c_str(), match)) {
@@ -122,7 +122,7 @@ void cmInstallImportedRuntimeArtifactsGenerator::GenerateScriptForConfig(
                              nullptr, nullptr, nullptr, indent);
       }
       break;
-    case cmStateEnums::MODULE_LIBRARY:
+    case cm::TargetType::MODULE_LIBRARY:
       if (this->Target->IsCFBundleOnApple()) {
         cmsys::RegularExpressionMatch match;
         if (CFBundleRegularExpression.find(location.c_str(), match)) {

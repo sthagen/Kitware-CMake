@@ -26,9 +26,9 @@
 #include "cmRange.h"
 #include "cmSourceFile.h"
 #include "cmState.h"
-#include "cmStateTypes.h"
 #include "cmStringAlgorithms.h"
 #include "cmSystemTools.h"
+#include "cmTargetTypes.h"
 #include "cmValue.h"
 
 cmCommonTargetGenerator::cmCommonTargetGenerator(cmGeneratorTarget* gt)
@@ -245,7 +245,7 @@ cmCommonTargetGenerator::GetLinkedTargetDirectories(
           // We can ignore the INTERFACE_LIBRARY items because
           // Target->GetLinkInformation already processed their
           // link interface and they don't have any output themselves.
-          && (mappedLinkee->GetType() != cmStateEnums::INTERFACE_LIBRARY
+          && (mappedLinkee->GetType() != cm::TargetType::INTERFACE_LIBRARY
               // Synthesized targets may have relevant rules.
               || mappedLinkee->IsSynthetic()) &&
           ((lang == "CXX"_s && mappedLinkee->HaveCxx20ModuleSources()) ||
@@ -298,7 +298,7 @@ std::string cmCommonTargetGenerator::ComputeTargetCompilePDB(
   std::string const& config) const
 {
   std::string compilePdbPath;
-  if (this->GeneratorTarget->GetType() > cmStateEnums::OBJECT_LIBRARY) {
+  if (this->GeneratorTarget->GetType() > cm::TargetType::OBJECT_LIBRARY) {
     return compilePdbPath;
   }
 
@@ -312,7 +312,7 @@ std::string cmCommonTargetGenerator::ComputeTargetCompilePDB(
       compilePdbPath += config;
     }
     compilePdbPath += "/";
-    if (this->GeneratorTarget->GetType() == cmStateEnums::STATIC_LIBRARY) {
+    if (this->GeneratorTarget->GetType() == cm::TargetType::STATIC_LIBRARY) {
       // Match VS default for static libs: `$(IntDir)$(ProjectName).pdb`.
       compilePdbPath += this->GeneratorTarget->GetName();
       compilePdbPath += ".pdb";

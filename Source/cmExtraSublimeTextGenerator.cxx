@@ -19,9 +19,9 @@
 #include "cmMakefile.h"
 #include "cmMessageType.h"
 #include "cmSourceFile.h"
-#include "cmStateTypes.h"
 #include "cmStringAlgorithms.h"
 #include "cmSystemTools.h"
+#include "cmTargetTypes.h"
 #include "cmValue.h"
 #include "cmake.h"
 
@@ -190,7 +190,7 @@ void cmExtraSublimeTextGenerator::AppendAllTargets(
     for (auto const& target : targets) {
       std::string targetName = target->GetName();
       switch (target->GetType()) {
-        case cmStateEnums::GLOBAL_TARGET: {
+        case cm::TargetType::GLOBAL_TARGET: {
           // Only add the global targets from CMAKE_BINARY_DIR,
           // not from the subdirs
           if (lg->GetCurrentBinaryDirectory() == lg->GetBinaryDirectory()) {
@@ -199,7 +199,7 @@ void cmExtraSublimeTextGenerator::AppendAllTargets(
                                false);
           }
         } break;
-        case cmStateEnums::UTILITY:
+        case cm::TargetType::UTILITY:
           // Add all utility targets, except the Nightly/Continuous/
           // Experimental-"sub"targets as e.g. NightlyStart
           if ((cmHasLiteralPrefix(targetName, "Nightly") &&
@@ -215,11 +215,11 @@ void cmExtraSublimeTextGenerator::AppendAllTargets(
                              makefile, compiler.c_str(), sourceFileFlags,
                              false);
           break;
-        case cmStateEnums::EXECUTABLE:
-        case cmStateEnums::STATIC_LIBRARY:
-        case cmStateEnums::SHARED_LIBRARY:
-        case cmStateEnums::MODULE_LIBRARY:
-        case cmStateEnums::OBJECT_LIBRARY: {
+        case cm::TargetType::EXECUTABLE:
+        case cm::TargetType::STATIC_LIBRARY:
+        case cm::TargetType::SHARED_LIBRARY:
+        case cm::TargetType::MODULE_LIBRARY:
+        case cm::TargetType::OBJECT_LIBRARY: {
           this->AppendTarget(fout, targetName, lg, target.get(), make.c_str(),
                              makefile, compiler.c_str(), sourceFileFlags,
                              false);

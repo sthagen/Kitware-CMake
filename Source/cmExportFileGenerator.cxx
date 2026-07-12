@@ -26,10 +26,10 @@
 #include "cmMakefile.h"
 #include "cmMessageType.h"
 #include "cmPropertyMap.h"
-#include "cmStateTypes.h"
 #include "cmStringAlgorithms.h"
 #include "cmSystemTools.h"
 #include "cmTarget.h"
+#include "cmTargetTypes.h"
 #include "cmValue.h"
 
 cmExportFileGenerator::cmExportFileGenerator() = default;
@@ -283,7 +283,7 @@ void getCompatibleInterfaceProperties(cmGeneratorTarget const* target,
                                       std::set<std::string>& ifaceProperties,
                                       std::string const& config)
 {
-  if (target->GetType() == cmStateEnums::OBJECT_LIBRARY) {
+  if (target->GetType() == cm::TargetType::OBJECT_LIBRARY) {
     // object libraries have no link information, so nothing to compute
     return;
   }
@@ -303,7 +303,8 @@ void getCompatibleInterfaceProperties(cmGeneratorTarget const* target,
   cmComputeLinkInformation::ItemVector const& deps = info->GetItems();
 
   for (auto const& dep : deps) {
-    if (!dep.Target || dep.Target->GetType() == cmStateEnums::OBJECT_LIBRARY) {
+    if (!dep.Target ||
+        dep.Target->GetType() == cm::TargetType::OBJECT_LIBRARY) {
       continue;
     }
     getPropertyContents(dep.Target, "COMPATIBLE_INTERFACE_BOOL",
@@ -339,7 +340,7 @@ void cmExportFileGenerator::PopulateCompatibleInterfaceProperties(
   getPropertyContents(gtarget, "COMPATIBLE_INTERFACE_NUMBER_MAX",
                       ifaceProperties);
 
-  if (gtarget->GetType() != cmStateEnums::INTERFACE_LIBRARY) {
+  if (gtarget->GetType() != cm::TargetType::INTERFACE_LIBRARY) {
     std::vector<std::string> configNames =
       gtarget->Target->GetMakefile()->GetGeneratorConfigs(
         cmMakefile::IncludeEmptyConfig);
@@ -571,8 +572,8 @@ void cmExportFileGenerator::SetImportDetailProperties(
   cmMakefile* mf = target->Makefile;
 
   // Add the soname for unix shared libraries.
-  if (target->GetType() == cmStateEnums::SHARED_LIBRARY ||
-      target->GetType() == cmStateEnums::MODULE_LIBRARY) {
+  if (target->GetType() == cm::TargetType::SHARED_LIBRARY ||
+      target->GetType() == cm::TargetType::MODULE_LIBRARY) {
     if (!target->IsDLLPlatform()) {
       std::string prop;
       std::string value;

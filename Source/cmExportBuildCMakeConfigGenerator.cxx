@@ -21,10 +21,10 @@
 #include "cmLocalGenerator.h"
 #include "cmMakefile.h"
 #include "cmOutputConverter.h"
-#include "cmStateTypes.h"
 #include "cmStringAlgorithms.h"
 #include "cmSystemTools.h"
 #include "cmTarget.h"
+#include "cmTargetTypes.h"
 
 cmExportBuildCMakeConfigGenerator::cmExportBuildCMakeConfigGenerator(
   cmDiagnosticContext context)
@@ -45,7 +45,7 @@ bool cmExportBuildCMakeConfigGenerator::GenerateMainFile(std::ostream& os)
       sep = " ";
 
       generatedInterfaceRequired |=
-        this->GetExportTargetType(te) == cmStateEnums::INTERFACE_LIBRARY;
+        this->GetExportTargetType(te) == cm::TargetType::INTERFACE_LIBRARY;
     };
 
     if (!this->CollectExports(visitor)) {
@@ -121,13 +121,14 @@ void cmExportBuildCMakeConfigGenerator::GenerateImportTargetsConfig(
     // Collect import properties for this target.
     ImportPropertyMap properties;
 
-    if (this->GetExportTargetType(target) != cmStateEnums::INTERFACE_LIBRARY) {
+    if (this->GetExportTargetType(target) !=
+        cm::TargetType::INTERFACE_LIBRARY) {
       this->SetImportLocationProperty(config, suffix, target, properties);
     }
     if (!properties.empty()) {
       // Get the rest of the target details.
       if (this->GetExportTargetType(target) !=
-          cmStateEnums::INTERFACE_LIBRARY) {
+          cm::TargetType::INTERFACE_LIBRARY) {
         this->SetImportDetailProperties(config, suffix, target, properties);
         this->SetImportLinkInterface(config, suffix,
                                      cmGeneratorExpression::BuildInterface,

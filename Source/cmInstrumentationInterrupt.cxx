@@ -26,32 +26,34 @@
 #endif
 
 namespace {
-// Flag shared between the interrupt handler and the build flow that writes the
-// `cmakeBuild` snippet.  On Windows the console control handler runs on a
-// separate thread, so an atomic is required; on POSIX the handler runs in
-// signal context, where only `volatile sig_atomic_t` is guaranteed safe.
+// Flag shared between the interrupt handler and the command flow that writes
+// the instrumentation envelope snippet.  On Windows the console control
+// handler runs on a separate thread, so an atomic is required; on POSIX the
+// handler runs in signal context, where only `volatile sig_atomic_t` is
+// guaranteed safe.
 #ifdef _WIN32
-std::atomic<int> buildInterruptSignal{ 0 };
+std::atomic<int> interruptSignal{ 0 };
 
 BOOL WINAPI cmInstrumentationConsoleHandler(DWORD type)
 {
   if (type == CTRL_C_EVENT || type == CTRL_BREAK_EVENT) {
     int expected = 0;
-    buildInterruptSignal.compare_exchange_strong(expected, SIGINT);
+    interruptSignal.compare_exchange_strong(expected, SIGINT);
     // Return TRUE so the main thread can finish writing the snippet before the
-    // process exits.  The native build tool shares the console and receives
-    // the event directly, so it still terminates and unblocks our build loop.
+    // process exits.  Child processes (native build tool, install scripts,
+    // tests) share the console and receive the event directly, so they still
+    // terminate and unblock our loop.
     return TRUE;
   }
   return FALSE;
 }
 #else
-sig_atomic_t volatile buildInterruptSignal = 0;
+sig_atomic_t volatile interruptSignal = 0;
 struct sigaction savedSigIntAction;
 
 extern "C" void cmInstrumentationSignalHandler(int sig)
 {
-  buildInterruptSignal = sig;
+  interruptSignal = sig;
 }
 #endif
 
@@ -59,14 +61,14 @@ extern "C" void cmInstrumentationSignalHandler(int sig)
 // than delivered by the OS.  An injected interrupt must NOT be re-raised (the
 // process exits normally after flushing the snippet), so the test stays a
 // clean-exit, leak-checkable case on every generator.
-bool buildInterruptInjected = false;
+bool interruptInjected = false;
 
 // Test-only seam.  An undocumented, unsupported environment variable lets the
-// instrumentation test suite inject a "build was interrupted" condition
-// deterministically, with no real OS signal -- so the cmakeBuild interrupt
-// path can be exercised on every generator and platform.  The double-
-// underscore name marks it internal; it is never set in normal use.  Mirrors
-// CTest's internal fake-hook convention.
+// instrumentation test suite inject an "interrupted" condition
+// deterministically, with no real OS signal -- so the instrumentation
+// interrupt path can be exercised on every generator and platform.  The
+// double-underscore name marks it internal; it is never set in normal use.
+// Mirrors CTest's internal fake-hook convention.
 void InjectTestInterrupt()
 {
   char const* value = std::getenv("__CMAKE_INSTRUMENTATION_TEST_INTERRUPT");
@@ -78,21 +80,21 @@ void InjectTestInterrupt()
     return;
   }
 #ifdef _WIN32
-  buildInterruptSignal.store(sig);
+  interruptSignal.store(sig);
 #else
-  buildInterruptSignal = static_cast<sig_atomic_t>(sig);
+  interruptSignal = static_cast<sig_atomic_t>(sig);
 #endif
-  buildInterruptInjected = true;
+  interruptInjected = true;
 }
 
 // Install the interrupt handler and clear any previously recorded signal.
 void InstallInterruptHandler()
 {
 #ifdef _WIN32
-  buildInterruptSignal.store(0);
+  interruptSignal.store(0);
   SetConsoleCtrlHandler(cmInstrumentationConsoleHandler, TRUE);
 #else
-  buildInterruptSignal = 0;
+  interruptSignal = 0;
   struct sigaction sa;
   memset(&sa, 0, sizeof(sa));
   sa.sa_handler = cmInstrumentationSignalHandler;
@@ -118,9 +120,9 @@ void RestoreInterruptHandler()
 int cmInstrumentationInterrupt::PendingInterruptSignal()
 {
 #ifdef _WIN32
-  return buildInterruptSignal.load();
+  return interruptSignal.load();
 #else
-  return static_cast<int>(buildInterruptSignal);
+  return static_cast<int>(interruptSignal);
 #endif
 }
 
@@ -134,7 +136,7 @@ cmInstrumentationInterrupt::HandleInterrupt(
     return { callback(), false, 0, true };
   }
   InstallInterruptHandler();
-  buildInterruptInjected = false;
+  interruptInjected = false;
   // Test-only: allow the suite to inject an interrupt deterministically.
   InjectTestInterrupt();
   int ret = callback();
@@ -142,7 +144,7 @@ cmInstrumentationInterrupt::HandleInterrupt(
   RestoreInterruptHandler();
   // A real OS interrupt should be re-raised so the exit status reflects it; an
   // injected (test) interrupt should not, so the process exits cleanly.
-  return { ret, sig != 0, sig, !buildInterruptInjected };
+  return { ret, sig != 0, sig, !interruptInjected };
 }
 
 void cmInstrumentationInterrupt::RaiseInterrupt(int sig)

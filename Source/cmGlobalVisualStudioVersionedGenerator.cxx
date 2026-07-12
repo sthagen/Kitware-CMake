@@ -126,8 +126,6 @@ static unsigned int VSVersionToMajor(
   cmGlobalVisualStudioGenerator::VSVersion v)
 {
   switch (v) {
-    case cmGlobalVisualStudioGenerator::VSVersion::VS14:
-      return 14;
     case cmGlobalVisualStudioGenerator::VSVersion::VS15:
       return 15;
     case cmGlobalVisualStudioGenerator::VSVersion::VS16:
@@ -144,8 +142,6 @@ static char const* VSVersionToToolset(
   cmGlobalVisualStudioGenerator::VSVersion v)
 {
   switch (v) {
-    case cmGlobalVisualStudioGenerator::VSVersion::VS14:
-      return "v140";
     case cmGlobalVisualStudioGenerator::VSVersion::VS15:
       return "v141";
     case cmGlobalVisualStudioGenerator::VSVersion::VS16:
@@ -162,8 +158,6 @@ static std::string VSVersionToMajorString(
   cmGlobalVisualStudioGenerator::VSVersion v)
 {
   switch (v) {
-    case cmGlobalVisualStudioGenerator::VSVersion::VS14:
-      return "14";
     case cmGlobalVisualStudioGenerator::VSVersion::VS15:
       return "15";
     case cmGlobalVisualStudioGenerator::VSVersion::VS16:
@@ -180,8 +174,6 @@ static char const* VSVersionToAndroidToolset(
   cmGlobalVisualStudioGenerator::VSVersion v)
 {
   switch (v) {
-    case cmGlobalVisualStudioGenerator::VSVersion::VS14:
-      return "Clang_3_8";
     case cmGlobalVisualStudioGenerator::VSVersion::VS15:
     case cmGlobalVisualStudioGenerator::VSVersion::VS16:
     case cmGlobalVisualStudioGenerator::VSVersion::VS17:
@@ -497,12 +489,14 @@ cmGlobalVisualStudioVersionedGenerator::cmGlobalVisualStudioVersionedGenerator(
   , vsSetupAPIHelper(VSVersionToMajor(version))
 {
   this->Version = version;
-  this->ExpressEdition = false;
   this->DefaultPlatformToolset = VSVersionToToolset(this->Version);
   this->DefaultAndroidToolset = VSVersionToAndroidToolset(this->Version);
   this->DefaultCLFlagTableName = VSVersionToToolset(this->Version);
   this->DefaultCSharpFlagTableName = VSVersionToToolset(this->Version);
+  this->DefaultLibFlagTableName = "v14";
   this->DefaultLinkFlagTableName = VSVersionToToolset(this->Version);
+  this->DefaultMasmFlagTableName = "v14";
+  this->DefaultRCFlagTableName = "v14";
   if (this->Version >= cmGlobalVisualStudioGenerator::VSVersion::VS16) {
     this->DefaultPlatformName = VSHostPlatformName();
     this->DefaultPlatformToolsetHostArchitecture =
@@ -524,8 +518,6 @@ bool cmGlobalVisualStudioVersionedGenerator::MatchesGeneratorName(
 {
   std::string genName;
   switch (this->Version) {
-    case cmGlobalVisualStudioGenerator::VSVersion::VS14:
-      break;
     case cmGlobalVisualStudioGenerator::VSVersion::VS15:
       if (cmVS15GenName(name, genName)) {
         return genName == this->GetName();
@@ -795,8 +787,6 @@ cmGlobalVisualStudioVersionedGenerator::GetAndroidApplicationTypeRevision()
   const
 {
   switch (this->Version) {
-    case cmGlobalVisualStudioGenerator::VSVersion::VS14:
-      return "2.0";
     case cmGlobalVisualStudioGenerator::VSVersion::VS15:
     case cmGlobalVisualStudioGenerator::VSVersion::VS16:
     case cmGlobalVisualStudioGenerator::VSVersion::VS17:

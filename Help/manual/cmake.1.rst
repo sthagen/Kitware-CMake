@@ -974,8 +974,8 @@ The options are:
 
     Supports installing more than one component:
 
-      * ``--component <compA> <compB>``
-      * ``--component <compA> --component <compB>``
+    * ``--component <compA> <compB>``
+    * ``--component <compA> --component <compB>``
 
 .. option:: --default-directory-permissions <permissions>
 

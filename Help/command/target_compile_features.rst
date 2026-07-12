@@ -29,8 +29,11 @@ Repeated calls for the same ``<target>`` append items.
   Allow setting ``INTERFACE`` items on :ref:`IMPORTED targets <Imported Targets>`.
 
 The named ``<target>`` must have been created by a command such as
-:command:`add_executable` or :command:`add_library` and must not be an
-:ref:`ALIAS target <Alias Targets>`.
+:command:`add_executable` or :command:`add_library`.
+
+.. versionchanged:: 4.5
+  If ``<target>`` is an :ref:`Alias Target <Alias Targets>`, the command
+  operates on the target which the alias references.
 
 .. |command_name| replace:: ``target_compile_features``
 .. |more_see_also| replace:: See the :manual:`cmake-compile-features(7)`

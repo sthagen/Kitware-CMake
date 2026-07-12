@@ -709,11 +709,14 @@ bool HandleTargetMode(cmExecutionStatus& status,
                       bool appendMode, bool remove)
 {
   for (std::string const& name : names) {
-    if (status.GetMakefile().IsAlias(name)) {
-      status.SetError("can not be used on an ALIAS target.");
-      return false;
+    // Better error message for alias properties set on an alias target.
+    if (propertyName == "ALIASED_TARGET" || propertyName == "ALIAS_GLOBAL") {
+      if (status.GetMakefile().IsAlias(name)) {
+        status.SetError(cmStrCat("can not set property ", propertyName,
+                                 " on an ALIAS target: ", name));
+        return false;
+      }
     }
-
     if (cmTarget* target = status.GetMakefile().FindTargetToUse(name)) {
       if (target->IsSymbolic()) {
         status.SetError("can not be used on a SYMBOLIC target.");

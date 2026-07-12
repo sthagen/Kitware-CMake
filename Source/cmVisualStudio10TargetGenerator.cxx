@@ -393,7 +393,7 @@ void cmVisualStudio10TargetGenerator::Generate()
     computeProjectFileExtension(this->ProjectType);
 
   if (this->ProjectType == VsProjectType::csproj &&
-      this->GeneratorTarget->GetType() == cmStateEnums::STATIC_LIBRARY) {
+      this->GeneratorTarget->GetType() == cm::TargetType::STATIC_LIBRARY) {
     std::string message =
       cmStrCat("The C# target \"", this->GeneratorTarget->GetName(),
                "\" is of type STATIC_LIBRARY. This is discouraged (and may be "
@@ -402,7 +402,7 @@ void cmVisualStudio10TargetGenerator::Generate()
   }
 
   if (this->Android &&
-      this->GeneratorTarget->GetType() == cmStateEnums::EXECUTABLE &&
+      this->GeneratorTarget->GetType() == cm::TargetType::EXECUTABLE &&
       !this->GeneratorTarget->Target->IsAndroidGuiExecutable()) {
     this->GlobalGenerator->AddAndroidExecutableWarning(this->Name);
   }
@@ -414,7 +414,7 @@ void cmVisualStudio10TargetGenerator::Generate()
                                              ProjectFileExtension);
   this->DotNetHintReferences.clear();
   this->AdditionalUsingDirectories.clear();
-  if (this->GeneratorTarget->GetType() <= cmStateEnums::OBJECT_LIBRARY) {
+  if (this->GeneratorTarget->GetType() <= cm::TargetType::OBJECT_LIBRARY) {
     if (!this->ComputeClOptions()) {
       return;
     }
@@ -673,15 +673,15 @@ void cmVisualStudio10TargetGenerator::WriteClassicMsBuildProjectFile(
         }
         std::string outputType;
         switch (this->GeneratorTarget->GetType()) {
-          case cmStateEnums::OBJECT_LIBRARY:
-          case cmStateEnums::STATIC_LIBRARY:
-          case cmStateEnums::SHARED_LIBRARY:
+          case cm::TargetType::OBJECT_LIBRARY:
+          case cm::TargetType::STATIC_LIBRARY:
+          case cm::TargetType::SHARED_LIBRARY:
             outputType = "Library";
             break;
-          case cmStateEnums::MODULE_LIBRARY:
+          case cm::TargetType::MODULE_LIBRARY:
             outputType = "Module";
             break;
-          case cmStateEnums::EXECUTABLE: {
+          case cm::TargetType::EXECUTABLE: {
             auto const win32 =
               this->GeneratorTarget->GetSafeProperty("WIN32_EXECUTABLE");
             if (win32.find("$<") != std::string::npos) {
@@ -699,12 +699,12 @@ void cmVisualStudio10TargetGenerator::WriteClassicMsBuildProjectFile(
               outputType = "Exe";
             }
           } break;
-          case cmStateEnums::UTILITY:
-          case cmStateEnums::INTERFACE_LIBRARY:
-          case cmStateEnums::GLOBAL_TARGET:
+          case cm::TargetType::UTILITY:
+          case cm::TargetType::INTERFACE_LIBRARY:
+          case cm::TargetType::GLOBAL_TARGET:
             outputType = "Utility";
             break;
-          case cmStateEnums::UNKNOWN_LIBRARY:
+          case cm::TargetType::UNKNOWN_LIBRARY:
             break;
         }
         e1.Element("OutputType", outputType);
@@ -958,18 +958,18 @@ void cmVisualStudio10TargetGenerator::WriteSdkStyleProjectFile(
 
     std::string outputType;
     switch (this->GeneratorTarget->GetType()) {
-      case cmStateEnums::OBJECT_LIBRARY:
-      case cmStateEnums::STATIC_LIBRARY:
-      case cmStateEnums::MODULE_LIBRARY:
+      case cm::TargetType::OBJECT_LIBRARY:
+      case cm::TargetType::STATIC_LIBRARY:
+      case cm::TargetType::MODULE_LIBRARY:
         this->Makefile->IssueMessage(
           MessageType::FATAL_ERROR,
           cmStrCat("Target \"", this->GeneratorTarget->GetName(),
                    "\" is of a type not supported for managed binaries."));
         return;
-      case cmStateEnums::SHARED_LIBRARY:
+      case cm::TargetType::SHARED_LIBRARY:
         outputType = "Library";
         break;
-      case cmStateEnums::EXECUTABLE: {
+      case cm::TargetType::EXECUTABLE: {
         auto const win32 =
           this->GeneratorTarget->GetSafeProperty("WIN32_EXECUTABLE");
         if (win32.find("$<") != std::string::npos) {
@@ -987,12 +987,12 @@ void cmVisualStudio10TargetGenerator::WriteSdkStyleProjectFile(
           outputType = "Exe";
         }
       } break;
-      case cmStateEnums::UTILITY:
-      case cmStateEnums::INTERFACE_LIBRARY:
-      case cmStateEnums::GLOBAL_TARGET:
+      case cm::TargetType::UTILITY:
+      case cm::TargetType::INTERFACE_LIBRARY:
+      case cm::TargetType::GLOBAL_TARGET:
         outputType = "Utility";
         break;
-      case cmStateEnums::UNKNOWN_LIBRARY:
+      case cm::TargetType::UNKNOWN_LIBRARY:
         break;
     }
     e1.Element("OutputType", outputType);
@@ -1454,19 +1454,19 @@ void cmVisualStudio10TargetGenerator::WriteProjectConfigurationValues(Elem& e0)
                                                      this->LocalGenerator, c);
       } else {
         switch (this->GeneratorTarget->GetType()) {
-          case cmStateEnums::SHARED_LIBRARY:
-          case cmStateEnums::MODULE_LIBRARY:
+          case cm::TargetType::SHARED_LIBRARY:
+          case cm::TargetType::MODULE_LIBRARY:
             if (this->WindowsKernelMode) {
               configType = "Driver";
             } else {
               configType = "DynamicLibrary";
             }
             break;
-          case cmStateEnums::OBJECT_LIBRARY:
-          case cmStateEnums::STATIC_LIBRARY:
+          case cm::TargetType::OBJECT_LIBRARY:
+          case cm::TargetType::STATIC_LIBRARY:
             configType = "StaticLibrary";
             break;
-          case cmStateEnums::EXECUTABLE:
+          case cm::TargetType::EXECUTABLE:
             if (this->NsightTegra &&
                 !this->GeneratorTarget->Target->IsAndroidGuiExecutable()) {
               // Android executables are .so too.
@@ -1477,9 +1477,9 @@ void cmVisualStudio10TargetGenerator::WriteProjectConfigurationValues(Elem& e0)
               configType = "Application";
             }
             break;
-          case cmStateEnums::UTILITY:
-          case cmStateEnums::INTERFACE_LIBRARY:
-          case cmStateEnums::GLOBAL_TARGET:
+          case cm::TargetType::UTILITY:
+          case cm::TargetType::INTERFACE_LIBRARY:
+          case cm::TargetType::GLOBAL_TARGET:
             if (this->NsightTegra) {
               // Tegra-Android platform does not understand "Utility".
               configType = "StaticLibrary";
@@ -1487,7 +1487,7 @@ void cmVisualStudio10TargetGenerator::WriteProjectConfigurationValues(Elem& e0)
               configType = "Utility";
             }
             break;
-          case cmStateEnums::UNKNOWN_LIBRARY:
+          case cm::TargetType::UNKNOWN_LIBRARY:
             break;
         }
       }
@@ -1547,7 +1547,7 @@ void cmVisualStudio10TargetGenerator::WriteMSToolConfigurationValues(
       cmGeneratorExpression::Evaluate(*mfcFlag, this->LocalGenerator, config);
 
     std::string useOfMfcValue = "false";
-    if (this->GeneratorTarget->GetType() <= cmStateEnums::OBJECT_LIBRARY) {
+    if (this->GeneratorTarget->GetType() <= cm::TargetType::OBJECT_LIBRARY) {
       if (mfcFlagValue == "1"_s) {
         useOfMfcValue = "Static";
       } else if (mfcFlagValue == "2"_s) {
@@ -1593,7 +1593,7 @@ void cmVisualStudio10TargetGenerator::WriteMSToolConfigurationValues(
 void cmVisualStudio10TargetGenerator::WriteMSToolConfigurationValuesManaged(
   Elem& e1, std::string const& config)
 {
-  if (this->GeneratorTarget->GetType() > cmStateEnums::OBJECT_LIBRARY) {
+  if (this->GeneratorTarget->GetType() > cm::TargetType::OBJECT_LIBRARY) {
     return;
   }
 
@@ -1619,7 +1619,7 @@ void cmVisualStudio10TargetGenerator::WriteMSToolConfigurationValuesManaged(
   std::string assemblyName = GetAssemblyName(config);
   e1.Element("AssemblyName", assemblyName);
 
-  if (cmStateEnums::EXECUTABLE == this->GeneratorTarget->GetType()) {
+  if (cm::TargetType::EXECUTABLE == this->GeneratorTarget->GetType()) {
     e1.Element("StartAction", "Program");
     e1.Element("StartProgram", cmStrCat(outDir, assemblyName, ".exe"));
   }
@@ -1662,7 +1662,7 @@ void cmVisualStudio10TargetGenerator::WriteMSToolConfigurationValuesCommon(
     // The project did not explicitly specify a value for this target.
     // If the target compiles sources for a known MSVC runtime library,
     // base our default value on that.
-    if (this->GeneratorTarget->GetType() <= cmStateEnums::OBJECT_LIBRARY) {
+    if (this->GeneratorTarget->GetType() <= cm::TargetType::OBJECT_LIBRARY) {
       maybeUseDebugLibraries = this->ClOptions[config]->UsingDebugRuntime();
     }
     // For other targets, such as UTILITY targets, base our default
@@ -1743,7 +1743,7 @@ void cmVisualStudio10TargetGenerator::WriteCustomCommands(Elem& e0)
   }
 
   // Add CMakeLists.txt file with rule to re-run CMake for user convenience.
-  if (this->GeneratorTarget->GetType() != cmStateEnums::GLOBAL_TARGET &&
+  if (this->GeneratorTarget->GetType() != cm::TargetType::GLOBAL_TARGET &&
       this->GeneratorTarget->GetName() != CMAKE_CHECK_BUILD_SYSTEM_TARGET) {
     if (srcCMakeLists) {
       // Write directly rather than through WriteCustomCommand because
@@ -2532,7 +2532,7 @@ void cmVisualStudio10TargetGenerator::WriteSource(Elem& e2,
 
 void cmVisualStudio10TargetGenerator::WriteAllSources(Elem& e0)
 {
-  if (this->GeneratorTarget->GetType() == cmStateEnums::GLOBAL_TARGET) {
+  if (this->GeneratorTarget->GetType() == cm::TargetType::GLOBAL_TARGET) {
     return;
   }
 
@@ -3153,8 +3153,8 @@ void cmVisualStudio10TargetGenerator::WriteExcludeFromBuild(
 void cmVisualStudio10TargetGenerator::WritePathAndIncrementalLinkOptions(
   Elem& e0)
 {
-  cmStateEnums::TargetType ttype = this->GeneratorTarget->GetType();
-  if (ttype > cmStateEnums::INTERFACE_LIBRARY) {
+  cm::TargetType ttype = this->GeneratorTarget->GetType();
+  if (ttype > cm::TargetType::INTERFACE_LIBRARY) {
     return;
   }
   if (this->ProjectType == VsProjectType::csproj) {
@@ -3173,7 +3173,7 @@ void cmVisualStudio10TargetGenerator::WritePathAndIncrementalLinkOptions(
       this->LocalGenerator->MaybeRelativeToCurBinDir(fullIntermediateDir);
     ConvertToWindowsSlash(intermediateDir);
 
-    if (ttype >= cmStateEnums::UTILITY) {
+    if (ttype >= cm::TargetType::UTILITY) {
       if (this->GlobalGenerator->UseShortObjectNames()) {
         e1.WritePlatformConfigTag("IntDir", cond, intermediateDir);
       } else {
@@ -3181,9 +3181,9 @@ void cmVisualStudio10TargetGenerator::WritePathAndIncrementalLinkOptions(
           "IntDir", cond, R"($(Platform)\$(Configuration)\$(ProjectName)\)");
       }
     } else {
-      if (ttype == cmStateEnums::SHARED_LIBRARY ||
-          ttype == cmStateEnums::MODULE_LIBRARY ||
-          ttype == cmStateEnums::EXECUTABLE) {
+      if (ttype == cm::TargetType::SHARED_LIBRARY ||
+          ttype == cm::TargetType::MODULE_LIBRARY ||
+          ttype == cm::TargetType::EXECUTABLE) {
         auto linker = this->GeneratorTarget->GetLinkerTool(config);
         if (!linker.empty()) {
           ConvertToWindowsSlash(linker);
@@ -3193,7 +3193,7 @@ void cmVisualStudio10TargetGenerator::WritePathAndIncrementalLinkOptions(
 
       std::string outDir;
       std::string targetNameFull;
-      if (ttype == cmStateEnums::OBJECT_LIBRARY) {
+      if (ttype == cm::TargetType::OBJECT_LIBRARY) {
         outDir = intermediateDir;
         targetNameFull = cmStrCat(this->GeneratorTarget->GetName(), ".lib");
       } else {
@@ -3260,7 +3260,7 @@ void cmVisualStudio10TargetGenerator::WritePathAndIncrementalLinkOptions(
       this->OutputLinkIncremental(e1, config);
     }
 
-    if (ttype <= cmStateEnums::UTILITY) {
+    if (ttype <= cm::TargetType::UTILITY) {
       if (cmValue workingDir =
             this->GlobalGenerator->GetDebuggerWorkingDirectory(
               this->GeneratorTarget)) {
@@ -3300,8 +3300,8 @@ void cmVisualStudio10TargetGenerator::WritePathAndIncrementalLinkOptions(
 void cmVisualStudio10TargetGenerator::WritePublicProjectContentOptions(
   Elem& e0)
 {
-  cmStateEnums::TargetType ttype = this->GeneratorTarget->GetType();
-  if (ttype != cmStateEnums::SHARED_LIBRARY) {
+  cm::TargetType ttype = this->GeneratorTarget->GetType();
+  if (ttype != cm::TargetType::SHARED_LIBRARY) {
     return;
   }
   if (this->ProjectType != VsProjectType::vcxproj) {
@@ -3335,8 +3335,8 @@ void cmVisualStudio10TargetGenerator::OutputLinkIncremental(
 
   // static libraries and things greater than modules do not need
   // to set this option
-  if (this->GeneratorTarget->GetType() == cmStateEnums::STATIC_LIBRARY ||
-      this->GeneratorTarget->GetType() > cmStateEnums::MODULE_LIBRARY) {
+  if (this->GeneratorTarget->GetType() == cm::TargetType::STATIC_LIBRARY ||
+      this->GeneratorTarget->GetType() > cm::TargetType::MODULE_LIBRARY) {
     return;
   }
   Options& linkOptions = *(this->LinkOptions[configName]);
@@ -3684,8 +3684,8 @@ bool cmVisualStudio10TargetGenerator::ComputeClOptions(
     if (this->GeneratorTarget->GetPropertyAsBool("VS_WINRT_COMPONENT")) {
       clOptions.AddFlag("CompileAsWinRT", "true");
       // For WinRT components, add the _WINRT_DLL define to produce a lib
-      if (this->GeneratorTarget->GetType() == cmStateEnums::SHARED_LIBRARY ||
-          this->GeneratorTarget->GetType() == cmStateEnums::MODULE_LIBRARY) {
+      if (this->GeneratorTarget->GetType() == cm::TargetType::SHARED_LIBRARY ||
+          this->GeneratorTarget->GetType() == cm::TargetType::MODULE_LIBRARY) {
         clOptions.AddDefine("_WINRT_DLL");
       }
     } else if (this->GlobalGenerator->TargetsWindowsStore() ||
@@ -4204,7 +4204,7 @@ bool cmVisualStudio10TargetGenerator::ComputeCudaLinkOptions(
     }
     // For static libraries that have device linking enabled compute
     // the  libraries
-    if (this->GeneratorTarget->GetType() == cmStateEnums::STATIC_LIBRARY) {
+    if (this->GeneratorTarget->GetType() == cm::TargetType::STATIC_LIBRARY) {
       cmComputeLinkInformation& cli = *pcli;
       cmLinkLineDeviceComputer computer(
         this->LocalGenerator,
@@ -4230,7 +4230,7 @@ void cmVisualStudio10TargetGenerator::WriteCudaLinkOptions(
   // We need to write link options for OBJECT libraries so that
   // we override the default device link behavior ( enabled ) when
   // building object libraries with ptx/optix-ir/etc
-  if (this->GeneratorTarget->GetType() > cmStateEnums::OBJECT_LIBRARY) {
+  if (this->GeneratorTarget->GetType() > cm::TargetType::OBJECT_LIBRARY) {
     return;
   }
 
@@ -4408,8 +4408,8 @@ void cmVisualStudio10TargetGenerator::WriteNasmOptions(
 void cmVisualStudio10TargetGenerator::WriteLibOptions(
   Elem& e1, std::string const& config)
 {
-  if (this->GeneratorTarget->GetType() != cmStateEnums::STATIC_LIBRARY &&
-      this->GeneratorTarget->GetType() != cmStateEnums::OBJECT_LIBRARY) {
+  if (this->GeneratorTarget->GetType() != cm::TargetType::STATIC_LIBRARY &&
+      this->GeneratorTarget->GetType() != cm::TargetType::OBJECT_LIBRARY) {
     return;
   }
 
@@ -4444,9 +4444,9 @@ void cmVisualStudio10TargetGenerator::WriteLibOptions(
 void cmVisualStudio10TargetGenerator::WriteManifestOptions(
   Elem& e1, std::string const& config)
 {
-  if (this->GeneratorTarget->GetType() != cmStateEnums::EXECUTABLE &&
-      this->GeneratorTarget->GetType() != cmStateEnums::SHARED_LIBRARY &&
-      this->GeneratorTarget->GetType() != cmStateEnums::MODULE_LIBRARY) {
+  if (this->GeneratorTarget->GetType() != cm::TargetType::EXECUTABLE &&
+      this->GeneratorTarget->GetType() != cm::TargetType::SHARED_LIBRARY &&
+      this->GeneratorTarget->GetType() != cm::TargetType::MODULE_LIBRARY) {
     return;
   }
 
@@ -4577,9 +4577,9 @@ void cmVisualStudio10TargetGenerator::WriteAntBuildOptions(
 
 bool cmVisualStudio10TargetGenerator::ComputeLinkOptions()
 {
-  if (this->GeneratorTarget->GetType() == cmStateEnums::EXECUTABLE ||
-      this->GeneratorTarget->GetType() == cmStateEnums::SHARED_LIBRARY ||
-      this->GeneratorTarget->GetType() == cmStateEnums::MODULE_LIBRARY) {
+  if (this->GeneratorTarget->GetType() == cm::TargetType::EXECUTABLE ||
+      this->GeneratorTarget->GetType() == cm::TargetType::SHARED_LIBRARY ||
+      this->GeneratorTarget->GetType() == cm::TargetType::MODULE_LIBRARY) {
     for (std::string const& c : this->Configurations) {
       if (!this->ComputeLinkOptions(c)) {
         return false;
@@ -4668,7 +4668,7 @@ bool cmVisualStudio10TargetGenerator::ComputeLinkOptions(
   linkOptions.AddFlag("AdditionalLibraryDirectories", linkDirs);
 
   cmGeneratorTarget::Names targetNames;
-  if (this->GeneratorTarget->GetType() == cmStateEnums::EXECUTABLE) {
+  if (this->GeneratorTarget->GetType() == cm::TargetType::EXECUTABLE) {
     targetNames = this->GeneratorTarget->GetExecutableNames(config);
   } else {
     targetNames = this->GeneratorTarget->GetLibraryNames(config);
@@ -4678,7 +4678,7 @@ bool cmVisualStudio10TargetGenerator::ComputeLinkOptions(
     if (this->GeneratorTarget->IsWin32Executable(config)) {
       if (this->GlobalGenerator->TargetsWindowsCE()) {
         linkOptions.AddFlag("SubSystem", "WindowsCE");
-        if (this->GeneratorTarget->GetType() == cmStateEnums::EXECUTABLE) {
+        if (this->GeneratorTarget->GetType() == cm::TargetType::EXECUTABLE) {
           if (this->CharSet[config] == MsvcCharSet::Unicode) {
             linkOptions.AddFlag("EntryPointSymbol", "wWinMainCRTStartup");
           } else {
@@ -4691,7 +4691,7 @@ bool cmVisualStudio10TargetGenerator::ComputeLinkOptions(
     } else {
       if (this->GlobalGenerator->TargetsWindowsCE()) {
         linkOptions.AddFlag("SubSystem", "WindowsCE");
-        if (this->GeneratorTarget->GetType() == cmStateEnums::EXECUTABLE) {
+        if (this->GeneratorTarget->GetType() == cm::TargetType::EXECUTABLE) {
           if (this->CharSet[config] == MsvcCharSet::Unicode) {
             linkOptions.AddFlag("EntryPointSymbol", "mainWCRTStartup");
           } else {
@@ -4732,7 +4732,7 @@ bool cmVisualStudio10TargetGenerator::ComputeLinkOptions(
     // A Windows Runtime component uses internal .NET metadata,
     // so does not have an import library.
     if (this->GeneratorTarget->GetPropertyAsBool("VS_WINRT_COMPONENT") &&
-        this->GeneratorTarget->GetType() != cmStateEnums::EXECUTABLE) {
+        this->GeneratorTarget->GetType() != cm::TargetType::EXECUTABLE) {
       linkOptions.AddFlag("GenerateWindowsMetadata", "true");
     } else if (this->GlobalGenerator->TargetsWindowsPhone() ||
                this->GlobalGenerator->TargetsWindowsStore()) {
@@ -4811,7 +4811,7 @@ bool cmVisualStudio10TargetGenerator::ComputeLinkOptions(
 
 bool cmVisualStudio10TargetGenerator::ComputeLibOptions()
 {
-  if (this->GeneratorTarget->GetType() == cmStateEnums::STATIC_LIBRARY) {
+  if (this->GeneratorTarget->GetType() == cm::TargetType::STATIC_LIBRARY) {
     for (std::string const& c : this->Configurations) {
       if (!this->ComputeLibOptions(c)) {
         return false;
@@ -4852,8 +4852,8 @@ bool cmVisualStudio10TargetGenerator::ComputeLibOptions(
 void cmVisualStudio10TargetGenerator::WriteLinkOptions(
   Elem& e1, std::string const& config)
 {
-  if (this->GeneratorTarget->GetType() == cmStateEnums::STATIC_LIBRARY ||
-      this->GeneratorTarget->GetType() > cmStateEnums::MODULE_LIBRARY) {
+  if (this->GeneratorTarget->GetType() == cm::TargetType::STATIC_LIBRARY ||
+      this->GeneratorTarget->GetType() > cm::TargetType::MODULE_LIBRARY) {
     return;
   }
   if (this->ProjectType == VsProjectType::csproj) {
@@ -4887,7 +4887,7 @@ void cmVisualStudio10TargetGenerator::AddLibraries(
           this->GeneratorTarget->GetManagedType(config) !=
             cmGeneratorTarget::ManagedType::Native &&
           l.Target->IsImported() &&
-          l.Target->GetType() != cmStateEnums::INTERFACE_LIBRARY) {
+          l.Target->GetType() != cm::TargetType::INTERFACE_LIBRARY) {
         auto location = l.Target->GetFullPath(config);
         if (!location.empty()) {
           ConvertToWindowsSlash(location);
@@ -4935,8 +4935,8 @@ void cmVisualStudio10TargetGenerator::AddLibraries(
                                         : path);
       }
     } else if (!l.Target ||
-               (l.Target->GetType() != cmStateEnums::INTERFACE_LIBRARY &&
-                l.Target->GetType() != cmStateEnums::OBJECT_LIBRARY)) {
+               (l.Target->GetType() != cm::TargetType::INTERFACE_LIBRARY &&
+                l.Target->GetType() != cm::TargetType::OBJECT_LIBRARY)) {
       libVec.push_back(l.Value.Value);
     }
   }
@@ -4968,7 +4968,7 @@ void cmVisualStudio10TargetGenerator::WriteMidlOptions(
   if (this->ProjectType == VsProjectType::csproj) {
     return;
   }
-  if (this->GeneratorTarget->GetType() > cmStateEnums::UTILITY) {
+  if (this->GeneratorTarget->GetType() > cm::TargetType::UTILITY) {
     return;
   }
 
@@ -5014,7 +5014,7 @@ void cmVisualStudio10TargetGenerator::WriteItemDefinitionGroups(Elem& e0)
     e1.Attribute("Condition", this->CalcCondition(c));
 
     //    output cl compile flags <ClCompile></ClCompile>
-    if (this->GeneratorTarget->GetType() <= cmStateEnums::OBJECT_LIBRARY) {
+    if (this->GeneratorTarget->GetType() <= cm::TargetType::OBJECT_LIBRARY) {
       this->WriteClOptions(e1, c);
       //    output rc compile flags <ResourceCompile></ResourceCompile>
       this->WriteRCOptions(e1, c);
@@ -5392,7 +5392,7 @@ void cmVisualStudio10TargetGenerator::WriteWinRTPackageCertificateKeyFile(
 {
   if ((this->GlobalGenerator->TargetsWindowsStore() ||
        this->GlobalGenerator->TargetsWindowsPhone()) &&
-      (cmStateEnums::EXECUTABLE == this->GeneratorTarget->GetType())) {
+      (cm::TargetType::EXECUTABLE == this->GeneratorTarget->GetType())) {
     std::string pfxFile;
     for (cmGeneratorTarget::AllConfigSource const& source :
          this->GeneratorTarget->GetAllConfigSources()) {
@@ -5523,7 +5523,7 @@ void cmVisualStudio10TargetGenerator::WriteApplicationTypeSettings(Elem& e1)
       // Visual Studio 14.0 is necessary for building 10.0 apps
       e1.Element("MinimumVisualStudioVersion", "14.0");
 
-      if (this->GeneratorTarget->GetType() < cmStateEnums::UTILITY) {
+      if (this->GeneratorTarget->GetType() < cm::TargetType::UTILITY) {
         isAppContainer = true;
       }
     } else if (rev == "8.1"_s) {
@@ -5531,7 +5531,7 @@ void cmVisualStudio10TargetGenerator::WriteApplicationTypeSettings(Elem& e1)
       // Visual Studio 12.0 is necessary for building 8.1 apps
       e1.Element("MinimumVisualStudioVersion", "12.0");
 
-      if (this->GeneratorTarget->GetType() < cmStateEnums::UTILITY) {
+      if (this->GeneratorTarget->GetType() < cm::TargetType::UTILITY) {
         isAppContainer = true;
       }
     } else if (rev == "8.0"_s) {
@@ -5540,11 +5540,11 @@ void cmVisualStudio10TargetGenerator::WriteApplicationTypeSettings(Elem& e1)
       e1.Element("MinimumVisualStudioVersion", "11.0");
 
       if (isWindowsStore &&
-          this->GeneratorTarget->GetType() < cmStateEnums::UTILITY) {
+          this->GeneratorTarget->GetType() < cm::TargetType::UTILITY) {
         isAppContainer = true;
       } else if (isWindowsPhone &&
                  this->GeneratorTarget->GetType() ==
-                   cmStateEnums::EXECUTABLE) {
+                   cm::TargetType::EXECUTABLE) {
         e1.Element("XapOutputs", "true");
         e1.Element("XapFilename",
                    cmStrCat(this->Name, "_$(Configuration)_$(Platform).xap"));
@@ -5590,7 +5590,7 @@ void cmVisualStudio10TargetGenerator::VerifyNecessaryFiles()
 {
   // For Windows and Windows Phone executables, we will assume that if a
   // manifest is not present that we need to add all the necessary files
-  if (this->GeneratorTarget->GetType() == cmStateEnums::EXECUTABLE) {
+  if (this->GeneratorTarget->GetType() == cm::TargetType::EXECUTABLE) {
     std::vector<cmGeneratorTarget::AllConfigSource> manifestSources =
       this->GeneratorTarget->GetAllConfigSources(
         cmGeneratorTarget::SourceKindAppManifest);

@@ -279,6 +279,7 @@ if(CMAKE_GENERATOR MATCHES "Ninja")
 endif()
 add_RunCMake_test(InstallParallel)
 add_RunCMake_test(CTest)
+add_RunCMake_test(CTestLaunch)
 
 if(NOT CMake_TEST_EXTERNAL_CMAKE)
   add_RunCMake_test(ctest_memcheck

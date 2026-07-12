@@ -11,7 +11,6 @@
 #include <ctime>
 #include <functional>
 #include <initializer_list>
-#include <iostream>
 #include <iterator>
 #include <map>
 #include <ratio>
@@ -63,6 +62,7 @@
 #include "cmStateSnapshot.h"
 #include "cmStateTypes.h"
 #include "cmStdIoStream.h"
+#include "cmStdIoTerminal.h"
 #include "cmStringAlgorithms.h"
 #include "cmSystemTools.h"
 #include "cmUVHandlePtr.h"
@@ -197,7 +197,6 @@ struct cmCTest::Private
   cm::optional<cmCTest::LogType> OutputLogFileLastTag;
 
   bool OutputTestOutputOnTestFailure = false;
-  bool OutputColorCode = cmCTest::ColoredOutputSupportedByConsole();
 
   std::map<std::string, std::string> Definitions;
 
@@ -1565,20 +1564,6 @@ bool cmCTest::ProgressOutputSupportedByConsole()
   return cm::StdIo::Out().Kind() == cm::StdIo::TermKind::VT100;
 }
 
-bool cmCTest::ColoredOutputSupportedByConsole()
-{
-  std::string clicolor_force;
-  if (cmSystemTools::GetEnv("CLICOLOR_FORCE", clicolor_force) &&
-      !clicolor_force.empty() && clicolor_force != "0") {
-    return true;
-  }
-  std::string clicolor;
-  if (cmSystemTools::GetEnv("CLICOLOR", clicolor) && clicolor == "0") {
-    return false;
-  }
-  return cm::StdIo::Out().Kind() == cm::StdIo::TermKind::VT100;
-}
-
 bool cmCTest::AddVariableDefinition(std::string const& arg)
 {
   std::string name;
@@ -2522,6 +2507,11 @@ int cmCTest::Run(std::vector<std::string> const& args)
                        this->Impl->TestOptions.RerunFailed = true;
                        return true;
                      } },
+    CommandArgument{ "--out-of-date", CommandArgument::Values::Zero,
+                     [this](std::string const&) -> bool {
+                       this->Impl->TestOptions.OutOfDateOnly = true;
+                       return true;
+                     } },
   };
 
   // Process command line arguments for presets first, since other arguments
@@ -3045,6 +3035,11 @@ std::string cmCTest::GetBinaryDir()
   return this->Impl->BinaryDir;
 }
 
+std::string cmCTest::GetStampDir()
+{
+  return this->Impl->BinaryDir + "/Testing/Temporary/LastTestRun";
+}
+
 std::string const& cmCTest::GetConfigType()
 {
   return this->Impl->ConfigType;
@@ -3550,6 +3545,13 @@ static char const* cmCTestStringLogType[] = { "DEBUG",
 
 void cmCTest::Log(LogType logType, std::string msg, bool suppress)
 {
+  static cm::StdIo::TermAttrSet const noAttrs;
+  this->Log(logType, std::move(msg), noAttrs, suppress);
+}
+
+void cmCTest::Log(LogType logType, std::string msg,
+                  cm::StdIo::TermAttrSet const& attrs, bool suppress)
+{
   if (msg.empty()) {
     return;
   }
@@ -3588,7 +3590,7 @@ void cmCTest::Log(LogType logType, std::string msg, bool suppress)
       if (this->Impl->TestProgressOutput) {
         if (this->Impl->TestProgressNewlinePending) {
           this->Impl->TestProgressNewlinePending = false;
-          std::cout << '\r';
+          cm::StdIo::Out().IOS() << '\r';
         }
 
         if (msg.find('\n') != std::string::npos) {
@@ -3598,7 +3600,7 @@ void cmCTest::Log(LogType logType, std::string msg, bool suppress)
 
         // ProgressOutputSupportedByConsole() already verified VT100 support.
         // Erase the rest of the line before printing the message.
-        std::cout << kVT100_EraseLine << msg << std::flush;
+        cm::StdIo::Out().IOS() << kVT100_EraseLine << msg << std::flush;
         return;
       }
       logType = HANDLER_OUTPUT;
@@ -3607,40 +3609,37 @@ void cmCTest::Log(LogType logType, std::string msg, bool suppress)
     switch (logType) {
       case DEBUG:
         if (this->Impl->Debug) {
-          std::cout << msg << std::flush;
+          cm::StdIo::Print(cm::StdIo::Out(), attrs, msg);
+          cm::StdIo::Out().IOS() << std::flush;
         }
         break;
       case OUTPUT:
       case HANDLER_OUTPUT:
         if (this->Impl->Debug || this->Impl->Verbose) {
-          std::cout << msg << std::flush;
+          cm::StdIo::Print(cm::StdIo::Out(), attrs, msg);
+          cm::StdIo::Out().IOS() << std::flush;
         }
         break;
       case HANDLER_VERBOSE_OUTPUT:
         if (this->Impl->Debug || this->Impl->ExtraVerbose) {
-          std::cout << msg << std::flush;
+          cm::StdIo::Print(cm::StdIo::Out(), attrs, msg);
+          cm::StdIo::Out().IOS() << std::flush;
         }
         break;
       case WARNING:
-        std::cerr << msg << std::flush;
+        cm::StdIo::Print(cm::StdIo::Err(), attrs, msg);
+        cm::StdIo::Err().IOS() << std::flush;
         break;
       case ERROR_MESSAGE:
-        std::cerr << msg << std::flush;
+        cm::StdIo::Print(cm::StdIo::Err(), attrs, msg);
+        cm::StdIo::Err().IOS() << std::flush;
         cmSystemTools::SetErrorOccurred();
         break;
       default:
-        std::cout << msg << std::flush;
+        cm::StdIo::Print(cm::StdIo::Out(), attrs, msg);
+        cm::StdIo::Out().IOS() << std::flush;
     }
   }
-}
-
-std::string cmCTest::GetColorCode(Color color) const
-{
-  if (this->Impl->OutputColorCode) {
-    return cmStrCat("\033[0;", static_cast<int>(color), 'm');
-  }
-
-  return {};
 }
 
 void cmCTest::SetTimeLimit(cmValue val)

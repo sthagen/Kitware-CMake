@@ -1429,9 +1429,16 @@ target, which may be an :prop_tgt:`IMPORTED` target from a package, or an
   target_link_libraries(exe1 Upstream::lib1)
 
 ``ALIAS`` targets are not mutable, installable or exportable.  They are
-entirely local to the buildsystem description.  A name can be tested for
-whether it is an ``ALIAS`` name by reading the :prop_tgt:`ALIASED_TARGET`
-property from it:
+entirely local to the buildsystem description.
+
+.. versionchanged:: 4.5
+  ``ALIAS`` targets may be used as the operand for :command:`set_property` and
+  similar commands used to modify properties of targets.  The commands operate
+  on the target which the alias references.  CMake 4.4 and earlier did not
+  allow modifying targets via an ``ALIAS``.
+
+A name can be tested for whether it is an ``ALIAS`` name by reading the
+:prop_tgt:`ALIASED_TARGET` property from it:
 
 .. code-block:: cmake
 

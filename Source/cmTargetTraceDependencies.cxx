@@ -17,10 +17,10 @@
 #include "cmMakefile.h"
 #include "cmMessageType.h"
 #include "cmSourceFile.h"
-#include "cmStateTypes.h"
 #include "cmStringAlgorithms.h"
 #include "cmSystemTools.h"
 #include "cmTarget.h"
+#include "cmTargetTypes.h"
 #include "cmValue.h"
 
 cmTargetTraceDependencies::cmTargetTraceDependencies(cmGeneratorTarget* target)
@@ -183,8 +183,8 @@ bool cmTargetTraceDependencies::IsUtility(std::string const& dep)
     // then make sure it was not a full path to something else, and
     // the fact that the name matched a target was just a coincidence.
     if (cmSystemTools::FileIsFullPath(dep)) {
-      if (t->GetType() >= cmStateEnums::EXECUTABLE &&
-          t->GetType() <= cmStateEnums::MODULE_LIBRARY) {
+      if (t->GetType() >= cm::TargetType::EXECUTABLE &&
+          t->GetType() <= cm::TargetType::MODULE_LIBRARY) {
         // This is really only for compatibility so we do not need to
         // worry about configuration names and output names.
         std::string tLocation = t->GetLocationForBuild();

@@ -36,6 +36,7 @@
 #include "cmSourceFileLocationKind.h"
 #include "cmStateSnapshot.h"
 #include "cmStateTypes.h"
+#include "cmTargetTypes.h"
 #include "cmValue.h"
 
 // IWYU does not see that 'std::unordered_map<std::string, cmTarget>'
@@ -270,21 +271,19 @@ public:
   void AddLinkDirectory(std::string const& directory, bool before = false);
 
   /** Create a new imported target with the name and type given.  */
-  cmTarget* AddImportedTarget(std::string const& name,
-                              cmStateEnums::TargetType type, bool global);
+  cmTarget* AddImportedTarget(std::string const& name, cm::TargetType type,
+                              cm::ImportedTargetScope scope);
 
   cmTarget* AddForeignTarget(std::string const& origin,
                              std::string const& name);
 
   std::pair<cmTarget&, bool> CreateNewTarget(
-    std::string const& name, cmStateEnums::TargetType type,
+    std::string const& name, cm::TargetType type,
     cmTarget::PerConfig perConfig = cmTarget::PerConfig::Yes,
     cmTarget::Visibility vis = cmTarget::Visibility::Normal);
 
-  cmTarget* AddNewTarget(cmStateEnums::TargetType type,
-                         std::string const& name);
-  cmTarget* AddSynthesizedTarget(cmStateEnums::TargetType type,
-                                 std::string const& name);
+  cmTarget* AddNewTarget(cm::TargetType type, std::string const& name);
+  cmTarget* AddSynthesizedTarget(cm::TargetType type, std::string const& name);
 
   /** Create a target instance for the utility.  */
   cmTarget* AddNewUtilityTarget(std::string const& utilityName,
@@ -390,8 +389,7 @@ public:
   /**
    * Set the name of the library.
    */
-  cmTarget* AddLibrary(std::string const& libname,
-                       cmStateEnums::TargetType type,
+  cmTarget* AddLibrary(std::string const& libname, cm::TargetType type,
                        std::vector<std::string> const& srcs,
                        bool excludeFromAll = false);
   void AddAlias(std::string const& libname, std::string const& tgt,
@@ -535,9 +533,9 @@ public:
   /** Find a target to use in place of the given name.  The target
       returned may be imported or built within the project.  */
   cmTarget* FindTargetToUse(std::string const& name,
-                            cmStateEnums::TargetDomainSet domains = {
-                              cmStateEnums::TargetDomain::NATIVE,
-                              cmStateEnums::TargetDomain::ALIAS }) const;
+                            cm::TargetDomainSet domains = {
+                              cm::TargetDomain::NATIVE,
+                              cm::TargetDomain::ALIAS }) const;
   bool IsAlias(std::string const& name) const;
 
   std::map<std::string, std::string> GetAliasTargets() const
@@ -981,22 +979,17 @@ public:
 
   bool IsImportedTargetGlobalScope() const;
 
-  enum class ImportedTargetScope
-  {
-    Local,
-    Global,
-  };
-
   /** Helper class to manage whether imported packages
    * should be globally scoped based off the find package command
    */
   class SetGlobalTargetImportScope
   {
   public:
-    SetGlobalTargetImportScope(cmMakefile* mk, ImportedTargetScope const scope)
+    SetGlobalTargetImportScope(cmMakefile* mk,
+                               cm::ImportedTargetScope const scope)
       : Makefile(mk)
     {
-      if (scope == ImportedTargetScope::Global &&
+      if (scope == cm::ImportedTargetScope::Global &&
           !this->Makefile->IsImportedTargetGlobalScope()) {
         this->Makefile->CurrentImportedTargetScope = scope;
         this->Set = true;
@@ -1008,7 +1001,7 @@ public:
     {
       if (this->Set) {
         this->Makefile->CurrentImportedTargetScope =
-          ImportedTargetScope::Local;
+          cm::ImportedTargetScope::Local;
       }
     }
 
@@ -1373,5 +1366,6 @@ private:
   std::set<std::string> WarnedCMP0144;
   std::set<std::string> WarnedCMP0219;
   bool IsSourceFileTryCompile;
-  ImportedTargetScope CurrentImportedTargetScope = ImportedTargetScope::Local;
+  cm::ImportedTargetScope CurrentImportedTargetScope =
+    cm::ImportedTargetScope::Local;
 };

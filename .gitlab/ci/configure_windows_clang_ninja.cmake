@@ -1,4 +1,4 @@
-set(CMake_TEST_MODULE_COMPILATION "named,compile_commands,collation,partitions,internal_partitions,export_bmi,install_bmi,shared,bmionly,build_database" CACHE STRING "")
+set(CMake_TEST_MODULE_COMPILATION "named,compile_commands,collation,partitions,internal_partitions,export_bmi,install_bmi,shared,bmionly,build_database,import_std23" CACHE STRING "")
 if("$ENV{CMAKE_CI_BUILD_NAME}" MATCHES "(^|_)cl(_|$)")
   set(CMAKE_Fortran_COMPILER "flang" CACHE STRING "")
   set(CMAKE_Fortran_COMPILER_ID "LLVMFlang" CACHE STRING "")

@@ -32,10 +32,10 @@
 #include "cmSourceGroup.h"
 #include "cmStateDirectory.h"
 #include "cmStateSnapshot.h"
-#include "cmStateTypes.h"
 #include "cmStringAlgorithms.h"
 #include "cmSystemTools.h"
 #include "cmTarget.h"
+#include "cmTargetTypes.h"
 #include "cmValue.h"
 
 cmGhsMultiTargetGenerator::cmGhsMultiTargetGenerator(cmGeneratorTarget* target)
@@ -61,7 +61,7 @@ void cmGhsMultiTargetGenerator::Generate()
 {
   // Determine type of target for this project
   switch (this->GeneratorTarget->GetType()) {
-    case cmStateEnums::EXECUTABLE: {
+    case cm::TargetType::EXECUTABLE: {
       // Get the name of the executable to generate.
       this->TargetNameReal =
         this->GeneratorTarget->GetExecutableNames(this->ConfigName).Real;
@@ -72,36 +72,36 @@ void cmGhsMultiTargetGenerator::Generate()
       }
       break;
     }
-    case cmStateEnums::STATIC_LIBRARY: {
+    case cm::TargetType::STATIC_LIBRARY: {
       this->TargetNameReal =
         this->GeneratorTarget->GetLibraryNames(this->ConfigName).Real;
       this->TagType = GhsMultiGpj::LIBRARY;
       break;
     }
-    case cmStateEnums::SHARED_LIBRARY: {
+    case cm::TargetType::SHARED_LIBRARY: {
       std::string msg =
         cmStrCat("add_library(<name> SHARED ...) not supported: ", this->Name);
       cmSystemTools::Message(msg);
       return;
     }
-    case cmStateEnums::OBJECT_LIBRARY: {
+    case cm::TargetType::OBJECT_LIBRARY: {
       this->TargetNameReal =
         this->GeneratorTarget->GetLibraryNames(this->ConfigName).Real;
       this->TagType = GhsMultiGpj::SUBPROJECT;
       break;
     }
-    case cmStateEnums::MODULE_LIBRARY: {
+    case cm::TargetType::MODULE_LIBRARY: {
       std::string msg =
         cmStrCat("add_library(<name> MODULE ...) not supported: ", this->Name);
       cmSystemTools::Message(msg);
       return;
     }
-    case cmStateEnums::UTILITY: {
+    case cm::TargetType::UTILITY: {
       this->TargetNameReal = this->GeneratorTarget->GetName();
       this->TagType = GhsMultiGpj::CUSTOM_TARGET;
       break;
     }
-    case cmStateEnums::GLOBAL_TARGET: {
+    case cm::TargetType::GLOBAL_TARGET: {
       this->TargetNameReal = this->GeneratorTarget->GetName();
       if (this->TargetNameReal ==
           this->GetGlobalGenerator()->GetInstallTargetName()) {
@@ -120,7 +120,7 @@ void cmGhsMultiTargetGenerator::Generate()
 
 void cmGhsMultiTargetGenerator::GenerateTarget()
 {
-  if (this->GeneratorTarget->GetType() == cmStateEnums::EXECUTABLE &&
+  if (this->GeneratorTarget->GetType() == cm::TargetType::EXECUTABLE &&
       !this->GeneratorTarget
          ->GetLinkerTypeProperty(
            this->GeneratorTarget->GetLinkerLanguage(this->ConfigName),

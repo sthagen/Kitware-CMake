@@ -22,10 +22,10 @@
 #include "cmLocalGenerator.h"
 #include "cmMakefile.h"
 #include "cmOutputConverter.h"
-#include "cmStateTypes.h"
 #include "cmStringAlgorithms.h"
 #include "cmSystemTools.h"
 #include "cmTargetExport.h"
+#include "cmTargetTypes.h"
 #include "cmValue.h"
 
 cmExportInstallCMakeConfigGenerator::cmExportInstallCMakeConfigGenerator(
@@ -67,10 +67,10 @@ bool cmExportInstallCMakeConfigGenerator::GenerateMainFile(std::ostream& os)
   // Create all the imported targets.
   for (cmTargetExport const* te : allTargets) {
     cmGeneratorTarget* gt = te->Target;
-    cmStateEnums::TargetType targetType = this->GetExportTargetType(te);
+    cm::TargetType targetType = this->GetExportTargetType(te);
 
     requiresConfigFiles =
-      requiresConfigFiles || targetType != cmStateEnums::INTERFACE_LIBRARY;
+      requiresConfigFiles || targetType != cm::TargetType::INTERFACE_LIBRARY;
 
     this->GenerateImportTargetCode(os, gt, targetType);
 
@@ -89,7 +89,7 @@ bool cmExportInstallCMakeConfigGenerator::GenerateMainFile(std::ostream& os)
         !this->ExportOld) {
       this->SetRequiredCMakeVersion(2, 8, 12);
     }
-    if (targetType == cmStateEnums::INTERFACE_LIBRARY) {
+    if (targetType == cm::TargetType::INTERFACE_LIBRARY) {
       this->SetRequiredCMakeVersion(3, 0, 0);
     }
     if (gt->GetProperty("INTERFACE_SOURCES")) {
@@ -242,7 +242,7 @@ void cmExportInstallCMakeConfigGenerator::GenerateImportTargetsConfig(
        this->GetExportSet()->GetTargetExports()) {
     // Collect import properties for this target.
     if (this->GetExportTargetType(te.get()) ==
-        cmStateEnums::INTERFACE_LIBRARY) {
+        cm::TargetType::INTERFACE_LIBRARY) {
       continue;
     }
 

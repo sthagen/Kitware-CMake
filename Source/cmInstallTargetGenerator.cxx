@@ -32,6 +32,7 @@
 #include "cmStringAlgorithms.h"
 #include "cmSystemTools.h"
 #include "cmTarget.h"
+#include "cmTargetTypes.h"
 #include "cmValue.h"
 #include "cmake.h"
 
@@ -228,28 +229,28 @@ cmInstallTargetGenerator::Files cmInstallTargetGenerator::GetFiles(
 {
   Files files;
 
-  cmStateEnums::TargetType targetType = this->Target->GetType();
+  cm::TargetType targetType = this->Target->GetType();
   switch (targetType) {
-    case cmStateEnums::EXECUTABLE:
+    case cm::TargetType::EXECUTABLE:
       files.Type = cmInstallType_EXECUTABLE;
       break;
-    case cmStateEnums::STATIC_LIBRARY:
+    case cm::TargetType::STATIC_LIBRARY:
       files.Type = cmInstallType_STATIC_LIBRARY;
       break;
-    case cmStateEnums::SHARED_LIBRARY:
+    case cm::TargetType::SHARED_LIBRARY:
       files.Type = cmInstallType_SHARED_LIBRARY;
       break;
-    case cmStateEnums::MODULE_LIBRARY:
+    case cm::TargetType::MODULE_LIBRARY:
       files.Type = cmInstallType_MODULE_LIBRARY;
       break;
-    case cmStateEnums::INTERFACE_LIBRARY:
+    case cm::TargetType::INTERFACE_LIBRARY:
       // Not reachable. We never create a cmInstallTargetGenerator for
       // an INTERFACE_LIBRARY.
       assert(false &&
              "INTERFACE_LIBRARY targets have no installable outputs.");
       break;
 
-    case cmStateEnums::OBJECT_LIBRARY: {
+    case cm::TargetType::OBJECT_LIBRARY: {
       // Compute all the object files inside this target
       std::vector<std::pair<cmObjectLocation, cmObjectLocation>> objects;
       auto storeObjectLocations = [&objects](cmObjectLocation const& build,
@@ -273,9 +274,9 @@ cmInstallTargetGenerator::Files cmInstallTargetGenerator::GetFiles(
       return files;
     }
 
-    case cmStateEnums::UTILITY:
-    case cmStateEnums::GLOBAL_TARGET:
-    case cmStateEnums::UNKNOWN_LIBRARY:
+    case cm::TargetType::UTILITY:
+    case cm::TargetType::GLOBAL_TARGET:
+    case cm::TargetType::UNKNOWN_LIBRARY:
       this->Target->GetLocalGenerator()->IssueMessage(
         MessageType::INTERNAL_ERROR,
         "cmInstallTargetGenerator created with non-installable target.");
@@ -296,7 +297,7 @@ cmInstallTargetGenerator::Files cmInstallTargetGenerator::GetFiles(
       cmStrCat(this->Target->GetDirectory(config, artifact), '/');
   }
 
-  if (targetType == cmStateEnums::EXECUTABLE) {
+  if (targetType == cm::TargetType::EXECUTABLE) {
     // There is a bug in cmInstallCommand if this fails.
     assert(this->NamelinkMode == NamelinkModeNone);
 
@@ -502,7 +503,7 @@ std::string cmInstallTargetGenerator::GetInstallFilename(
 {
   std::string fname;
   // Compute the name of the library.
-  if (target->GetType() == cmStateEnums::EXECUTABLE) {
+  if (target->GetType() == cm::TargetType::EXECUTABLE) {
     cmGeneratorTarget::Names targetNames = target->GetExecutableNames(config);
     if (nameType == NameImplib) {
       // Use the import library name.
@@ -587,9 +588,9 @@ void cmInstallTargetGenerator::AddInstallNamePatchRule(
   std::string const& toDestDirPath)
 {
   if (this->ImportLibrary || this->NamelinkMode == NamelinkModeOnly ||
-      !(this->Target->GetType() == cmStateEnums::SHARED_LIBRARY ||
-        this->Target->GetType() == cmStateEnums::MODULE_LIBRARY ||
-        this->Target->GetType() == cmStateEnums::EXECUTABLE)) {
+      !(this->Target->GetType() == cm::TargetType::SHARED_LIBRARY ||
+        this->Target->GetType() == cm::TargetType::MODULE_LIBRARY ||
+        this->Target->GetType() == cm::TargetType::EXECUTABLE)) {
     return;
   }
 
@@ -640,7 +641,7 @@ void cmInstallTargetGenerator::AddInstallNamePatchRule(
 
   // Edit the install_name of the target itself if necessary.
   std::string new_id;
-  if (this->Target->GetType() == cmStateEnums::SHARED_LIBRARY) {
+  if (this->Target->GetType() == cm::TargetType::SHARED_LIBRARY) {
     std::string for_build =
       this->Target->GetInstallNameDirForBuildTree(config);
     std::string for_install = this->Target->GetInstallNameDirForInstallTree(
@@ -871,7 +872,7 @@ void cmInstallTargetGenerator::AddStripRule(std::ostream& os, Indent indent,
 
   // don't strip static and import libraries, because it removes the only
   // symbol table they have so you can't link to them anymore
-  if (this->Target->GetType() == cmStateEnums::STATIC_LIBRARY ||
+  if (this->Target->GetType() == cm::TargetType::STATIC_LIBRARY ||
       this->ImportLibrary || this->NamelinkMode == NamelinkModeOnly) {
     return;
   }
@@ -890,11 +891,11 @@ void cmInstallTargetGenerator::AddStripRule(std::ostream& os, Indent indent,
 
   std::string stripArgs;
   if (this->Target->IsApple()) {
-    if (this->Target->GetType() == cmStateEnums::SHARED_LIBRARY ||
-        this->Target->GetType() == cmStateEnums::MODULE_LIBRARY) {
+    if (this->Target->GetType() == cm::TargetType::SHARED_LIBRARY ||
+        this->Target->GetType() == cm::TargetType::MODULE_LIBRARY) {
       // Strip tools need '-x' to strip Apple dylibs correctly.
       stripArgs = "-x ";
-    } else if (this->Target->GetType() == cmStateEnums::EXECUTABLE &&
+    } else if (this->Target->GetType() == cm::TargetType::EXECUTABLE &&
                this->Target->GetGlobalGenerator()->GetStripCommandStyle(
                  strip) == cmGlobalGenerator::StripCommandStyle::Apple) {
       // Apple's strip tool needs '-u -r' to strip executables correctly.
@@ -912,7 +913,7 @@ void cmInstallTargetGenerator::AddRanlibRule(std::ostream& os, Indent indent,
                                              std::string const& toDestDirPath)
 {
   // Static libraries need ranlib on this platform.
-  if (this->Target->GetType() != cmStateEnums::STATIC_LIBRARY) {
+  if (this->Target->GetType() != cm::TargetType::STATIC_LIBRARY) {
     return;
   }
 
@@ -948,10 +949,10 @@ void cmInstallTargetGenerator::AddUniversalInstallRule(
   }
 
   switch (this->Target->GetType()) {
-    case cmStateEnums::EXECUTABLE:
-    case cmStateEnums::STATIC_LIBRARY:
-    case cmStateEnums::SHARED_LIBRARY:
-    case cmStateEnums::MODULE_LIBRARY:
+    case cm::TargetType::EXECUTABLE:
+    case cm::TargetType::STATIC_LIBRARY:
+    case cm::TargetType::SHARED_LIBRARY:
+    case cm::TargetType::MODULE_LIBRARY:
       break;
 
     default:

@@ -11,8 +11,11 @@ Add include directories to a target.
 
 Specifies include directories to use when compiling a given target.
 The named ``<target>`` must have been created by a command such
-as :command:`add_executable` or :command:`add_library` and must not be an
-:ref:`ALIAS target <Alias Targets>`.
+as :command:`add_executable` or :command:`add_library`.
+
+.. versionchanged:: 4.5
+  If ``<target>`` is an :ref:`Alias Target <Alias Targets>`, the command
+  operates on the target which the alias references.
 
 By using ``AFTER`` or ``BEFORE`` explicitly, you can select between appending
 and prepending, independent of the default.

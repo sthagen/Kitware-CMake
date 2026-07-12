@@ -31,6 +31,7 @@
 #include "cmStringAlgorithms.h"
 #include "cmSystemTools.h"
 #include "cmTarget.h"
+#include "cmTargetTypes.h"
 #include "cmValue.h"
 #include "cmXcFramework.h"
 #include "cmake.h"
@@ -286,7 +287,7 @@ cmComputeLinkInformation::cmComputeLinkInformation(
   // to use when creating a plugin (module) that obtains symbols from
   // the program that will load it.
   if (!this->Target->IsDLLPlatform() &&
-      this->Target->GetType() == cmStateEnums::MODULE_LIBRARY) {
+      this->Target->GetType() == cm::TargetType::MODULE_LIBRARY) {
     std::string loader_flag_var =
       cmStrCat("CMAKE_SHARED_MODULE_LOADER_", this->LinkLanguage, "_FLAG");
     this->LoaderFlag = this->Makefile->GetDefinition(loader_flag_var);
@@ -324,10 +325,11 @@ cmComputeLinkInformation::cmComputeLinkInformation(
 
   // Get options needed to specify RPATHs.
   this->RuntimeUseChrpath = false;
-  if (this->Target->GetType() != cmStateEnums::STATIC_LIBRARY) {
-    char const* tType = ((this->Target->GetType() == cmStateEnums::EXECUTABLE)
-                           ? "EXECUTABLE"
-                           : "SHARED_LIBRARY");
+  if (this->Target->GetType() != cm::TargetType::STATIC_LIBRARY) {
+    char const* tType =
+      ((this->Target->GetType() == cm::TargetType::EXECUTABLE)
+         ? "EXECUTABLE"
+         : "SHARED_LIBRARY");
     std::string rtVar =
       cmStrCat("CMAKE_", tType, "_RUNTIME_", this->LinkLanguage, "_FLAG");
     std::string rtSepVar = cmStrCat(rtVar, "_SEP");
@@ -527,10 +529,10 @@ bool cmComputeLinkInformation::Compute()
 {
   // Skip targets that do not link or have link-like information consumers may
   // need (namely modules).
-  if (!(this->Target->GetType() == cmStateEnums::EXECUTABLE ||
-        this->Target->GetType() == cmStateEnums::SHARED_LIBRARY ||
-        this->Target->GetType() == cmStateEnums::MODULE_LIBRARY ||
-        this->Target->GetType() == cmStateEnums::STATIC_LIBRARY ||
+  if (!(this->Target->GetType() == cm::TargetType::EXECUTABLE ||
+        this->Target->GetType() == cm::TargetType::SHARED_LIBRARY ||
+        this->Target->GetType() == cm::TargetType::MODULE_LIBRARY ||
+        this->Target->GetType() == cm::TargetType::STATIC_LIBRARY ||
         (this->Target->CanCompileSources() &&
          (this->Target->HaveCxxModuleSupport(this->Config) ==
             cmGeneratorTarget::Cxx20SupportLevel::Supported ||
@@ -1157,7 +1159,7 @@ void cmComputeLinkInformation::AddItem(LinkEntry const& entry)
                                    ? "__CMAKE_LINK_EXECUTABLE"
                                    : entry.Feature));
       this->Depends.push_back(std::move(exe));
-    } else if (tgt->GetType() == cmStateEnums::INTERFACE_LIBRARY) {
+    } else if (tgt->GetType() == cm::TargetType::INTERFACE_LIBRARY) {
       // Add the interface library as an item so it can be considered as part
       // of COMPATIBLE_INTERFACE_ enforcement.  The generators will ignore
       // this for the actual link line.
@@ -1168,7 +1170,7 @@ void cmComputeLinkInformation::AddItem(LinkEntry const& entry)
       if (!libName.empty()) {
         this->AddItem(BT<std::string>(libName, item.Backtrace));
       }
-    } else if (tgt->GetType() == cmStateEnums::OBJECT_LIBRARY) {
+    } else if (tgt->GetType() == cm::TargetType::OBJECT_LIBRARY) {
       this->Items.emplace_back(item, ItemIsPath::No, tgt);
     } else if (this->GlobalGenerator->IsXcode() &&
                !tgt->GetImportedXcFrameworkPath(config).empty()) {
@@ -1196,7 +1198,7 @@ void cmComputeLinkInformation::AddItem(LinkEntry const& entry)
         return;
       }
       if (!this->LinkDependsNoShared ||
-          tgt->GetType() != cmStateEnums::SHARED_LIBRARY) {
+          tgt->GetType() != cm::TargetType::SHARED_LIBRARY) {
         this->Depends.push_back(lib.Value);
       }
 
@@ -1211,7 +1213,7 @@ void cmComputeLinkInformation::AddItem(LinkEntry const& entry)
       } else {
         this->AddLibraryRuntimeInfo(lib.Value, tgt);
       }
-      if (tgt && tgt->GetType() == cmStateEnums::SHARED_LIBRARY &&
+      if (tgt && tgt->GetType() == cm::TargetType::SHARED_LIBRARY &&
           this->Target->IsDLLPlatform()) {
         this->AddRuntimeDLL(tgt);
       }
@@ -1272,7 +1274,7 @@ void cmComputeLinkInformation::AddSharedDepItem(LinkEntry const& entry)
   cmGeneratorTarget const* tgt = entry.Target;
 
   // Record dependencies on DLLs.
-  if (tgt && tgt->GetType() == cmStateEnums::SHARED_LIBRARY &&
+  if (tgt && tgt->GetType() == cm::TargetType::SHARED_LIBRARY &&
       this->Target->IsDLLPlatform() &&
       this->SharedDependencyMode != SharedDepModeLink) {
     this->AddRuntimeDLL(tgt);
@@ -1288,7 +1290,7 @@ void cmComputeLinkInformation::AddSharedDepItem(LinkEntry const& entry)
   if (tgt) {
     // The target will provide a full path.  Make sure it is a shared
     // library.
-    if (tgt->GetType() != cmStateEnums::SHARED_LIBRARY) {
+    if (tgt->GetType() != cm::TargetType::SHARED_LIBRARY) {
       return;
     }
   } else {
@@ -1390,13 +1392,13 @@ void cmComputeLinkInformation::ComputeLinkTypeInfo()
   cmValue shared_link_type_flag = nullptr;
   char const* target_type_str = nullptr;
   switch (this->Target->GetType()) {
-    case cmStateEnums::EXECUTABLE:
+    case cm::TargetType::EXECUTABLE:
       target_type_str = "EXE";
       break;
-    case cmStateEnums::SHARED_LIBRARY:
+    case cm::TargetType::SHARED_LIBRARY:
       target_type_str = "SHARED_LIBRARY";
       break;
-    case cmStateEnums::MODULE_LIBRARY:
+    case cm::TargetType::MODULE_LIBRARY:
       target_type_str = "SHARED_MODULE";
       break;
     default:
@@ -1618,12 +1620,12 @@ void cmComputeLinkInformation::AddTargetItem(LinkEntry const& entry)
   BT<std::string> const& item = entry.Item;
   cmGeneratorTarget const* target = entry.Target;
 
-  if (target->GetType() != cmStateEnums::STATIC_LIBRARY) {
+  if (target->GetType() != cm::TargetType::STATIC_LIBRARY) {
     this->SetCurrentLinkType(LinkShared);
   }
 
   // Keep track of shared library targets linked.
-  if (target->GetType() == cmStateEnums::SHARED_LIBRARY) {
+  if (target->GetType() == cm::TargetType::SHARED_LIBRARY) {
     this->SharedLibrariesLinked.insert(target);
   }
 
@@ -2109,13 +2111,13 @@ void cmComputeLinkInformation::AddLibraryRuntimeInfo(
 
   // Libraries with unknown type must be handled using just the file
   // on disk.
-  if (target->GetType() == cmStateEnums::UNKNOWN_LIBRARY) {
+  if (target->GetType() == cm::TargetType::UNKNOWN_LIBRARY) {
     this->AddLibraryRuntimeInfo(fullPath);
     return;
   }
 
   // Skip targets that are not shared libraries (modules cannot be linked).
-  if (target->GetType() != cmStateEnums::SHARED_LIBRARY) {
+  if (target->GetType() != cm::TargetType::SHARED_LIBRARY) {
     return;
   }
 
@@ -2266,7 +2268,7 @@ void cmComputeLinkInformation::GetRPath(std::vector<std::string>& runtimeDirs,
       // support or if using the link path as an rpath.
       if (use_build_rpath) {
         std::string d = ri;
-        if (!rootPath.empty() && cmHasPrefix(d, rootPath)) {
+        if (!rootPath.empty() && rootPath != "/" && cmHasPrefix(d, rootPath)) {
           d.erase(0, rootPath.size());
         } else if (cmNonempty(stagePath) && cmHasPrefix(d, *stagePath)) {
           d.erase(0, (*stagePath).size());
@@ -2297,7 +2299,8 @@ void cmComputeLinkInformation::GetRPath(std::vector<std::string>& runtimeDirs,
             !cmSystemTools::IsSubDirectory(ri, topSourceDir) &&
             !cmSystemTools::IsSubDirectory(ri, topBinaryDir)) {
           std::string d = ri;
-          if (!rootPath.empty() && cmHasPrefix(d, rootPath)) {
+          if (!rootPath.empty() && rootPath != "/" &&
+              cmHasPrefix(d, rootPath)) {
             d.erase(0, rootPath.size());
           } else if (cmNonempty(stagePath) && cmHasPrefix(d, *stagePath)) {
             d.erase(0, (*stagePath).size());

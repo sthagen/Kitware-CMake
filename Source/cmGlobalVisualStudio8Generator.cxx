@@ -47,23 +47,6 @@ cmGlobalVisualStudio8Generator::cmGlobalVisualStudio8Generator(
     cmGlobalVisualStudio8Generator::GetExtraFlagTableVS8();
 }
 
-std::string cmGlobalVisualStudio8Generator::FindDevEnvCommand()
-{
-  // First look for VCExpress.
-  std::string vsxcmd;
-  std::string vsxkey =
-    cmStrCat(R"(HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\VCExpress\)",
-             this->GetIDEVersion(), ";InstallDir");
-  if (cmSystemTools::ReadRegistryValue(vsxkey, vsxcmd,
-                                       cmSystemTools::KeyWOW64_32)) {
-    cmSystemTools::ConvertToUnixSlashes(vsxcmd);
-    vsxcmd += "/VCExpress.exe";
-    return vsxcmd;
-  }
-  // Now look for devenv.
-  return this->cmGlobalVisualStudio7Generator::FindDevEnvCommand();
-}
-
 void cmGlobalVisualStudio8Generator::EnableLanguage(
   std::vector<std::string> const& lang, cmMakefile* mf, bool optional)
 {
@@ -358,9 +341,10 @@ void cmGlobalVisualStudio8Generator::AddExtraIDETargets()
 bool cmGlobalVisualStudio8Generator::NeedsDeploy(
   cmGeneratorTarget const& target, char const* config) const
 {
-  cmStateEnums::TargetType const type = target.GetType();
-  if (type != cmStateEnums::EXECUTABLE &&
-      type != cmStateEnums::SHARED_LIBRARY && type != cmStateEnums::UTILITY) {
+  cm::TargetType const type = target.GetType();
+  if (type != cm::TargetType::EXECUTABLE &&
+      type != cm::TargetType::SHARED_LIBRARY &&
+      type != cm::TargetType::UTILITY) {
     // deployment only valid on executables, shared libraries, and utilities.
     return false;
   }

@@ -52,12 +52,12 @@
 #include "cmRange.h"
 #include "cmRuntimeDependencyArchive.h"
 #include "cmSbomArguments.h"
-#include "cmStateTypes.h"
 #include "cmStringAlgorithms.h"
 #include "cmSubcommandTable.h"
 #include "cmSystemTools.h"
 #include "cmTarget.h"
 #include "cmTargetExport.h"
+#include "cmTargetTypes.h"
 #include "cmValue.h"
 
 namespace {
@@ -715,19 +715,19 @@ bool HandleTargetsMode(std::vector<std::string> const& args,
       // If no local target has been found, find it in the global scope.
       cmTarget* const globalTarget =
         helper.Makefile->GetGlobalGenerator()->FindTarget(
-          tgt, { cmStateEnums::TargetDomain::NATIVE });
+          tgt, { cm::TargetDomain::NATIVE });
       if (globalTarget && !globalTarget->IsImported()) {
         target = globalTarget;
       }
     }
     if (target) {
       // Found the target.  Check its type.
-      if (target->GetType() != cmStateEnums::EXECUTABLE &&
-          target->GetType() != cmStateEnums::STATIC_LIBRARY &&
-          target->GetType() != cmStateEnums::SHARED_LIBRARY &&
-          target->GetType() != cmStateEnums::MODULE_LIBRARY &&
-          target->GetType() != cmStateEnums::OBJECT_LIBRARY &&
-          target->GetType() != cmStateEnums::INTERFACE_LIBRARY) {
+      if (target->GetType() != cm::TargetType::EXECUTABLE &&
+          target->GetType() != cm::TargetType::STATIC_LIBRARY &&
+          target->GetType() != cm::TargetType::SHARED_LIBRARY &&
+          target->GetType() != cm::TargetType::MODULE_LIBRARY &&
+          target->GetType() != cm::TargetType::OBJECT_LIBRARY &&
+          target->GetType() != cm::TargetType::INTERFACE_LIBRARY) {
         status.SetError(
           cmStrCat("TARGETS given target \"", tgt,
                    "\" which is not an executable, library, or module."));
@@ -826,7 +826,7 @@ bool HandleTargetsMode(std::vector<std::string> const& args,
     };
 
     switch (target.GetType()) {
-      case cmStateEnums::SHARED_LIBRARY: {
+      case cm::TargetType::SHARED_LIBRARY: {
         // Shared libraries are handled differently on DLL and non-DLL
         // platforms.  All windows platforms are DLL platforms including
         // cygwin.  Currently no other platform is a DLL platform.
@@ -942,7 +942,7 @@ bool HandleTargetsMode(std::vector<std::string> const& args,
           }
         }
       } break;
-      case cmStateEnums::STATIC_LIBRARY: {
+      case cm::TargetType::STATIC_LIBRARY: {
         // If it is marked with FRAMEWORK property use the FRAMEWORK set of
         // INSTALL properties. Otherwise, use the LIBRARY properties.
         if (target.IsFrameworkOnApple()) {
@@ -976,7 +976,7 @@ bool HandleTargetsMode(std::vector<std::string> const& args,
             helper.GetArchiveDestination(&archiveArgs));
         }
       } break;
-      case cmStateEnums::MODULE_LIBRARY: {
+      case cm::TargetType::MODULE_LIBRARY: {
         // Modules use LIBRARY properties.
         if (!libraryArgs.GetDestination().empty()) {
           libraryGenerator = CreateInstallTargetGenerator(
@@ -995,7 +995,7 @@ bool HandleTargetsMode(std::vector<std::string> const& args,
           return false;
         }
       } break;
-      case cmStateEnums::OBJECT_LIBRARY: {
+      case cm::TargetType::OBJECT_LIBRARY: {
         // Objects use OBJECT properties.
         if (!objectArgs.GetDestination().empty()) {
           // Verify that we know where the objects are to install them.
@@ -1015,7 +1015,7 @@ bool HandleTargetsMode(std::vector<std::string> const& args,
           // exported.
         }
       } break;
-      case cmStateEnums::EXECUTABLE: {
+      case cm::TargetType::EXECUTABLE: {
         if (target.IsAppBundleOnApple()) {
           // Application bundles use the BUNDLE properties.
           if (!bundleArgs.GetDestination().empty()) {
@@ -1059,7 +1059,7 @@ bool HandleTargetsMode(std::vector<std::string> const& args,
             target, archiveArgs, true, helper.CaptureContext(), true);
         }
       } break;
-      case cmStateEnums::INTERFACE_LIBRARY:
+      case cm::TargetType::INTERFACE_LIBRARY:
         // Nothing to do. An INTERFACE_LIBRARY can be installed, but the
         // only effect of that is to make it exportable. It installs no
         // other files itself.
@@ -1380,16 +1380,16 @@ bool HandleImportedRuntimeArtifactsMode(std::vector<std::string> const& args,
       // If no local target has been found, find it in the global scope.
       cmTarget* const globalTarget =
         helper.Makefile->GetGlobalGenerator()->FindTarget(
-          tgt, { cmStateEnums::TargetDomain::NATIVE });
+          tgt, { cm::TargetDomain::NATIVE });
       if (globalTarget && globalTarget->IsImported()) {
         target = globalTarget;
       }
     }
     if (target) {
       // Found the target.  Check its type.
-      if (target->GetType() != cmStateEnums::EXECUTABLE &&
-          target->GetType() != cmStateEnums::SHARED_LIBRARY &&
-          target->GetType() != cmStateEnums::MODULE_LIBRARY) {
+      if (target->GetType() != cm::TargetType::EXECUTABLE &&
+          target->GetType() != cm::TargetType::SHARED_LIBRARY &&
+          target->GetType() != cm::TargetType::MODULE_LIBRARY) {
         status.SetError(
           cmStrCat("IMPORTED_RUNTIME_ARTIFACTS given target \"", tgt,
                    "\" which is not an executable, library, or module."));
@@ -1438,7 +1438,7 @@ bool HandleImportedRuntimeArtifactsMode(std::vector<std::string> const& args,
       bundleGenerator;
 
     switch (target.GetType()) {
-      case cmStateEnums::SHARED_LIBRARY:
+      case cm::TargetType::SHARED_LIBRARY:
         if (target.IsDLLPlatform()) {
           runtimeGenerator = createInstallGenerator(
             target, runtimeArgs, helper.GetRuntimeDestination(&runtimeArgs));
@@ -1466,14 +1466,14 @@ bool HandleImportedRuntimeArtifactsMode(std::vector<std::string> const& args,
           }
         }
         break;
-      case cmStateEnums::MODULE_LIBRARY:
+      case cm::TargetType::MODULE_LIBRARY:
         libraryGenerator = createInstallGenerator(
           target, libraryArgs, helper.GetLibraryDestination(&libraryArgs));
         if (runtimeDependencySet) {
           runtimeDependencySet->AddModule(libraryGenerator.get());
         }
         break;
-      case cmStateEnums::EXECUTABLE:
+      case cm::TargetType::EXECUTABLE:
         if (target.IsAppBundleOnApple()) {
           if (bundleArgs.GetDestination().empty()) {
             status.SetError(

@@ -53,6 +53,7 @@
 #include "cmSystemTools.h"
 #include "cmTarget.h"
 #include "cmTargetDepend.h"
+#include "cmTargetTypes.h"
 #include "cmValue.h"
 #include "cmake.h"
 
@@ -308,17 +309,17 @@ bool cmFastbuildNormalTargetGenerator::DetectBaseLinkerCommand(
   }
   linkFlags += cmJoin({ rpath, frameworkPath, linkPath }, " ");
 
-  cmStateEnums::TargetType const targetType = this->GeneratorTarget->GetType();
+  cm::TargetType const targetType = this->GeneratorTarget->GetType();
   // Add OS X version flags, if any.
-  if (targetType == cmStateEnums::SHARED_LIBRARY ||
-      targetType == cmStateEnums::MODULE_LIBRARY) {
+  if (targetType == cm::TargetType::SHARED_LIBRARY ||
+      targetType == cm::TargetType::MODULE_LIBRARY) {
     this->AppendOSXVerFlag(linkFlags, linkLanguage, "COMPATIBILITY", true);
     this->AppendOSXVerFlag(linkFlags, linkLanguage, "CURRENT", false);
   }
   // Add Arch flags to link flags for binaries
-  if (targetType == cmStateEnums::SHARED_LIBRARY ||
-      targetType == cmStateEnums::MODULE_LIBRARY ||
-      targetType == cmStateEnums::EXECUTABLE) {
+  if (targetType == cm::TargetType::SHARED_LIBRARY ||
+      targetType == cm::TargetType::MODULE_LIBRARY ||
+      targetType == cm::TargetType::EXECUTABLE) {
     this->LocalCommonGenerator->AddArchitectureFlags(
       linkFlags, this->GeneratorTarget, linkLanguage, Config, arch);
     this->UseLWYU = this->GetLocalGenerator()->AppendLWYUFlags(
@@ -336,10 +337,11 @@ bool cmFastbuildNormalTargetGenerator::DetectBaseLinkerCommand(
   std::string const stdLibString = this->Makefile->GetSafeDefinition(
     cmStrCat("CMAKE_", linkLanguage, "_STANDARD_LIBRARIES"));
 
-  LogMessage(cmStrCat("Target type: ", this->GeneratorTarget->GetType()));
-  if (this->GeneratorTarget->GetType() == cmStateEnums::EXECUTABLE ||
-      this->GeneratorTarget->GetType() == cmStateEnums::SHARED_LIBRARY ||
-      this->GeneratorTarget->GetType() == cmStateEnums::MODULE_LIBRARY) {
+  LogMessage(cmStrCat("Target type: ",
+                      static_cast<int>(this->GeneratorTarget->GetType())));
+  if (this->GeneratorTarget->GetType() == cm::TargetType::EXECUTABLE ||
+      this->GeneratorTarget->GetType() == cm::TargetType::SHARED_LIBRARY ||
+      this->GeneratorTarget->GetType() == cm::TargetType::MODULE_LIBRARY) {
     vars.Objects = FASTBUILD_1_0_INPUT_PLACEHOLDER;
     vars.LinkLibraries = stdLibString.c_str();
   } else {
@@ -804,7 +806,7 @@ std::string cmFastbuildNormalTargetGenerator::GetLinkCommand() const
     GeneratorTarget->GetCreateRuleVariable(linkLanguage, Config);
   std::string res = this->Makefile->GetSafeDefinition(linkCmdVar);
   if (res.empty() &&
-      this->GeneratorTarget->GetType() == cmStateEnums::STATIC_LIBRARY) {
+      this->GeneratorTarget->GetType() == cm::TargetType::STATIC_LIBRARY) {
     linkCmdVar = linkCmdVar =
       cmStrCat("CMAKE_", linkLanguage, "_ARCHIVE_CREATE");
     res = this->Makefile->GetSafeDefinition(linkCmdVar);
@@ -874,7 +876,7 @@ void cmFastbuildNormalTargetGenerator::ComputePaths(
   target.Variables["TargetOutDir"] =
     cmSystemTools::ConvertToOutputPath(this->ConvertToFastbuildPath(objPath));
 
-  if (GeneratorTarget->GetType() <= cmStateEnums::MODULE_LIBRARY) {
+  if (GeneratorTarget->GetType() <= cm::TargetType::MODULE_LIBRARY) {
     std::string const pdbDir = GeneratorTarget->GetPDBDirectory(Config);
     LogMessage("GetPDBDirectory: " + pdbDir);
     EnsureDirectoryExists(pdbDir);
@@ -945,7 +947,7 @@ void cmFastbuildNormalTargetGenerator::Generate()
     auto const tname = dep->GetName();
     LogMessage(tname);
     FastbuildTargetDep targetDep{ tname };
-    if (dep->GetType() == cmStateEnums::OBJECT_LIBRARY) {
+    if (dep->GetType() == cm::TargetType::OBJECT_LIBRARY) {
       targetDep.Type = FastbuildTargetDepType::ORDER_ONLY;
     }
     fastbuildTarget.PreBuildDependencies.emplace(std::move(targetDep));
@@ -1014,7 +1016,7 @@ void cmFastbuildNormalTargetGenerator::Generate()
   AddPrebuildDeps(fastbuildTarget);
 
   fastbuildTarget.IsGlobal =
-    GeneratorTarget->GetType() == cmStateEnums::GLOBAL_TARGET;
+    GeneratorTarget->GetType() == cm::TargetType::GLOBAL_TARGET;
   fastbuildTarget.ExcludeFromAll =
     this->GetGlobalGenerator()->IsExcluded(GeneratorTarget);
   if (GeneratorTarget->GetPropertyAsBool("DONT_DISTRIBUTE")) {
@@ -1846,12 +1848,12 @@ void cmFastbuildNormalTargetGenerator::AppendTargetDep(
   cmComputeLinkInformation::Item const& item) const
 {
   LogMessage("AppendTargetDep(...)");
-  cmStateEnums::TargetType const depType = item.Target->GetType();
-  LogMessage("Link dep type: " + std::to_string(depType));
+  cm::TargetType const depType = item.Target->GetType();
+  LogMessage("Link dep type: " + std::to_string(static_cast<int>(depType)));
   LogMessage("Target name: " + item.Target->GetName());
   auto const resolvedTargetName = ResolveIfAlias(item.Target->GetName());
   LogMessage("Resolved: " + resolvedTargetName);
-  if (depType == cmStateEnums::INTERFACE_LIBRARY) {
+  if (depType == cm::TargetType::INTERFACE_LIBRARY) {
     return;
   }
   std::string const feature = item.GetFeatureName();
@@ -1870,7 +1872,7 @@ void cmFastbuildNormalTargetGenerator::AppendTargetDep(
       linkerNode.LinkerOptions += (" " + decorated);
       return;
     }
-    if (depType == cmStateEnums::UNKNOWN_LIBRARY) {
+    if (depType == cm::TargetType::UNKNOWN_LIBRARY) {
       LogMessage("Unknown library -- adding to LibrarianAdditionalInputs or "
                  "Libraries2");
       if (UsingCommandLine) {
@@ -1881,13 +1883,13 @@ void cmFastbuildNormalTargetGenerator::AppendTargetDep(
       return;
     }
     // Tested in "ExportImport" test.
-    if (depType == cmStateEnums::EXECUTABLE) {
+    if (depType == cm::TargetType::EXECUTABLE) {
       AppendExeToLink(linkerNode, item);
       return;
     }
     // Skip exported objects.
     // Tested in "ExportImport" test.
-    if (depType == cmStateEnums::OBJECT_LIBRARY) {
+    if (depType == cm::TargetType::OBJECT_LIBRARY) {
       LogMessage("target : " + item.Target->GetName() +
                  " already linked... Skipping");
       return;
@@ -1898,7 +1900,7 @@ void cmFastbuildNormalTargetGenerator::AppendTargetDep(
       AppendLinkDep(linkerNode, linkDep);
     }
   } else {
-    if (depType == cmStateEnums::SHARED_LIBRARY &&
+    if (depType == cm::TargetType::SHARED_LIBRARY &&
         this->GeneratorTarget->GetPropertyAsBool("LINK_DEPENDS_NO_SHARED")) {
       // It moves the dep outside of FASTBuild control, so the binary won't
       // be re-built if the shared lib has changed.
@@ -1912,7 +1914,7 @@ void cmFastbuildNormalTargetGenerator::AppendTargetDep(
     }
     // Just add path to binary artifact to command line (except for OBJECT
     // libraries which we will link directly).
-    if (UsingCommandLine && depType != cmStateEnums::OBJECT_LIBRARY) {
+    if (UsingCommandLine && depType != cm::TargetType::OBJECT_LIBRARY) {
       // Take transitively linked objects into account,
       // so we don't link them again.
       AppendTransitivelyLinkedObjects(*item.Target, linkedObjects);
@@ -1931,7 +1933,7 @@ void cmFastbuildNormalTargetGenerator::AppendTargetDep(
     }
 
     std::string dep = resolvedTargetName +
-      (depType == cmStateEnums::OBJECT_LIBRARY
+      (depType == cm::TargetType::OBJECT_LIBRARY
          ? FASTBUILD_OBJECTS_ALIAS_POSTFIX
          : FASTBUILD_LINK_ARTIFACTS_ALIAS_POSTFIX);
     if (!linkerNode.Arch.empty()) {
@@ -1948,7 +1950,7 @@ void cmFastbuildNormalTargetGenerator::AppendTargetDep(
       return;
     }
 
-    if (depType != cmStateEnums::OBJECT_LIBRARY ||
+    if (depType != cm::TargetType::OBJECT_LIBRARY ||
         linkedObjects.emplace(dep).second) {
       AppendLinkDep(linkerNode, dep);
     }
@@ -1965,7 +1967,7 @@ void cmFastbuildNormalTargetGenerator::AppendPrebuildDeps(
   }
   // In "RunCMake.FileAPI" imported object library "imported_object_lib" is
   // added w/o import location...
-  if (item.Target->GetType() == cmStateEnums::OBJECT_LIBRARY) {
+  if (item.Target->GetType() == cm::TargetType::OBJECT_LIBRARY) {
     return;
   }
   cmList const list{ GetImportedLoc(item) };
@@ -2203,7 +2205,7 @@ void cmFastbuildNormalTargetGenerator::AppendLinkDeps(
       AppendTargetDep(linkerNode, linkedObjects, item);
       AppendPrebuildDeps(linkerNode, item);
       if (!item.Target->IsImported() &&
-          item.Target->GetType() == cmStateEnums::OBJECT_LIBRARY) {
+          item.Target->GetType() == cm::TargetType::OBJECT_LIBRARY) {
         ++numberOfDirectlyLinkedObjects;
         cudaDeviceLinkLinkerNode.LibrarianAdditionalInputs.emplace_back(
           cmStrCat(item.Target->GetName(), FASTBUILD_OBJECTS_ALIAS_POSTFIX));
@@ -2274,27 +2276,27 @@ void cmFastbuildNormalTargetGenerator::GenerateLink(
     // Detection of the link command as follows:
     auto const type = this->GeneratorTarget->GetType();
     switch (type) {
-      case cmStateEnums::EXECUTABLE: {
+      case cm::TargetType::EXECUTABLE: {
         LogMessage("Generating EXECUTABLE");
         linkerNode.Type = FastbuildLinkerNode::EXECUTABLE;
         break;
       }
-      case cmStateEnums::MODULE_LIBRARY: {
+      case cm::TargetType::MODULE_LIBRARY: {
         LogMessage("Generating MODULE_LIBRARY");
         linkerNode.Type = FastbuildLinkerNode::SHARED_LIBRARY;
         break;
       }
-      case cmStateEnums::SHARED_LIBRARY: {
+      case cm::TargetType::SHARED_LIBRARY: {
         LogMessage("Generating SHARED_LIBRARY");
         linkerNode.Type = FastbuildLinkerNode::SHARED_LIBRARY;
         break;
       }
-      case cmStateEnums::STATIC_LIBRARY: {
+      case cm::TargetType::STATIC_LIBRARY: {
         LogMessage("Generating STATIC_LIBRARY");
         linkerNode.Type = FastbuildLinkerNode::STATIC_LIBRARY;
         break;
       }
-      case cmStateEnums::OBJECT_LIBRARY: {
+      case cm::TargetType::OBJECT_LIBRARY: {
         LogMessage("Generating OBJECT_LIBRARY");
         return;
       }
@@ -2319,8 +2321,8 @@ void cmFastbuildNormalTargetGenerator::GenerateLink(
     // Generate "Copy" nodes for copying Framework / Bundle resources.
     AppendExtraResources(linkerNode.PreBuildDependencies);
 
-    if (type == cmStateEnums::EXECUTABLE ||
-        type == cmStateEnums::SHARED_LIBRARY) {
+    if (type == cm::TargetType::EXECUTABLE ||
+        type == cm::TargetType::SHARED_LIBRARY) {
       // Tested in "RunCMake.BuildDepends" test (we need to rebuild when
       // manifest  changes).
       std::copy(objectDepends.begin(), objectDepends.end(),

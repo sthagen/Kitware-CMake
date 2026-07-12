@@ -39,8 +39,8 @@ std::string GeneratorExpressionContent::ProcessArbitraryContent(
       if (node->RequiresLiteralInput()) {
         if (pExprEval->GetType() != cmGeneratorExpressionEvaluator::Text) {
           reportError(eval, this->GetOriginalExpression(),
-                      "$<" + identifier +
-                        "> expression requires literal input.");
+                      cmStrCat("$<", identifier,
+                               "> expression requires literal input."));
           return std::string();
         }
       }

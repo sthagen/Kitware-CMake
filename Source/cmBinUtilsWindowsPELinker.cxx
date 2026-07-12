@@ -16,6 +16,7 @@
 #include "cmRuntimeDependencyArchive.h"
 #include "cmStringAlgorithms.h"
 #include "cmSystemTools.h"
+#include "cmTargetTypes.h"
 
 #ifdef _WIN32
 #  include <windows.h>
@@ -77,8 +78,8 @@ bool cmBinUtilsWindowsPELinker::Prepare()
   return true;
 }
 
-bool cmBinUtilsWindowsPELinker::ScanDependencies(
-  std::string const& file, cmStateEnums::TargetType /* unused */)
+bool cmBinUtilsWindowsPELinker::ScanDependencies(std::string const& file,
+                                                 cm::TargetType /* unused */)
 {
   std::vector<std::string> needed;
   if (!this->Tool->GetFileInfo(file, needed)) {
@@ -119,7 +120,7 @@ bool cmBinUtilsWindowsPELinker::ScanDependencies(
           bool unique;
           this->Archive->AddResolvedPath(lib.Original, path, unique);
           if (unique &&
-              !this->ScanDependencies(path, cmStateEnums::SHARED_LIBRARY)) {
+              !this->ScanDependencies(path, cm::TargetType::SHARED_LIBRARY)) {
             return false;
           }
         }

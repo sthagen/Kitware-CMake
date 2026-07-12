@@ -24,10 +24,10 @@
 #include "cmMessageType.h"
 #include "cmOutputConverter.h"
 #include "cmScriptGenerator.h"
-#include "cmStateTypes.h"
 #include "cmStringAlgorithms.h"
 #include "cmSystemTools.h"
 #include "cmTarget.h"
+#include "cmTargetTypes.h"
 #include "cmValue.h"
 #include "cmVersionMacros.h"
 
@@ -265,8 +265,7 @@ void cmExportCMakeConfigGenerator::GenerateExpectedTargetsCode(
 }
 
 void cmExportCMakeConfigGenerator::GenerateImportTargetCode(
-  std::ostream& os, cmGeneratorTarget const* target,
-  cmStateEnums::TargetType targetType)
+  std::ostream& os, cmGeneratorTarget const* target, cm::TargetType targetType)
 {
   // Construct the imported target name.
   std::string targetName = this->Namespace;
@@ -276,25 +275,25 @@ void cmExportCMakeConfigGenerator::GenerateImportTargetCode(
   // Create the imported target.
   os << "# Create imported target " << targetName << "\n";
   switch (targetType) {
-    case cmStateEnums::EXECUTABLE:
+    case cm::TargetType::EXECUTABLE:
       os << "add_executable(" << targetName << " IMPORTED)\n";
       break;
-    case cmStateEnums::STATIC_LIBRARY:
+    case cm::TargetType::STATIC_LIBRARY:
       os << "add_library(" << targetName << " STATIC IMPORTED)\n";
       break;
-    case cmStateEnums::SHARED_LIBRARY:
+    case cm::TargetType::SHARED_LIBRARY:
       os << "add_library(" << targetName << " SHARED IMPORTED)\n";
       break;
-    case cmStateEnums::MODULE_LIBRARY:
+    case cm::TargetType::MODULE_LIBRARY:
       os << "add_library(" << targetName << " MODULE IMPORTED)\n";
       break;
-    case cmStateEnums::UNKNOWN_LIBRARY:
+    case cm::TargetType::UNKNOWN_LIBRARY:
       os << "add_library(" << targetName << " UNKNOWN IMPORTED)\n";
       break;
-    case cmStateEnums::OBJECT_LIBRARY:
+    case cm::TargetType::OBJECT_LIBRARY:
       os << "add_library(" << targetName << " OBJECT IMPORTED)\n";
       break;
-    case cmStateEnums::INTERFACE_LIBRARY:
+    case cm::TargetType::INTERFACE_LIBRARY:
       if (target->IsSymbolic()) {
         os << "if(CMAKE_VERSION VERSION_GREATER_EQUAL \"4.2.0\")\n"
               "  add_library("

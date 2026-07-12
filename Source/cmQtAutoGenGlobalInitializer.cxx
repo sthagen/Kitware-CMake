@@ -17,10 +17,10 @@
 #include "cmQtAutoGen.h"
 #include "cmQtAutoGenInitializer.h"
 #include "cmState.h"
-#include "cmStateTypes.h"
 #include "cmStringAlgorithms.h"
 #include "cmSystemTools.h"
 #include "cmTarget.h"
+#include "cmTargetTypes.h"
 #include "cmValue.h"
 
 cmQtAutoGenGlobalInitializer::Keywords::Keywords()
@@ -79,11 +79,11 @@ cmQtAutoGenGlobalInitializer::cmQtAutoGenGlobalInitializer(
     for (auto const& target : localGen->GetGeneratorTargets()) {
       // Process only certain target types
       switch (target->GetType()) {
-        case cmStateEnums::EXECUTABLE:
-        case cmStateEnums::STATIC_LIBRARY:
-        case cmStateEnums::SHARED_LIBRARY:
-        case cmStateEnums::MODULE_LIBRARY:
-        case cmStateEnums::OBJECT_LIBRARY:
+        case cm::TargetType::EXECUTABLE:
+        case cm::TargetType::STATIC_LIBRARY:
+        case cm::TargetType::SHARED_LIBRARY:
+        case cm::TargetType::MODULE_LIBRARY:
+        case cm::TargetType::OBJECT_LIBRARY:
           // Process target
           break;
         default:

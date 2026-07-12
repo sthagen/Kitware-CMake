@@ -109,12 +109,6 @@ if(WIN32)
     NAME)
   set(TCLTK_POSSIBLE_LIB_PATHS ${TCLTK_POSSIBLE_LIB_PATHS}
     "[HKEY_LOCAL_MACHINE\\SOFTWARE\\ActiveState\\ActiveTcl\\${ActiveTcl_CurrentVersion}]/lib"
-    "[HKEY_LOCAL_MACHINE\\SOFTWARE\\Scriptics\\Tcl\\8.6;Root]/lib"
-    "[HKEY_LOCAL_MACHINE\\SOFTWARE\\Scriptics\\Tcl\\8.5;Root]/lib"
-    "[HKEY_LOCAL_MACHINE\\SOFTWARE\\Scriptics\\Tcl\\8.4;Root]/lib"
-    "[HKEY_LOCAL_MACHINE\\SOFTWARE\\Scriptics\\Tcl\\8.3;Root]/lib"
-    "[HKEY_LOCAL_MACHINE\\SOFTWARE\\Scriptics\\Tcl\\8.2;Root]/lib"
-    "[HKEY_LOCAL_MACHINE\\SOFTWARE\\Scriptics\\Tcl\\8.0;Root]/lib"
     "$ENV{ProgramFiles}/Tcl/Lib"
     "C:/Program Files/Tcl/lib"
     "C:/Tcl/lib"
@@ -125,7 +119,8 @@ find_library(TCL_STUB_LIBRARY
   NAMES
   tclstub
   tclstub${TK_LIBRARY_VERSION} tclstub${TCL_TCLSH_VERSION} tclstub${TK_WISH_VERSION}
-  tclstub87 tclstub8.7
+  tclstub91 tclstub9.1
+  tclstub90 tclstub9.0
   tclstub86 tclstub8.6
   tclstub85 tclstub8.5
   tclstub84 tclstub8.4
@@ -139,7 +134,8 @@ find_library(TK_STUB_LIBRARY
   NAMES
   tkstub
   tkstub${TCL_LIBRARY_VERSION} tkstub${TCL_TCLSH_VERSION} tkstub${TK_WISH_VERSION}
-  tkstub87 tkstub8.7
+  tkstub91 tkstub9.1
+  tkstub90 tkstub9.0
   tkstub86 tkstub8.6
   tkstub85 tkstub8.5
   tkstub84 tkstub8.4
@@ -153,8 +149,8 @@ find_library(TTK_STUB_LIBRARY
   NAMES
   ttkstub
   ttkstub${TCL_LIBRARY_VERSION} ttkstub${TCL_TCLSH_VERSION} ttkstub${TK_WISH_VERSION}
-  ttkstub88 ttkstub8.8
-  ttkstub87 ttkstub8.7
+  ttkstub91 ttkstub9.1
+  ttkstub90 ttkstub9.0
   ttkstub86 ttkstub8.6
   ttkstub85 ttkstub8.5
   PATHS ${TCLTK_POSSIBLE_LIB_PATHS}

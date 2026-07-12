@@ -42,13 +42,14 @@
 #include "cmStateTypes.h"
 #include "cmStringAlgorithms.h"
 #include "cmSystemTools.h"
+#include "cmTargetTypes.h"
 #include "cmValue.h"
 
 cmNinjaNormalTargetGenerator::cmNinjaNormalTargetGenerator(
   cmGeneratorTarget* target)
   : cmNinjaTargetGenerator(target)
 {
-  if (target->GetType() != cmStateEnums::OBJECT_LIBRARY) {
+  if (target->GetType() != cm::TargetType::OBJECT_LIBRARY) {
     // on Windows the output dir is already needed at compile time
     // ensure the directory exists (OutDir test)
     for (auto const& config : this->GetConfigNames()) {
@@ -65,7 +66,7 @@ cmNinjaNormalTargetGenerator::~cmNinjaNormalTargetGenerator() = default;
 void cmNinjaNormalTargetGenerator::Generate(std::string const& config)
 {
   if (this->GetGeneratorTarget()->GetType() !=
-      cmStateEnums::INTERFACE_LIBRARY) {
+      cm::TargetType::INTERFACE_LIBRARY) {
     std::string lang = this->GeneratorTarget->GetLinkerLanguage(config);
     if (this->TargetLinkLanguage(config).empty()) {
       cmSystemTools::Error(
@@ -90,10 +91,11 @@ void cmNinjaNormalTargetGenerator::Generate(std::string const& config)
     firstForConfig = false;
   }
 
-  if (this->GetGeneratorTarget()->GetType() == cmStateEnums::OBJECT_LIBRARY) {
+  if (this->GetGeneratorTarget()->GetType() ==
+      cm::TargetType::OBJECT_LIBRARY) {
     this->WriteObjectLibStatement(config);
   } else if (this->GetGeneratorTarget()->GetType() ==
-             cmStateEnums::INTERFACE_LIBRARY) {
+             cm::TargetType::INTERFACE_LIBRARY) {
     bool haveCxxModuleSources = false;
     if (this->GetGeneratorTarget()->HaveCxx20ModuleSources()) {
       haveCxxModuleSources = true;
@@ -183,17 +185,17 @@ void cmNinjaNormalTargetGenerator::WriteLanguagesRules(
 char const* cmNinjaNormalTargetGenerator::GetVisibleTypeName() const
 {
   switch (this->GetGeneratorTarget()->GetType()) {
-    case cmStateEnums::STATIC_LIBRARY:
+    case cm::TargetType::STATIC_LIBRARY:
       return "static library";
-    case cmStateEnums::SHARED_LIBRARY:
+    case cm::TargetType::SHARED_LIBRARY:
       return "shared library";
-    case cmStateEnums::MODULE_LIBRARY:
+    case cm::TargetType::MODULE_LIBRARY:
       if (this->GetGeneratorTarget()->IsCFBundleOnApple()) {
         return "CFBundle shared module";
       } else {
         return "shared module";
       }
-    case cmStateEnums::EXECUTABLE:
+    case cm::TargetType::EXECUTABLE:
       return "executable";
     default:
       return nullptr;
@@ -452,7 +454,7 @@ void cmNinjaNormalTargetGenerator::WriteLinkRule(
   std::vector<std::string> const& preLinkComments,
   std::vector<std::string> const& postBuildComments)
 {
-  cmStateEnums::TargetType targetType = this->GetGeneratorTarget()->GetType();
+  cm::TargetType targetType = this->GetGeneratorTarget()->GetType();
 
   std::string linkRuleName = this->LanguageLinkerRule(config);
   if (!this->GetGlobalGenerator()->HasRule(linkRuleName)) {
@@ -498,7 +500,7 @@ void cmNinjaNormalTargetGenerator::WriteLinkRule(
 
     // build response file name
     cmValue flag;
-    if (targetType == cmStateEnums::STATIC_LIBRARY) {
+    if (targetType == cm::TargetType::STATIC_LIBRARY) {
       std::string cmakeLinkVar = cmakeVarLang + "_RESPONSE_FILE_ARCHIVE_FLAG";
       flag = this->GetMakefile()->GetDefinition(cmakeLinkVar);
     }
@@ -576,7 +578,7 @@ void cmNinjaNormalTargetGenerator::WriteLinkRule(
     vars.Config = "$CONFIG";
 
     std::string langFlags;
-    if (targetType != cmStateEnums::EXECUTABLE) {
+    if (targetType != cm::TargetType::EXECUTABLE) {
       langFlags += "$LANGUAGE_COMPILE_FLAGS $ARCH_FLAGS";
       vars.LanguageCompileFlags = langFlags.c_str();
     }
@@ -642,7 +644,7 @@ void cmNinjaNormalTargetGenerator::WriteLinkRule(
     std::string cmakeCommand =
       this->GetLocalGenerator()->ConvertToOutputFormat(
         cmSystemTools::GetCMakeCommand(), cmOutputConverter::SHELL);
-    if (targetType == cmStateEnums::EXECUTABLE) {
+    if (targetType == cm::TargetType::EXECUTABLE) {
       cmNinjaRule rule("CMAKE_SYMLINK_EXECUTABLE");
       {
         std::vector<std::string> cmd;
@@ -718,13 +720,13 @@ std::vector<std::string> cmNinjaNormalTargetGenerator::ComputeDeviceLinkCmd()
   // now build the correct command depending on if the target is
   // an executable or a dynamic library.
   switch (this->GetGeneratorTarget()->GetType()) {
-    case cmStateEnums::STATIC_LIBRARY:
-    case cmStateEnums::SHARED_LIBRARY:
-    case cmStateEnums::MODULE_LIBRARY: {
+    case cm::TargetType::STATIC_LIBRARY:
+    case cm::TargetType::SHARED_LIBRARY:
+    case cm::TargetType::MODULE_LIBRARY: {
       linkCmds.assign(
         this->GetMakefile()->GetDefinition("CMAKE_CUDA_DEVICE_LINK_LIBRARY"));
     } break;
-    case cmStateEnums::EXECUTABLE: {
+    case cm::TargetType::EXECUTABLE: {
       linkCmds.assign(this->GetMakefile()->GetDefinition(
         "CMAKE_CUDA_DEVICE_LINK_EXECUTABLE"));
     } break;
@@ -779,7 +781,7 @@ std::vector<std::string> cmNinjaNormalTargetGenerator::ComputeLinkCmd(
     }
   }
   switch (this->GetGeneratorTarget()->GetType()) {
-    case cmStateEnums::STATIC_LIBRARY: {
+    case cm::TargetType::STATIC_LIBRARY: {
       // We have archive link commands set. First, delete the existing archive.
       {
         std::string cmakeCommand =
@@ -823,9 +825,9 @@ std::vector<std::string> cmNinjaNormalTargetGenerator::ComputeLinkCmd(
       }
 #endif
     } break;
-    case cmStateEnums::SHARED_LIBRARY:
-    case cmStateEnums::MODULE_LIBRARY:
-    case cmStateEnums::EXECUTABLE:
+    case cm::TargetType::SHARED_LIBRARY:
+    case cm::TargetType::MODULE_LIBRARY:
+    case cm::TargetType::EXECUTABLE:
       break;
     default:
       assert(false && "Unexpected target type");
@@ -1066,7 +1068,7 @@ void cmNinjaNormalTargetGenerator::WriteNvidiaDeviceLinkStatement(
       this->GetMakefile()->GetSONameFlag(this->TargetLinkLanguage(config));
     vars["SONAME"] = localGen.ConvertToOutputFormat(tgtNames.SharedObject,
                                                     cmOutputConverter::SHELL);
-    if (genTarget->GetType() == cmStateEnums::SHARED_LIBRARY) {
+    if (genTarget->GetType() == cm::TargetType::SHARED_LIBRARY) {
       std::string install_dir =
         this->GetGeneratorTarget()->GetInstallNameDirForBuildTree(config);
       if (!install_dir.empty()) {
@@ -1207,7 +1209,7 @@ void cmNinjaNormalTargetGenerator::WriteLinkStatement(
 
   // Write comments.
   cmGlobalNinjaGenerator::WriteDivider(this->GetImplFileStream(fileConfig));
-  cmStateEnums::TargetType const targetType = gt->GetType();
+  cm::TargetType const targetType = gt->GetType();
   this->GetImplFileStream(fileConfig)
     << "# Link build statements for " << cmState::GetTargetTypeName(targetType)
     << " target " << this->GetTargetName() << "\n\n";
@@ -1286,7 +1288,7 @@ void cmNinjaNormalTargetGenerator::WriteLinkStatement(
           this->GetObjectFilePath(source, config));
       }
     }
-    if (targetType != cmStateEnums::EXECUTABLE ||
+    if (targetType != cm::TargetType::EXECUTABLE ||
         gt->IsExecutableWithExports()) {
       linkBuild.Outputs.push_back(vars["SWIFT_MODULE"]);
     }
@@ -1363,8 +1365,8 @@ void cmNinjaNormalTargetGenerator::WriteLinkStatement(
                                            this->TargetLinkLanguage(config));
 
   // Add OS X version flags, if any.
-  if (this->GeneratorTarget->GetType() == cmStateEnums::SHARED_LIBRARY ||
-      this->GeneratorTarget->GetType() == cmStateEnums::MODULE_LIBRARY) {
+  if (this->GeneratorTarget->GetType() == cm::TargetType::SHARED_LIBRARY ||
+      this->GeneratorTarget->GetType() == cm::TargetType::MODULE_LIBRARY) {
     this->AppendOSXVerFlag(vars["LINK_FLAGS"],
                            this->TargetLinkLanguage(config), "COMPATIBILITY",
                            true);
@@ -1387,7 +1389,7 @@ void cmNinjaNormalTargetGenerator::WriteLinkStatement(
   // Compute architecture specific link flags.  Yes, these go into a different
   // variable for executables, probably due to a mistake made when duplicating
   // code between the Makefile executable and library generators.
-  if (targetType == cmStateEnums::EXECUTABLE) {
+  if (targetType == cm::TargetType::EXECUTABLE) {
     std::string t = vars["FLAGS"];
     localGen.AddArchitectureFlags(t, gt, this->TargetLinkLanguage(config),
                                   config);
@@ -1406,7 +1408,7 @@ void cmNinjaNormalTargetGenerator::WriteLinkStatement(
     vars["SONAME_FLAG"] = mf->GetSONameFlag(this->TargetLinkLanguage(config));
     vars["SONAME"] = localGen.ConvertToOutputFormat(tgtNames.SharedObject,
                                                     cmOutputConverter::SHELL);
-    if (targetType == cmStateEnums::SHARED_LIBRARY) {
+    if (targetType == cm::TargetType::SHARED_LIBRARY) {
       std::string install_dir = gt->GetInstallNameDirForBuildTree(config);
       if (!install_dir.empty()) {
         vars["INSTALLNAME_DIR"] = localGen.ConvertToOutputFormat(
@@ -1578,7 +1580,7 @@ void cmNinjaNormalTargetGenerator::WriteLinkStatement(
 
   // build response file name
   cmValue flag;
-  if (targetType == cmStateEnums::STATIC_LIBRARY) {
+  if (targetType == cm::TargetType::STATIC_LIBRARY) {
     std::string cmakeLinkVar = cmakeVarLang + "_RESPONSE_FILE_ARCHIVE_FLAG";
     flag = this->GetMakefile()->GetDefinition(cmakeLinkVar);
   }
@@ -1613,7 +1615,7 @@ void cmNinjaNormalTargetGenerator::WriteLinkStatement(
     if (cmComputeLinkInformation* cli = gt->GetLinkInformation(config)) {
       for (auto const& item : cli->GetItems()) {
         if (item.Target &&
-            item.Target->GetType() == cmStateEnums::SHARED_LIBRARY &&
+            item.Target->GetType() == cm::TargetType::SHARED_LIBRARY &&
             !item.Target->IsFrameworkOnApple()) {
           std::string const& lib =
             this->ConvertToNinjaPath(item.Target->GetFullPath(config));
@@ -1671,7 +1673,7 @@ void cmNinjaNormalTargetGenerator::WriteLinkStatement(
                       postBuildComments);
 
   if (symlinkNeeded) {
-    if (targetType == cmStateEnums::EXECUTABLE) {
+    if (targetType == cm::TargetType::EXECUTABLE) {
       cmNinjaBuild build("CMAKE_SYMLINK_EXECUTABLE");
       build.Comment = "Create executable symlink " + targetOutput;
       build.Outputs.push_back(targetOutput);
@@ -1816,7 +1818,7 @@ void cmNinjaNormalTargetGenerator::WriteCxxModuleLibraryStatement(
 cmGeneratorTarget::Names cmNinjaNormalTargetGenerator::TargetNames(
   std::string const& config) const
 {
-  if (this->GeneratorTarget->GetType() == cmStateEnums::EXECUTABLE) {
+  if (this->GeneratorTarget->GetType() == cm::TargetType::EXECUTABLE) {
     return this->GeneratorTarget->GetExecutableNames(config);
   }
   return this->GeneratorTarget->GetLibraryNames(config);

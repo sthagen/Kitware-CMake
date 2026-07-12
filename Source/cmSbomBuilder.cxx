@@ -32,28 +32,28 @@
 #include "cmSbomObject.h"
 #include "cmSpdx.h"
 #include "cmSpdxSerializer.h"
-#include "cmStateTypes.h"
 #include "cmStringAlgorithms.h"
 #include "cmSystemTools.h"
 #include "cmTarget.h"
 #include "cmTargetExport.h"
+#include "cmTargetTypes.h"
 #include "cmValue.h"
 
-cmSpdxPackage::PurposeId GetPurpose(cmStateEnums::TargetType type)
+cmSpdxPackage::PurposeId GetPurpose(cm::TargetType type)
 {
   switch (type) {
-    case cmStateEnums::TargetType::EXECUTABLE:
+    case cm::TargetType::EXECUTABLE:
       return cmSpdxPackage::PurposeId::APPLICATION;
-    case cmStateEnums::TargetType::STATIC_LIBRARY:
-    case cmStateEnums::TargetType::SHARED_LIBRARY:
-    case cmStateEnums::TargetType::MODULE_LIBRARY:
-    case cmStateEnums::TargetType::OBJECT_LIBRARY:
-    case cmStateEnums::TargetType::INTERFACE_LIBRARY:
+    case cm::TargetType::STATIC_LIBRARY:
+    case cm::TargetType::SHARED_LIBRARY:
+    case cm::TargetType::MODULE_LIBRARY:
+    case cm::TargetType::OBJECT_LIBRARY:
+    case cm::TargetType::INTERFACE_LIBRARY:
       return cmSpdxPackage::PurposeId::LIBRARY;
-    case cmStateEnums::TargetType::UTILITY:
+    case cm::TargetType::UTILITY:
       return cmSpdxPackage::PurposeId::SOURCE;
-    case cmStateEnums::TargetType::GLOBAL_TARGET:
-    case cmStateEnums::TargetType::UNKNOWN_LIBRARY:
+    case cm::TargetType::GLOBAL_TARGET:
+    case cm::TargetType::UNKNOWN_LIBRARY:
     default:
       return cmSpdxPackage::PurposeId::ARCHIVE;
   }

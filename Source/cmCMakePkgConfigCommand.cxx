@@ -30,6 +30,7 @@
 #include "cmSubcommandTable.h"
 #include "cmSystemTools.h"
 #include "cmTarget.h"
+#include "cmTargetTypes.h"
 #include "cmValue.h"
 #include <cmllpkgc/llpkgc.h>
 
@@ -850,7 +851,7 @@ bool CheckPackageDependencies(
 
     auto* tgt = imEnv.status.GetMakefile().FindTargetToUse(
       cmStrCat("@foreign_pkgcfg::", prefix, dep.Name),
-      cmStateEnums::TargetDomain::FOREIGN);
+      cm::TargetDomain::FOREIGN);
     if (tgt) {
       auto ver = tgt->GetProperty("VERSION");
       if (!cmPkgConfigResolver::CheckVersion(dep.VerReq, *ver)) {
@@ -982,7 +983,7 @@ bool HandlePopulateCommand(std::vector<std::string> const& args,
 
   auto& mf = status.GetMakefile();
 
-  if (mf.FindTargetToUse(foreign_name, cmStateEnums::TargetDomain::FOREIGN)) {
+  if (mf.FindTargetToUse(foreign_name, cm::TargetDomain::FOREIGN)) {
     mf.AddDefinition(found_var, "TRUE");
     return true;
   }
@@ -1022,7 +1023,7 @@ bool HandleImportCommand(std::vector<std::string> const& args,
     return true;
   }
 
-  if (!mf.FindTargetToUse(foreign_name, cmStateEnums::TargetDomain::FOREIGN)) {
+  if (!mf.FindTargetToUse(foreign_name, cm::TargetDomain::FOREIGN)) {
     auto result = PopulatePCTarget(parsedArgs, status);
     if (!result.second) {
       mf.AddDefinition(found_var, "FALSE");
@@ -1031,8 +1032,9 @@ bool HandleImportCommand(std::vector<std::string> const& args,
   }
 
   mf.AddDefinition(found_var, "TRUE");
-  auto* tgt = mf.AddImportedTarget(
-    local_name, cmStateEnums::TargetType::INTERFACE_LIBRARY, false);
+  auto* tgt =
+    mf.AddImportedTarget(local_name, cm::TargetType::INTERFACE_LIBRARY,
+                         cm::ImportedTargetScope::Local);
   tgt->AppendProperty("INTERFACE_LINK_LIBRARIES", foreign_name);
   return true;
 }

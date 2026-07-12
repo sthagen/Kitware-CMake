@@ -15,7 +15,9 @@ set next.  You can use any prop value pair you want and extract it
 later with the :command:`get_property` or :command:`get_target_property`
 command.
 
-:ref:`Alias Targets` do not support setting target properties.
+.. versionchanged:: 4.5
+  If ``<targets>`` contains :ref:`Alias Targets`, properties are set on the
+  corresponding target referenced by each alias.
 
 See Also
 ^^^^^^^^

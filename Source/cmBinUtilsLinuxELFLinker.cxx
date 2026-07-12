@@ -89,8 +89,8 @@ bool cmBinUtilsLinuxELFLinker::Prepare()
   return true;
 }
 
-bool cmBinUtilsLinuxELFLinker::ScanDependencies(
-  std::string const& file, cmStateEnums::TargetType /* unused */)
+bool cmBinUtilsLinuxELFLinker::ScanDependencies(std::string const& file,
+                                                cm::TargetType /* unused */)
 {
   cmELF elf(file.c_str());
   if (!elf) {
