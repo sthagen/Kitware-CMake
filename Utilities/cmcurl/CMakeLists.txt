@@ -88,7 +88,6 @@ set(ENABLE_THREADED_RESOLVER OFF CACHE INTERNAL "No curl POSIX threaded DNS look
 set(ENABLE_UNICODE ON)
 set(ENABLE_UNIX_SOCKETS OFF CACHE INTERNAL "No curl Unix domain sockets support")
 set(HAVE_ATOMIC 0)
-set(HAVE_BORINGSSL 0) # we do not need this info
 set(HAVE_RECV 1)
 set(HAVE_SEND 1)
 set(HAVE_STDATOMIC_H 0)
@@ -1011,7 +1010,7 @@ if(_use_core_foundation_and_core_services)
 endif()
 
 if(CURL_USE_OPENSSL)
-  find_package(OpenSSL 3.0.0)
+  find_package(OpenSSL)
   if(NOT OpenSSL_FOUND)
     message(FATAL_ERROR
       "Could not find OpenSSL. Install an OpenSSL development package or "
@@ -1041,6 +1040,17 @@ if(CURL_USE_OPENSSL)
     check_symbol_exists("LIBRESSL_VERSION_NUMBER" "openssl/opensslv.h" HAVE_LIBRESSL)
   endif()
   cmake_pop_check_state()
+
+  if(NOT HAVE_BORINGSSL AND NOT HAVE_AWSLC AND NOT HAVE_LIBRESSL)
+    # Under forks of OpenSSL, we cannot guarantee that version information
+    # will be available.
+    if(OPENSSL_VERSION VERSION_LESS 3.0.0)
+      message(FATAL_ERROR
+        "Found OpenSSL version ${OPENSSL_VERSION}. When building CMake with "
+        "vendored curl, at least version 3.0.0 is required, or configure "
+        "CMake with -DCMAKE_USE_OPENSSL=OFF to build without OpenSSL.")
+    endif()
+  endif()
 
   # Optionally build with a specific CA cert bundle.
   if(CURL_CA_BUNDLE)

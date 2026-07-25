@@ -122,6 +122,18 @@ if(RunCMake_GENERATOR MATCHES "Ninja|FASTBuild|Makefiles")
     set(RunCMake_TEST_BINARY_DIR ${RunCMake_BINARY_DIR}/TestDependency-ON-build)
     run_testdependency_case(ON TRUE)
 
+    if(RunCMake_GENERATOR MATCHES "Ninja" AND RunCMake_GENERATOR_IS_MULTI_CONFIG)
+      block()
+        set(RunCMake_TEST_BINARY_DIR
+          ${RunCMake_BINARY_DIR}/TestDependency-ON-file-generate-config-build)
+        run_cmake(TestDependency-ON-file-generate-config)
+        set(RunCMake_TEST_NO_CLEAN 1)
+        run_cmake_command(TestDependency-ON-file-generate-config-build
+          ${CMAKE_COMMAND} --build . --config Debug
+          --target test_prep/FileGenerateConfigTest)
+      endblock()
+    endif()
+
     set(RunCMake_TEST_OUTPUT_MERGE 1)
     set(RunCMake_TEST_NO_CLEAN 1)
     run_cmake_command(TestDependency-ON-all

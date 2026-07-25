@@ -279,7 +279,7 @@ Manipulation
   string(STRIP <string> <output_variable>)
 
   Store in an ``<output_variable>`` a substring of a given ``<string>``
-  with leading and trailing spaces removed.
+  with leading and trailing spaces and newlines removed.
 
 .. signature::
   string(GENEX_STRIP <string> <output_variable>)

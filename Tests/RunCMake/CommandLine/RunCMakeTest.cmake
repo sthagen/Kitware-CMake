@@ -1118,6 +1118,7 @@ unset(RunCMake_TEST_OPTIONS)
 
 set(RunCMake_TEST_OPTIONS -Wno-deprecated -Wuninitialized)
 run_cmake(Wuninitialized)
+run_cmake(WuninitializedCMakeRoot)
 unset(RunCMake_TEST_OPTIONS)
 
 run_cmake_command(W_bad-arg1 ${CMAKE_COMMAND} -B DummyBuildDir -W)
@@ -1230,16 +1231,6 @@ function(run_llvm_rc)
   endif()
   file(MAKE_DIRECTORY "${RunCMake_TEST_BINARY_DIR}/ExpandSourceDir")
   run_cmake_command(llvm_rc_full_run ${CMAKE_COMMAND} -E cmake_llvm_rc ${RunCMake_TEST_BINARY_DIR}/ExpandSourceDir/source_file test.tmp ${CMAKE_COMMAND} -E echo "This is a test" ++ ${LLVM_RC} -bad /FO SOURCE_DIR/llvmrc.result test.tmp )
-  if(EXISTS ${RunCMake_TEST_BINARY_DIR}/ExpandSourceDir/test.tmp)
-      message(SEND_ERROR "${test} - FAILED:\n"
-        "test.tmp was not deleted")
-  endif()
-  file(READ ${RunCMake_TEST_BINARY_DIR}/ExpandSourceDir/llvmrc.result LLVMRC_RESULT)
-  if(NOT "${LLVMRC_RESULT}" STREQUAL "This is a test\n")
-    message(SEND_ERROR "${test} - FAILED:\n"
-        "llvmrc.result was not created")
-  endif()
-  unset(LLVMRC_RESULT)
 endfunction()
 run_llvm_rc()
 

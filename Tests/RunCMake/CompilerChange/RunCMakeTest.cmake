@@ -75,3 +75,52 @@ block()
     "-DCMAKE_TOOLCHAIN_FILE=${RunCMake_BINARY_DIR}/bar.cmake"
   )
 endblock()
+
+# Running without toolchain argument does not trigger reconfigure
+block()
+  set(RunCMake_TEST_BINARY_DIR ${RunCMake_BINARY_DIR}/ToolchainFromCmdlineOnce-build)
+  set(RunCMake-stdout-file
+    ${RunCMake_SOURCE_DIR}/ToolchainFromCmdlineOnce-stdout.txt
+  )
+  run_cmake_with_options(ToolchainFromCmdlineOnce-step1
+    "-DCMAKE_TOOLCHAIN_FILE=${RunCMake_BINARY_DIR}/foo.cmake"
+  )
+  set(RunCMake_TEST_NO_CLEAN 1)
+  run_cmake(ToolchainFromCmdlineOnce-step2)
+endblock()
+
+# New toolchain path comes from a preset file
+block()
+  set(RunCMake_TEST_SOURCE_DIR ${RunCMake_BINARY_DIR}/ToolchainFromPreset)
+  set(RunCMake_TEST_BINARY_DIR ${RunCMake_BINARY_DIR}/ToolchainFromPreset-build)
+  run_cmake_with_options(ToolchainFromPreset-step1 --preset default)
+  set(RunCMake_TEST_NO_CLEAN 1)
+  run_cmake_with_options(ToolchainFromPreset-step2 --preset default)
+endblock()
+
+# Unchanged relative toolchain file in binary dir does not trigger reconfigure
+block()
+  set(RunCMake_TEST_BINARY_DIR ${RunCMake_BINARY_DIR}/RelativeToolchainBinary)
+  run_cmake_with_options(RelativeToolchainBinary-step1
+    "-DCMAKE_TOOLCHAIN_FILE=foo.cmake"
+  )
+  set(RunCMake_TEST_NO_CLEAN 1)
+  run_cmake_with_options(RelativeToolchainBinary-step2
+    "-DCMAKE_TOOLCHAIN_FILE=foo.cmake"
+  )
+endblock()
+
+# Unchanged relative toolchain file in source dir does not trigger reconfigure
+block()
+  set(RunCMake_TEST_SOURCE_DIR ${RunCMake_BINARY_DIR}/RelativeToolchainSource)
+  set(RunCMake_TEST_BINARY_DIR
+    ${RunCMake_BINARY_DIR}/RelativeToolchainSource-build
+  )
+  run_cmake_with_options(RelativeToolchainSource-step1
+    "-DCMAKE_TOOLCHAIN_FILE=foo.cmake"
+  )
+  set(RunCMake_TEST_NO_CLEAN 1)
+  run_cmake_with_options(RelativeToolchainSource-step2
+    "-DCMAKE_TOOLCHAIN_FILE=foo.cmake"
+  )
+endblock()

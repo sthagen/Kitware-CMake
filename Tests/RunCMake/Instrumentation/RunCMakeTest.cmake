@@ -16,6 +16,9 @@ function(instrument test)
     "INSTALL_SEAM"
     "INSTALL_INTERRUPT"
     "TEST"
+    "CTEST_SEAM"
+    "CTEST_INTERRUPT"
+    "CTEST_FAILOVER"
     "WORKFLOW"
     "COPY_QUERIES"
     "COPY_QUERIES_GENERATED"
@@ -134,6 +137,11 @@ function(instrument test)
     list(APPEND ARGS_CONFIGURE_ARGS
       "-DINTERRUPT_BUILD_SRC=${RunCMake_SOURCE_DIR}/InterruptBuild.c"
       "-DINSTALL_INTERRUPT=ON")
+  endif()
+  if (ARGS_CTEST_INTERRUPT OR ARGS_CTEST_FAILOVER)
+    list(APPEND ARGS_CONFIGURE_ARGS
+      "-DINTERRUPT_BUILD_SRC=${RunCMake_SOURCE_DIR}/InterruptBuild.c"
+      "-DCTEST_INTERRUPT=ON")
   endif()
   set(RunCMake_TEST_SOURCE_DIR ${RunCMake_SOURCE_DIR}/project)
   if(NOT RunCMake_GENERATOR_IS_MULTI_CONFIG)
@@ -313,6 +321,106 @@ function(instrument test)
   if (ARGS_TEST)
     run_cmake_command(${test}-test ${CMAKE_CTEST_COMMAND} . -C Debug)
   endif()
+  if (ARGS_CTEST_SEAM)
+    # Drive the ctest interrupt path deterministically via the test-only
+    # injection seam, with no OS signal, so it runs on every generator.  First
+    # run ctest normally so the postCTest hook runs and creates its marker file;
+    # remove it so its absence after the injected run proves that run's hook was
+    # skipped.
+    set(RunCMake_QUIET_ERROR 1)
+    run_cmake_command(${test}-warmup
+      ${CMAKE_CTEST_COMMAND} . -C Debug)
+    file(REMOVE ${v1}/postCTest.hook)
+
+    # Inject an interrupt (SIGINT == 2) via the undocumented test seam and run
+    # ctest again; ctest exits with an error status (cmCTest::TEST_ERRORS == 8)
+    # but writes the interrupted ctest snippet and skips the hook.
+    set(ENV{__CMAKE_INSTRUMENTATION_TEST_INTERRUPT} 2)
+    set(RunCMake_TEST_EXPECT_RESULT 8)
+    run_cmake_command(${test}-seam
+      ${CMAKE_CTEST_COMMAND} . -C Debug)
+    unset(RunCMake_TEST_EXPECT_RESULT)
+    unset(ENV{__CMAKE_INSTRUMENTATION_TEST_INTERRUPT})
+    unset(RunCMake_QUIET_ERROR)
+  endif()
+  if (ARGS_CTEST_INTERRUPT)
+    # Build just the interrupt helper so it exists for the interrupted run.
+    run_cmake_command(${test}-helper
+      ${CMAKE_COMMAND} --build . --config Debug --target InterruptBuild)
+    file(REMOVE ${v1}/postCTest.hook)
+    file(REMOVE_RECURSE ${RunCMake_TEST_BINARY_DIR}/ran)
+
+    set(helper_dir ${RunCMake_TEST_BINARY_DIR})
+    if (RunCMake_GENERATOR_IS_MULTI_CONFIG)
+      set(helper_dir ${helper_dir}/Debug)
+    endif()
+    set(helper ${helper_dir}/InterruptBuild${CMAKE_EXECUTABLE_SUFFIX})
+
+    # Interrupt a serial `ctest -j 1` a few seconds in, while the fast test has
+    # finished and a slow test is in-flight with others pending.  The
+    # instrumented ctest re-raises the signal, so the helper reports exit 42.
+    # Restrict to the ctest* fixture tests (the project's `test` needs `main`).
+    set(RunCMake_TEST_OUTPUT_MERGE 1)
+    set(RunCMake_QUIET_ERROR 1)
+    run_cmake_command(${test}-signal
+      ${helper} 4
+      ${CMAKE_CTEST_COMMAND} . -C Debug -j 1 -R ctest)
+    unset(RunCMake_QUIET_ERROR)
+    unset(RunCMake_TEST_OUTPUT_MERGE)
+
+    # Record which tests ran during the interrupted run so the check script can
+    # assert the pending tests were canceled.
+    if (EXISTS ${RunCMake_TEST_BINARY_DIR}/ran)
+      file(RENAME ${RunCMake_TEST_BINARY_DIR}/ran
+        ${RunCMake_TEST_BINARY_DIR}/ran-interrupt)
+    endif()
+  endif()
+  if (ARGS_CTEST_FAILOVER)
+    # Build just the interrupt helper so it exists for the interrupted run.
+    run_cmake_command(${test}-helper
+      ${CMAKE_COMMAND} --build . --config Debug --target InterruptBuild)
+    file(REMOVE ${v1}/postCTest.hook)
+    file(REMOVE_RECURSE ${RunCMake_TEST_BINARY_DIR}/ran)
+
+    set(helper_dir ${RunCMake_TEST_BINARY_DIR})
+    if (RunCMake_GENERATOR_IS_MULTI_CONFIG)
+      set(helper_dir ${helper_dir}/Debug)
+    endif()
+    set(helper ${helper_dir}/InterruptBuild${CMAKE_EXECUTABLE_SUFFIX})
+
+    # Phase 1: interrupt a serial `ctest -j 1` while a slow test is in-flight.
+    # The fast test finishes (checkpointed); the in-flight slow test is killed
+    # (deliberately not checkpointed) and the rest stay pending.  Restrict to
+    # the ctest* fixture tests (the project's `test` needs `main`).
+    set(RunCMake_TEST_OUTPUT_MERGE 1)
+    set(RunCMake_QUIET_ERROR 1)
+    run_cmake_command(${test}-signal
+      ${helper} 4
+      ${CMAKE_CTEST_COMMAND} . -C Debug -j 1 -R ctest)
+    if (EXISTS ${RunCMake_TEST_BINARY_DIR}/ran)
+      file(RENAME ${RunCMake_TEST_BINARY_DIR}/ran
+        ${RunCMake_TEST_BINARY_DIR}/ran-interrupt)
+    endif()
+
+    # The interrupted run left an un-indexed ctest snippet marked with
+    # interruptSignal.  The resuming run below re-indexes instrumentation, and
+    # the generic snippet validator rejects that field, so clear the snippet
+    # data first.  The `ctest -F` checkpoint lives under Testing/Temporary and
+    # is untouched.
+    file(REMOVE_RECURSE ${v1}/data)
+
+    # Phase 2: resume the interrupted test set with `ctest -F`.  It must skip
+    # the already-finished fast test and run the interrupted and pending slow
+    # tests (run in parallel so resume finishes promptly).
+    run_cmake_command(${test}-resume
+      ${CMAKE_CTEST_COMMAND} . -C Debug -F -j 4 -R ctest)
+    unset(RunCMake_QUIET_ERROR)
+    unset(RunCMake_TEST_OUTPUT_MERGE)
+    if (EXISTS ${RunCMake_TEST_BINARY_DIR}/ran)
+      file(RENAME ${RunCMake_TEST_BINARY_DIR}/ran
+        ${RunCMake_TEST_BINARY_DIR}/ran-resume)
+    endif()
+  endif()
   if (ARGS_MANUAL_HOOK)
     run_cmake_command(${test}-index ${CMAKE_CTEST_COMMAND} --collect-instrumentation .)
   endif()
@@ -344,6 +452,18 @@ if (INSTRUMENTATION_INTERRUPT_REAL)
     # cooperative cancellation stops pending install scripts and skips the hook.
     instrument(interrupt-install INSTALL_INTERRUPT
       CHECK_SCRIPT check-installation-interrupted.cmake
+    )
+    # Interrupt a `ctest` run with a real OS signal, proving the scheduler stops
+    # launching pending tests, skips the hook, and preserves the `ctest -F`
+    # checkpoint so the interrupted test set can be resumed.
+    instrument(interrupt-test CTEST_INTERRUPT
+      CHECK_SCRIPT check-test-interrupted.cmake
+    )
+    # Interrupt a `ctest` run and then resume it with `ctest -F`, proving the
+    # checkpoint keeps the finished test (skipped on resume) but not the
+    # in-flight test killed by the interrupt (re-run on resume).
+    instrument(interrupt-test-failover CTEST_FAILOVER
+      CHECK_SCRIPT check-test-failover.cmake
     )
   endif()
   return()
@@ -391,6 +511,9 @@ instrument(no-query
   BUILD INSTALL TEST
   CHECK_SCRIPT check-data-dir.cmake
 )
+if(RunCMake_GENERATOR STREQUAL "Ninja")
+  set(CHECK_NINJA_INSTRUMENT_ORDER 1)
+endif()
 instrument(disabled-test
   BUILD TEST DISABLE_TEST
   CHECK_SCRIPT check-data-dir.cmake
@@ -403,6 +526,7 @@ instrument(both-query
   BUILD INSTALL TEST STATIC_QUERY DYNAMIC_QUERY CAPTURE_OUTPUT_QUERY
   CHECK_SCRIPT check-data-dir.cmake
 )
+unset(CHECK_NINJA_INSTRUMENT_ORDER)
 
 # Test cmake_instrumentation command
 instrument(cmake-command
@@ -540,7 +664,8 @@ if (NOT Skip_COMPILE_TRACE_QUERY_Case)
       CHECK_SCRIPT check-data-dir.cmake
     )
   endif()
-  if (RunCMake_GENERATOR MATCHES "Ninja" AND NOT CMAKE_C_COMPILER_ID STREQUAL "AppleClang")
+  # FIXME(#16731): ar on macOS does not support response files.
+  if (RunCMake_GENERATOR MATCHES "Ninja" AND NOT APPLE)
     instrument(cmake-command-compile-trace-rsp
       BUILD COMPILE_TRACE_QUERY
       CONFIGURE_ARGS
@@ -562,6 +687,9 @@ instrument(interrupt-build INTERRUPT_SEAM
 )
 instrument(interrupt-install BUILD INSTALL_SEAM
   CHECK_SCRIPT check-installation-interrupted.cmake
+)
+instrument(interrupt-test BUILD CTEST_SEAM
+  CHECK_SCRIPT check-test-interrupted.cmake
 )
 
 # Test make/ninja hooks

@@ -840,13 +840,13 @@ int cmInstrumentation::InstrumentCommand(
       }
       this->configureSnippetData.clear();
     }
-    // Write the cmakeBuild/cmakeInstall envelope atomically (temp file +
+    // Write the cmakeBuild/cmakeInstall/ctest envelope atomically (temp file +
     // rename).  This is the snippet flushed while unwinding from a user
     // interrupt, where a second Ctrl+C could otherwise truncate it mid-write;
     // the atomic write guarantees it is either absent or complete.  Per-step
     // snippets are never flushed under interrupt and are left non-atomic.
-    bool const atomicEnvelope =
-      command_type == "cmakeBuild" || command_type == "cmakeInstall";
+    bool const atomicEnvelope = command_type == "cmakeBuild" ||
+      command_type == "cmakeInstall" || command_type == "ctest";
     this->WriteInstrumentationJson(latestDataVersion, root, "data", file_name,
                                    atomicEnvelope ? Atomic::Yes : Atomic::No);
   }

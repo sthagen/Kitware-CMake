@@ -317,14 +317,16 @@ Alias Libraries
 
 ``ALIAS`` targets can be used as linkable targets and as targets to
 read properties from.  They can also be tested for existence with the
-regular :command:`if(TARGET)` subcommand.  An ``ALIAS`` target may not be
-installed or exported.
+regular :command:`if(TARGET)` subcommand.
 
 .. versionchanged:: 4.5
   The ``<name>`` may be used as the operand of :command:`set_property`,
   :command:`set_target_properties`, :command:`target_link_libraries`, etc. to
-  modify properties of ``<target>``.  CMake 4.4 and earlier did not allow the
-  ``<name>`` to modify properties of ``<target>``.
+  modify properties of ``<target>``.  If an ``ALIAS`` target is passed to an
+  :command:`install` or :command:`export` command, the target that the alias
+  references is installed or exported.  CMake 4.4 and earlier did not allow
+  using the ``<name>`` to modify properties of ``<target>``, or using the
+  ``<name>`` in :command:`install` and :command:`export` commands.
 
 See Also
 ^^^^^^^^

@@ -6,6 +6,7 @@
 
 #include "cm_sys_stat.h"
 
+#include "cmDiagnostics.h"
 #include "cmExecutionStatus.h"
 #include "cmMakefile.h"
 #include "cmStringAlgorithms.h"
@@ -15,6 +16,12 @@
 bool cmWriteFileCommand(std::vector<std::string> const& args,
                         cmExecutionStatus& status)
 {
+  cmMakefile& mf = status.GetMakefile();
+
+  mf.IssueDiagnostic(cmDiagnostics::CMD_DEPRECATED,
+                     "The 'write_file' command has been superseded. "
+                     "Use 'file(WRITE)' instead.");
+
   if (args.size() < 2) {
     status.SetError("called with incorrect number of arguments");
     return false;
@@ -34,7 +41,7 @@ bool cmWriteFileCommand(std::vector<std::string> const& args,
     }
   }
 
-  if (!status.GetMakefile().CanIWriteThisFile(fileName)) {
+  if (!mf.CanIWriteThisFile(fileName)) {
     std::string e =
       "attempted to write a file: " + fileName + " into a source directory.";
     status.SetError(e);

@@ -34,7 +34,7 @@
 #include "cmTarget.h"
 #include "cmTargetTypes.h"
 
-static std::string const kCPS_VERSION_STR = "0.14.1";
+static std::string const kCPS_VERSION_STR = "0.15.0";
 
 cmExportPackageInfoGenerator::cmExportPackageInfoGenerator(
   cmPackageInfoArguments arguments)

@@ -4,6 +4,7 @@
 
 #include <cm/memory>
 
+#include "cmDiagnostics.h"
 #include "cmExecutionStatus.h"
 #include "cmGeneratorExpression.h"
 #include "cmGlobalGenerator.h"
@@ -27,12 +28,16 @@ static void FinalAction(cmMakefile& makefile, std::string const& dest,
 bool cmInstallFilesCommand(std::vector<std::string> const& args,
                            cmExecutionStatus& status)
 {
+  cmMakefile& mf = status.GetMakefile();
+
+  mf.IssueDiagnostic(cmDiagnostics::CMD_DEPRECATED,
+                     "The 'install_files' command has been superseded. "
+                     "Use 'install(FILES)' instead.");
+
   if (args.size() < 2) {
     status.SetError("called with incorrect number of arguments");
     return false;
   }
-
-  cmMakefile& mf = status.GetMakefile();
 
   // Enable the install target.
   mf.GetGlobalGenerator()->EnableInstallTarget();

@@ -405,7 +405,6 @@ CMAKE_CXX_SOURCES="\
   cmInstallDirectoryGenerator \
   cmInstallExportGenerator \
   cmInstallFileSetGenerator \
-  cmInstallFilesCommand \
   cmInstallFilesGenerator \
   cmInstallGenerator \
   cmInstallGetRuntimeDependenciesGenerator \
@@ -416,7 +415,6 @@ CMAKE_CXX_SOURCES="\
   cmInstallScriptGenerator \
   cmInstallSubdirectoryGenerator \
   cmInstallTargetGenerator \
-  cmInstallTargetsCommand \
   cmInstalledFile \
   cmJSONHelpers \
   cmJSONState \
@@ -433,7 +431,6 @@ CMAKE_CXX_SOURCES="\
   cmLocalGenerator \
   cmMSVC60LinkLineComputer \
   cmMacroCommand \
-  cmMakeDirectoryCommand \
   cmMakefile \
   cmMarkAsAdvancedCommand \
   cmMathCommand \
@@ -487,7 +484,6 @@ CMAKE_CXX_SOURCES="\
   cmStringReplaceHelper \
   cmStringCommand \
   cmSubcommandTable \
-  cmSubdirCommand \
   cmSystemTools \
   cmTarget \
   cmTargetCompileDefinitionsCommand \

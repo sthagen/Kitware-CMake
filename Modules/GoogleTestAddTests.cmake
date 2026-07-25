@@ -5,6 +5,7 @@ cmake_minimum_required(VERSION 4.2)
 include("${CMAKE_CURRENT_LIST_DIR}/GoogleTest/ParseTestList.cmake")
 
 macro(write_test_to_file)
+
   # Store the gtest test name before messing with these strings
   set(gtest_name ${current_test_suite}.${current_test_name})
 

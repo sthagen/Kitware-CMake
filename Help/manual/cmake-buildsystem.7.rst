@@ -1433,9 +1433,11 @@ entirely local to the buildsystem description.
 
 .. versionchanged:: 4.5
   ``ALIAS`` targets may be used as the operand for :command:`set_property` and
-  similar commands used to modify properties of targets.  The commands operate
-  on the target which the alias references.  CMake 4.4 and earlier did not
-  allow modifying targets via an ``ALIAS``.
+  similar commands used to modify properties of targets.  The
+  :command:`install` and :command:`export` commands may also use an ``ALIAS``
+  target as the operand.  The commands operate on the target which the alias
+  references.  CMake 4.4 and earlier did not allow modifying, installing,
+  or exporting targets via an ``ALIAS``.
 
 A name can be tested for whether it is an ``ALIAS`` name by reading the
 :prop_tgt:`ALIASED_TARGET` property from it:

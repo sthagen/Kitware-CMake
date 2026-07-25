@@ -89,3 +89,25 @@ if (INSTALL_INTERRUPT)
   add_subdirectory(installSlow2)
   add_subdirectory(installSlow3)
 endif()
+
+if (CTEST_INTERRUPT)
+  # A fast test plus several slow tests.  A high COST on the fast test makes it
+  # sort first (CTest orders by descending cost, and on a first run with no
+  # historical cost data the COST property is used), so with `ctest -j 1` the
+  # fast test finishes first -- recording a completed test in the checkpoint --
+  # and then one slow test is in-flight, with the remaining slow tests pending,
+  # when the interrupt arrives.  Each test touches a marker so the check script
+  # can observe which tests ran.  Dependencies are deliberately avoided: on a
+  # `ctest -F` resume the finished fast test is removed, which would otherwise
+  # leave its dependents blocked.  (InterruptBuild is provided by the
+  # INTERRUPT_BUILD_SRC block above, which is always enabled together with this.)
+  set(runtest "${CMAKE_CURRENT_SOURCE_DIR}/runtest.cmake")
+  add_test(NAME ctestFast COMMAND ${CMAKE_COMMAND}
+    -DMARKER=${CMAKE_BINARY_DIR}/ran/ctestFast -P ${runtest})
+  set_tests_properties(ctestFast PROPERTIES COST 100)
+  foreach (n 1 2 3)
+    add_test(NAME ctestSlow${n} COMMAND ${CMAKE_COMMAND}
+      -DMARKER=${CMAKE_BINARY_DIR}/ran/ctestSlow${n} -DSECONDS=10 -P ${runtest})
+    set_tests_properties(ctestSlow${n} PROPERTIES COST 1)
+  endforeach()
+endif()

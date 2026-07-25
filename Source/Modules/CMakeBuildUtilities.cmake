@@ -103,6 +103,12 @@ else()
 endif()
 
 #---------------------------------------------------------------------
+# rapidhash is a header-only hashing library used to speed up
+# string-keyed hash tables (e.g. cmDefinitions).  No system option is
+# provided because it has no conventional system package.
+add_subdirectory(Utilities/cmrapidhash)
+
+#---------------------------------------------------------------------
 # Build zlib library for Curl, CMake, and CTest.
 if(CMAKE_USE_SYSTEM_ZLIB)
   find_package(ZLIB)
@@ -153,7 +159,7 @@ else()
     set(CURL_CA_BUNDLE "" CACHE FILEPATH "Path to SSL CA Certificate Bundle")
     set(CURL_CA_PATH "" CACHE PATH "Path to SSL CA Certificate Directory")
     mark_as_advanced(CURL_CA_BUNDLE CURL_CA_PATH)
-    find_package(OpenSSL 3.0.0)
+    find_package(OpenSSL)
   endif()
   if(NOT CMAKE_USE_SYSTEM_NGHTTP2)
     # Tell curl's FindNGHTTP2 module to use our library.

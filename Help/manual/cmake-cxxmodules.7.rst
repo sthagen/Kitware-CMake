@@ -77,7 +77,9 @@ modules includes:
 
   .. versionadded:: 4.4
 
-    ``clang-cl`` version 19.1 and newer
+    ``clang-cl`` version 19.1 and newer, except with the
+    :ref:`Visual Studio Generators` (i.e., the ``ClangCl``
+    :variable:`toolset <CMAKE_GENERATOR_TOOLSET>`).
 
 * GCC 14 and newer
 

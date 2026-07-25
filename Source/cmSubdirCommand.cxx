@@ -2,6 +2,7 @@
    file LICENSE.rst or https://cmake.org/licensing for details.  */
 #include "cmSubdirCommand.h"
 
+#include "cmDiagnostics.h"
 #include "cmExecutionStatus.h"
 #include "cmMakefile.h"
 #include "cmStringAlgorithms.h"
@@ -10,13 +11,18 @@
 bool cmSubdirCommand(std::vector<std::string> const& args,
                      cmExecutionStatus& status)
 {
+  cmMakefile& mf = status.GetMakefile();
+
+  mf.IssueDiagnostic(cmDiagnostics::CMD_DEPRECATED,
+                     "The 'subdirs' command has been superseded. "
+                     "Use the 'add_subdirectory' command instead.");
+
   if (args.empty()) {
     status.SetError("called with incorrect number of arguments");
     return false;
   }
   bool res = true;
   bool excludeFromAll = false;
-  cmMakefile& mf = status.GetMakefile();
 
   for (std::string const& i : args) {
     if (i == "EXCLUDE_FROM_ALL") {

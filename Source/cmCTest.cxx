@@ -52,6 +52,7 @@
 #include "cmGeneratedFileStream.h"
 #include "cmGlobalGenerator.h"
 #include "cmInstrumentation.h"
+#include "cmInstrumentationInterrupt.h"
 #include "cmInstrumentationQuery.h"
 #include "cmJSONState.h"
 #include "cmList.h"
@@ -2754,16 +2755,44 @@ int cmCTest::ExecuteTests(std::vector<std::string> const& args)
 
   cmInstrumentation instrumentation(this->GetBinaryDir());
   auto processHandler = [&handler]() -> int {
-    return handler.ProcessHandler() < 0 ? cmCTest::TEST_ERRORS : 0;
+    return handler.ProcessHandler() != 0 ? cmCTest::TEST_ERRORS : 0;
   };
   std::map<std::string, std::string> data;
   data["showOnly"] = this->GetShowOnly() ? "1" : "0";
-  int ret = instrumentation.InstrumentCommand(
-    "ctest", args,
-    [processHandler]() -> cmInstrumentation::CommandResult {
-      return { processHandler(), cm::nullopt, cm::nullopt };
-    },
-    data);
+  // Run the tests under an interrupt handler so that a user interrupt (e.g.
+  // Ctrl+C) still writes the overall `ctest` snippet before we exit.
+  cmInstrumentationInterrupt::InterruptOutcome testsOutcome =
+    cmInstrumentationInterrupt::HandleInterrupt(
+      instrumentation.HasQuery(),
+      [&instrumentation, &args, &processHandler, &data]() -> int {
+        return instrumentation.InstrumentCommand(
+          "ctest", args,
+          [&processHandler]() -> cmInstrumentation::CommandResult {
+            return { processHandler(), cm::nullopt, cm::nullopt };
+          },
+          data);
+      });
+  int ret = testsOutcome.ExitCode;
+  if (testsOutcome.Interrupted) {
+    // The tests were interrupted and the `ctest` snippet has been written.
+    // Skip the post-ctest indexing hook and make the exit status reflect the
+    // interrupt the same way it does without instrumentation, so enabling
+    // instrumentation does not change the exit code of an interrupted run.
+    // For a real signal, re-raise it on POSIX (the shell then reports
+    // 128+signo); on Windows our console handler suppressed the OS default, so
+    // report the status Windows itself uses for a Ctrl+C-terminated process.
+    // A test-injected interrupt has no real signal, so it instead returns a
+    // normal error status to keep the seam case deterministic.
+    if (testsOutcome.ShouldRaise) {
+      cmInstrumentationInterrupt::RaiseInterrupt(testsOutcome.Signal);
+#ifdef _WIN32
+      // STATUS_CONTROL_C_EXIT: the exit status Windows reports for a process
+      // terminated by Ctrl+C, which our console handler otherwise suppressed.
+      return static_cast<int>(0xC000013A);
+#endif
+    }
+    return cmCTest::TEST_ERRORS;
+  }
   instrumentation.CollectTimingData(cmInstrumentationQuery::Hook::PostCTest);
   if (ret == cmCTest::TEST_ERRORS) {
     cmCTestLog(this, ERROR_MESSAGE, "Errors while running CTest\n");

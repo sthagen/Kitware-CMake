@@ -1,7 +1,10 @@
 math
 ----
 
-Evaluate a mathematical expression.
+Perform mathematical operations.
+
+Expression Evaluation
+^^^^^^^^^^^^^^^^^^^^^
 
 .. code-block:: cmake
 
@@ -37,3 +40,16 @@ For example
 
   math(EXPR value "100 * 0xA" OUTPUT_FORMAT DECIMAL)      # value is set to "1000"
   math(EXPR value "100 * 0xA" OUTPUT_FORMAT HEXADECIMAL)  # value is set to "0x3e8"
+
+Increment/Decrement
+^^^^^^^^^^^^^^^^^^^
+
+.. code-block:: cmake
+
+  math(INCREMENT <variable>)
+  math(DECREMENT <variable>)
+
+.. versionadded:: 4.5
+
+Take the value of ``<variable>``, increment/decrement it, and store the result back
+in ``<variable>``. The variable must be defined and be a valid base-10 integer.

@@ -14,7 +14,7 @@ Add sources to a target.
 Specifies sources to use when building a target and/or its dependents.
 The named ``<target>`` must have been created by a command such as
 :command:`add_executable` or :command:`add_library` or
-:command:`add_custom_target`.  The ``<items>`` may use
+:command:`add_custom_target`.  The ``<source>`` items may use
 :manual:`generator expressions <cmake-generator-expressions(7)>`.
 
 .. versionadded:: 3.20
@@ -26,20 +26,20 @@ The named ``<target>`` must have been created by a command such as
 
 The ``INTERFACE``, ``PUBLIC`` and ``PRIVATE`` keywords are required to
 specify the :ref:`scope <Target Command Scope>` of the source file paths
-(``<items>``) that follow them.  ``PRIVATE`` and ``PUBLIC`` items will
+(``<source>...``) that follow them.  ``PRIVATE`` and ``PUBLIC`` sources will
 populate the :prop_tgt:`SOURCES` property of ``<target>``, which are used when
-building the target itself. ``PUBLIC`` and ``INTERFACE`` items will populate the
-:prop_tgt:`INTERFACE_SOURCES` property of ``<target>``, which are used
+building the target itself. ``PUBLIC`` and ``INTERFACE`` sources will populate
+the :prop_tgt:`INTERFACE_SOURCES` property of ``<target>``, which are used
 when building dependents.  A target created by :command:`add_custom_target`
 can only have ``PRIVATE`` scope.
 
-Repeated calls for the same ``<target>`` append items in the order called.
+Repeated calls for the same ``<target>`` append sources in the order called.
 
 .. versionadded:: 3.3
   Allow exporting targets with :prop_tgt:`INTERFACE_SOURCES`.
 
 .. versionadded:: 3.11
-  Allow setting ``INTERFACE`` items on
+  Allow setting ``INTERFACE`` sources on
   :ref:`IMPORTED targets <Imported Targets>`.
 
 .. versionchanged:: 3.13
@@ -96,9 +96,9 @@ files within those directories.
   .. versionadded:: 4.4
 
   Specifies sources to use when building a target and/or its dependents.
-  With the scope ``PRIVATE`` and ``PUBLIC``, items will populate the
+  With the scope ``PRIVATE`` and ``PUBLIC``, ``<files>`` will populate the
   :prop_fs:`SOURCES` property of ``<set>``, which are used when building the
-  target itself. With the scope ``PUBLIC`` and ``INTERFACE``, items will
+  target itself. With the scope ``PUBLIC`` and ``INTERFACE``, ``<files>`` will
   populate the :prop_fs:`INTERFACE_SOURCES` property of ``<set>``, which are
   used when building dependents. The sources specified by the
   :prop_fs:`INTERFACE_SOURCES` property are propagated, transitively, to all

@@ -5,12 +5,18 @@
 #include <algorithm>
 #include <array>
 #include <cstddef>
+#include <map>
+#include <memory>
 #include <string>
+#include <unordered_map>
 #include <utility>
+#include <vector>
 
 #include <cm/optional>
 #include <cm/string_view>
 #include <cmext/string_view>
+
+#include "cmsys/RegularExpression.hxx"
 
 #include "cmArgumentParser.h"
 #include "cmArgumentParserTypes.h"
@@ -25,8 +31,13 @@
 #include "cmState.h"
 #include "cmStringAlgorithms.h"
 #include "cmSystemTools.h"
+#include "cmTarget.h"
 #include "cmValue.h"
 #include "cmake.h"
+
+namespace cm {
+enum class TargetType;
+}
 
 namespace {
 
@@ -360,6 +371,157 @@ bool cmCMakeLanguageCommandGET_EXPERIMENTAL_FEATURE_ENABLED(
 
   return true;
 }
+
+struct PrintTargetsArgs : public ArgumentParser::ParseResult
+{
+  cm::optional<std::string> Regex;
+  bool ImportedOnly = false;
+  bool NoImported = false;
+  bool IgnoreCase = false;
+  cm::optional<std::string> MessagePrefix;
+};
+
+// Lists every target that currently exists, optionally filtered by a
+// name REGEX and by imported state.  "Currently exists" means anything
+// CMake has defined up to this call: targets in the current directory,
+// its ancestors, and any already-processed subdirectories.  Walking the
+// global generator's makefiles captures exactly that set; a name-keyed
+// map sorts the output and dedupes imported targets, which are inherited
+// into child makefiles and would otherwise be seen many times.
+bool cmCMakeLanguageCommandPRINT_TARGETS(
+  std::vector<cmListFileArgument> const& args, cmExecutionStatus& status)
+{
+  cmMakefile& makefile = status.GetMakefile();
+  std::vector<std::string> expandedArgs;
+  makefile.ExpandArguments(args, expandedArgs);
+
+  // Drop the leading "PRINT_TARGETS" subcommand keyword.
+  std::vector<std::string> body(expandedArgs.begin() + 1, expandedArgs.end());
+
+  auto const ArgsParser =
+    cmArgumentParser<PrintTargetsArgs>()
+      .Bind("REGEX"_s, &PrintTargetsArgs::Regex)
+      .Bind("IMPORTED_ONLY"_s, &PrintTargetsArgs::ImportedOnly)
+      .Bind("NO_IMPORTED"_s, &PrintTargetsArgs::NoImported)
+      .Bind("IGNORE_CASE"_s, &PrintTargetsArgs::IgnoreCase)
+      .Bind("__MESSAGE_PREFIX"_s, &PrintTargetsArgs::MessagePrefix);
+
+  std::vector<std::string> unparsed;
+  auto parsedArgs = ArgsParser.Parse(body, &unparsed);
+
+  if (!unparsed.empty()) {
+    return FatalError(
+      status,
+      cmStrCat(
+        "Unknown argument(s) given to cmake_language(PRINT_TARGETS) call: \"",
+        cmJoin(unparsed, "\" \""), "\"."));
+  }
+  if (parsedArgs.MaybeReportError(makefile)) {
+    cmSystemTools::SetFatalErrorOccurred();
+    return true;
+  }
+
+  if (parsedArgs.ImportedOnly && parsedArgs.NoImported) {
+    return FatalError(status,
+                      "IMPORTED_ONLY and NO_IMPORTED keywords are mutually "
+                      "exclusive in cmake_language(PRINT_TARGETS) call.");
+  }
+
+  if (parsedArgs.IgnoreCase && !parsedArgs.Regex) {
+    return FatalError(status,
+                      "IGNORE_CASE keyword in cmake_language(PRINT_TARGETS) "
+                      "call is only valid with REGEX.");
+  }
+
+  // Compile the optional REGEX up front so a bad pattern fails fast.  With
+  // IGNORE_CASE the pattern and the candidate names are both lower-cased.
+  cm::optional<cmsys::RegularExpression> regex;
+  if (parsedArgs.Regex) {
+    cmsys::RegularExpression re;
+    std::string const pat = parsedArgs.IgnoreCase
+      ? cmSystemTools::LowerCase(*parsedArgs.Regex)
+      : *parsedArgs.Regex;
+    if (!re.compile(pat)) {
+      return FatalError(status,
+                        cmStrCat("REGEX regular expression \"",
+                                 *parsedArgs.Regex, "\" cannot compile."));
+    }
+    regex = std::move(re);
+  }
+
+  bool const includeNormal = !parsedArgs.ImportedOnly;
+  bool const includeImported = !parsedArgs.NoImported;
+
+  struct TargetInfo
+  {
+    cm::TargetType Type;
+    bool Imported;
+  };
+  std::map<std::string, TargetInfo> targets;
+  for (auto const& mf : makefile.GetGlobalGenerator()->GetMakefiles()) {
+    if (includeNormal) {
+      for (auto const& ti : mf->GetTargets()) {
+        cmTarget const& t = ti.second;
+        targets.insert({ t.GetName(), { t.GetType(), false } });
+      }
+    }
+    if (includeImported) {
+      for (cmTarget const* t : mf->GetImportedTargets()) {
+        targets.insert({ t->GetName(), { t->GetType(), true } });
+      }
+    }
+  }
+
+  // Build the body first so the header is suppressed when a REGEX filters
+  // everything out (matches cmake_language(PRINT_VARIABLES) behavior).
+  std::string lines;
+  bool anyMatched = false;
+  for (auto const& t : targets) {
+    if (regex) {
+      std::string const subj =
+        parsedArgs.IgnoreCase ? cmSystemTools::LowerCase(t.first) : t.first;
+      if (!regex->find(subj)) {
+        continue;
+      }
+    }
+    lines +=
+      cmStrCat("   ", t.first, " (", cmState::GetTargetTypeName(t.second.Type),
+               t.second.Imported ? ", IMPORTED" : "", ")\n");
+    anyMatched = true;
+  }
+
+  if (anyMatched) {
+    // The message opens with a banner line.  The internal __MESSAGE_PREFIX
+    // keyword overrides it (used by wrappers to reproduce legacy output); it
+    // is not part of the public interface.
+    std::string const messagePrefix =
+      parsedArgs.MessagePrefix.value_or("Printing targets...\n");
+    // The header reflects the imported-filter mode and any REGEX in effect.
+    char const* label = "All targets";
+    if (parsedArgs.ImportedOnly) {
+      label = "Imported targets";
+    } else if (parsedArgs.NoImported) {
+      label = "Non-imported targets";
+    }
+    std::string out = cmStrCat(messagePrefix, " ", label);
+    if (parsedArgs.Regex) {
+      out += cmStrCat(
+        " matching REGEX '", *parsedArgs.Regex, "' (",
+        parsedArgs.IgnoreCase ? "case insensitive" : "case sensitive", ")");
+    }
+    out += cmStrCat(":\n", lines);
+    makefile.DisplayStatus(out, -1);
+  }
+
+  if (!anyMatched && parsedArgs.Regex) {
+    makefile.IssueMessage(
+      MessageType::WARNING,
+      cmStrCat("No targets matching REGEX '", *parsedArgs.Regex, "' (",
+               parsedArgs.IgnoreCase ? "case insensitive" : "case sensitive",
+               ") in cmake_language(PRINT_TARGETS ...)."));
+  }
+  return true;
+}
 }
 
 bool cmCMakeLanguageCommand(std::vector<cmListFileArgument> const& args,
@@ -537,6 +699,10 @@ bool cmCMakeLanguageCommand(std::vector<cmListFileArgument> const& args,
   if (expArgs[expArg] == "GET_EXPERIMENTAL_FEATURE_ENABLED") {
     return cmCMakeLanguageCommandGET_EXPERIMENTAL_FEATURE_ENABLED(args,
                                                                   status);
+  }
+
+  if (expArgs[expArg] == "PRINT_TARGETS") {
+    return cmCMakeLanguageCommandPRINT_TARGETS(args, status);
   }
 
   if (expArgs[expArg] == "TRACE") {

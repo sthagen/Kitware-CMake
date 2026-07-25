@@ -89,15 +89,10 @@ static void AddExportGenerator(
   makefile.AddExportBuildFileGenerator(std::move(exportGenerator));
 }
 
-static bool ValidateExportableTarget(std::string const& name, cmMakefile& mf,
+static bool ValidateExportableTarget(std::string const& name,
                                      cmGlobalGenerator* gg,
                                      cmExecutionStatus& status)
 {
-  if (mf.IsAlias(name)) {
-    status.SetError(cmStrCat("given ALIAS target \"", name,
-                             "\" which may not be exported."));
-    return false;
-  }
   cmTarget const* target = gg->FindTarget(name);
   if (!target) {
     status.SetError(cmStrCat("given target \"", name,
@@ -187,7 +182,7 @@ static bool HandleTargetsMode(std::vector<std::string> const& args,
   cmGlobalGenerator* gg = mf.GetGlobalGenerator();
 
   for (std::string const& currentTarget : *arguments.Targets) {
-    if (!ValidateExportableTarget(currentTarget, mf, gg, status)) {
+    if (!ValidateExportableTarget(currentTarget, gg, status)) {
       return false;
     }
     targets.emplace_back(currentTarget, std::string{});

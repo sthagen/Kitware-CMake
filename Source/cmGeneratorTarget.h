@@ -1156,7 +1156,7 @@ public:
     std::string const& config, cmGeneratorTarget const* bmiConsumer = nullptr);
 
   using SyntheticDepsMap =
-    std::map<cmGeneratorTarget const*, std::vector<cmGeneratorTarget const*>>;
+    std::map<cmGeneratorTarget const*, std::set<cmGeneratorTarget const*>>;
   SyntheticDepsMap const& GetSyntheticDeps(std::string const& config) const;
 
   class CustomTransitiveProperty : public TransitiveProperty
@@ -1614,7 +1614,7 @@ public:
 private:
   struct InfoByConfig
   {
-    std::map<cmGeneratorTarget const*, std::vector<cmGeneratorTarget const*>>
+    std::map<cmGeneratorTarget const*, std::set<cmGeneratorTarget const*>>
       SyntheticDeps;
     std::map<cmSourceFile const*, ClassifiedFlags> SourceFlags;
   };

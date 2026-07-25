@@ -31,38 +31,91 @@ namespace {
 constexpr char const* CMakeSarifOutputFlag = "CMAKE_EXPORT_SARIF";
 constexpr char const* DefaultSarifFile = ".cmake/sarif/cmake.sarif";
 
-cm::optional<cmSarif::Location> GetLocationFromBacktrace(
-  cmListFileBacktrace const& backtrace, cmake const& cm)
+/// @brief Express the location of a `cmListFileContext` in SARIF
+/// @param[in] uriBaseIds A list of logical base directory names and their path
+///
+/// Build a SARIF location object detailing the location data available from a
+/// context. More specific information like the region (line number) and
+/// function call name will be included if available.
+///
+/// SARIF requests that paths are given relative to a logical base for
+/// relocatability. Context locations will be made relative to a logical base
+/// iff they fall under one of the directories listed in the `uriBaseIds`
+/// map. Bases are tried in order.
+cmSarif::Location LocationFromContext(
+  cmListFileContext const& lfc,
+  std::vector<std::pair<cm::string_view, cm::string_view>> const&
+    uriBaseIds = {})
+{
+  cmSarif::Location location;
+  location.Physical.Artifact.Uri = lfc.FilePath;
+
+  // SARIF requests that paths are given relative to a logical base for
+  // relocatability. Check if these files are under any of the bases, if
+  // provided.
+  for (auto const& baseUri : uriBaseIds) {
+    std::string relative = cmSystemTools::RelativeIfUnder(
+      std::string(baseUri.second), location.Physical.Artifact.Uri);
+    if (relative != location.Physical.Artifact.Uri) {
+      location.Physical.Artifact.Uri = relative;
+      location.Physical.Artifact.UriBaseId = std::string(baseUri.first);
+    }
+  }
+
+  if (!lfc.Name.empty()) {
+    location.Logical.emplace_back(
+      cmSarif::LogicalLocation{ lfc.Name, cmSarif::LocationKind::Function });
+  }
+
+  // Add info about the region within the file depending on how specific the
+  // context is. Watch for deferred call and variable watch placeholders or
+  // a zero, which indicates the start of processing a list file.
+  if (lfc.Line == cmListFileContext::DeferPlaceholderLine) {
+    location.Message = cmSarif::Message{ "DEFERRED" };
+  } else if (lfc.Line > 0 && lfc.Line != std::numeric_limits<long>::max()) {
+    cmSarif::Region region;
+    region.StartLine = lfc.Line;
+    location.Physical.ArtifactRegion = region;
+  }
+
+  return location;
+}
+
+cm::optional<cmSarif::Location> LastLocation(
+  cmListFileBacktrace backtrace,
+  std::vector<std::pair<cm::string_view, cm::string_view>> const&
+    uriBaseIds = {})
 {
   if (backtrace.Empty()) {
     return {};
   }
-  cmListFileContext const& lfc = backtrace.Top();
-  // Exclude frames with no real location: negative lines are deferred-call
-  // placeholders, and LONG_MAX is the synthetic line used by variable_watch
-  // callback dispatch. Neither is a meaningful source location.
-  if (lfc.Line < 0 || lfc.Line == std::numeric_limits<long>::max()) {
+  return LocationFromContext(backtrace.Top(), uriBaseIds);
+}
+
+cm::optional<cmSarif::Stack> StackFromBacktrace(
+  cmListFileBacktrace bt,
+  std::vector<std::pair<cm::string_view, cm::string_view>> const&
+    uriBaseIds = {})
+{
+  if (bt.Empty()) {
     return {};
   }
 
-  cmSarif::PhysicalLocation location;
-  location.Artifact.Uri = lfc.FilePath;
+  cmSarif::Stack stack;
+  for (; !bt.Empty(); bt = bt.Pop()) {
+    cmSarif::Location topLocation = LocationFromContext(bt.Top(), uriBaseIds);
 
-  // SARIF requests that paths are given relative to a logical base. Report
-  // paths relative to the source dir / script working directory if possible.
-  location.Artifact.UriBaseId = cm.GetHomeDirectory();
-  std::string relative = cmSystemTools::RelativePath(
-    location.Artifact.UriBaseId, location.Artifact.Uri);
-  if (!relative.empty()) {
-    location.Artifact.Uri = relative;
-  }
+    // If the location doesn't have a specific region, this entry is a
+    // placeholder and should not appear in the call stack.
+    if (!topLocation.Message && !topLocation.Physical.ArtifactRegion) {
+      continue;
+    }
 
-  if (lfc.Line != 0) {
-    cmSarif::Region region;
-    region.StartLine = lfc.Line;
-    location.ArtifactRegion = region;
+    cmSarif::StackFrame frame;
+    frame.Location = std::move(topLocation);
+    stack.Frames.emplace_back(std::move(frame));
   }
-  return cmSarif::Location{ location };
+  return stack;
 }
 
 cmSarif::Tool CreateCMakeTool()
@@ -213,6 +266,27 @@ bool cmCMakeSarifLogger::WriteFile(std::string const& path,
     return *result.first;
   };
 
+  // Make a prioritized list of base directories applicable in this context.
+  // This is used for normalizing the paths of related locations.
+  std::vector<std::pair<cm::string_view, cm::string_view>> uriBaseIds;
+
+  std::string const& binDir = this->CM.GetHomeOutputDirectory();
+  if (!binDir.empty()) {
+    uriBaseIds.emplace_back("CMAKE_BINARY_DIR", binDir);
+  }
+
+  std::string const& homeDir = this->CM.GetHomeDirectory();
+  if (!homeDir.empty()) {
+    uriBaseIds.emplace_back("CMAKE_SOURCE_DIR", homeDir);
+  }
+
+  // Log the base directories for this run.
+  for (auto const& base : uriBaseIds) {
+    run.OriginalUriBaseIds.emplace(
+      std::string(base.first),
+      cmSarif::ArtifactLocation{ cmStrCat("file://", base.second, "/"), "" });
+  }
+
   cmMessenger const& messenger = *this->CM.GetMessenger();
   for (auto const& message : messenger.GetDisplayedMessages()) {
     // SARIF should only emit diagnostic messages, not general messages/logs
@@ -231,8 +305,12 @@ bool cmCMakeSarifLogger::WriteFile(std::string const& path,
     cmSarif::Result result;
     result.RuleId = ruleInfo.first;
     result.RuleIndex = ruleInfo.second;
-    result.Message = message.Text;
-    result.Location = GetLocationFromBacktrace(message.Backtrace, this->CM);
+    result.Message = cmSarif::Message{ message.Text };
+    result.Location = LastLocation(message.Backtrace, uriBaseIds);
+    if (cm::optional<cmSarif::Stack> stack =
+          StackFromBacktrace(message.Backtrace, uriBaseIds)) {
+      result.Stacks.emplace_back(std::move(*stack));
+    }
     result.Level = SarifLevelFromMessageType(message.Type);
 
     run.Results.emplace_back(std::move(result));

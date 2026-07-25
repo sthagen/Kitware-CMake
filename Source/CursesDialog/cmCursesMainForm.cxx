@@ -744,7 +744,8 @@ void cmCursesMainForm::HandleInput()
             static_cast<std::string::size_type>(x - 10)) {
           this->SearchString += static_cast<char>(key);
         }
-      } else if (key == ctrl('h') || key == KEY_BACKSPACE || key == KEY_DC) {
+      } else if (key == ctrl('h') || key == 127 || key == KEY_BACKSPACE ||
+                 key == KEY_DC) {
         if (!this->SearchString.empty()) {
           this->SearchString.pop_back();
         }

@@ -1607,7 +1607,8 @@ void cmGlobalFastbuildGenerator::WriteTestPrepTargets()
     auto const& testGenerators = localGen->GetMakefile()->GetTestGenerators();
     for (auto const& tester : testGenerators) {
       cmTestGenerator::BuildDependencies testDeps;
-      if (!tester->GetBuildDependencies(localGen.get(), testDeps)) {
+      if (!tester->GetBuildDependencies(localGen.get(), std::string(),
+                                        testDeps)) {
         continue;
       }
       std::string const depName =

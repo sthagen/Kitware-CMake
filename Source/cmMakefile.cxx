@@ -2533,6 +2533,13 @@ struct t_lookup
 
 bool cmMakefile::IsProjectFile(char const* filename) const
 {
+  std::string const& cmakeRoot = cmSystemTools::GetCMakeRoot();
+  if (cmSystemTools::IsSubDirectory(filename, cmakeRoot) &&
+      (cmSystemTools::IsSubDirectory(cmakeRoot, this->GetHomeDirectory()) ||
+       cmSystemTools::IsSubDirectory(cmakeRoot,
+                                     this->GetHomeOutputDirectory()))) {
+    return false;
+  }
   return cmSystemTools::IsSubDirectory(filename, this->GetHomeDirectory()) ||
     (cmSystemTools::IsSubDirectory(filename, this->GetHomeOutputDirectory()) &&
      !cmSystemTools::IsSubDirectory(filename, "/CMakeFiles"));

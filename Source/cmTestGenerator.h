@@ -52,7 +52,8 @@ public:
   cmTestGenerator& operator=(cmTestGenerator const&) = delete;
 
   void Compute(cmLocalGenerator* lg);
-  bool GetBuildDependencies(cmLocalGenerator* lg, BuildDependencies& deps);
+  bool GetBuildDependencies(cmLocalGenerator* lg, std::string const& config,
+                            BuildDependencies& deps);
 
   /** Test if this generator installs the test for a given configuration.  */
   bool TestsForConfig(std::string const& config);

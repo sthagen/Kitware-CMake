@@ -35,6 +35,7 @@
 #include "cmCTestBinPacker.h"
 #include "cmCTestRunTest.h"
 #include "cmCTestTestHandler.h"
+#include "cmInstrumentationInterrupt.h"
 #include "cmJSONState.h"
 #include "cmListFileCache.h"
 #include "cmRange.h"
@@ -246,13 +247,21 @@ void cmCTestMultiProcessHandler::RunTests()
   uv_run(this->Loop, UV_RUN_DEFAULT);
   this->FinalizeLoop();
 
-  if (!this->StopTimePassed && !this->CheckStopOnFailure()) {
+  // A user interrupt (e.g. Ctrl+C) deliberately stops scheduling with tests
+  // still pending, so skip the completion asserts in that case.  Canceled
+  // launches release their resources, so AllResourcesAvailable() still holds.
+  if (!this->StopTimePassed && !this->CheckStopOnFailure() &&
+      cmInstrumentationInterrupt::PendingInterruptSignal() == 0) {
     assert(this->Complete());
     assert(this->PendingTests.empty());
   }
   assert(this->AllResourcesAvailable());
 
-  this->MarkFinished();
+  // On interrupt, leave the checkpoint file intact so a later `ctest -F` can
+  // resume from where this run left off; MarkFinished() would delete it.
+  if (cmInstrumentationInterrupt::PendingInterruptSignal() == 0) {
+    this->MarkFinished();
+  }
   this->UpdateCostData();
 }
 
@@ -583,6 +592,17 @@ void cmCTestMultiProcessHandler::JobServerReceivedToken()
   assert(!this->JobServerQueuedTests.empty());
   int test = this->JobServerQueuedTests.front();
   this->JobServerQueuedTests.pop_front();
+  if (cmInstrumentationInterrupt::PendingInterruptSignal() != 0) {
+    // Interrupted (e.g. Ctrl+C): do not launch this queued test.  Its
+    // resources were locked when it was queued in StartNextTests, and this
+    // callback runs holding a job server token, so release both to keep the
+    // scheduler's bookkeeping balanced (see the AllResourcesAvailable() and
+    // token invariants checked after the loop).
+    this->DeallocateResources(test);
+    this->UnlockResources(test);
+    this->JobServerClient->ReleaseToken();
+    return;
+  }
   this->StartTestProcess(test);
 }
 
@@ -594,7 +614,11 @@ void cmCTestMultiProcessHandler::StartNextTests()
   this->StartNextTestsOnTimer_.stop();
 
   if (this->PendingTests.empty() || this->CheckStopTimePassed() ||
-      (this->CheckStopOnFailure() && !this->Failed->empty())) {
+      (this->CheckStopOnFailure() && !this->Failed->empty()) ||
+      cmInstrumentationInterrupt::PendingInterruptSignal() != 0) {
+    // A user interrupt (e.g. Ctrl+C) stops scheduling: launch no further
+    // tests. Tests already running receive the interrupt too and unwind on
+    // their own.
     return;
   }
 
@@ -650,6 +674,7 @@ void cmCTestMultiProcessHandler::StartNextTests()
   // Start tests in the preferred order, each subject to readiness checks.
   auto ti = this->OrderedTests.begin();
   while (numToStart > 0 && !this->SerialTestRunning &&
+         cmInstrumentationInterrupt::PendingInterruptSignal() == 0 &&
          ti != this->OrderedTests.end()) {
     // Increment the test iterator now because the current list
     // entry may be deleted below.
@@ -791,6 +816,7 @@ void cmCTestMultiProcessHandler::FinishTestProcess(
   }
   if (started) {
     if (!this->StopTimePassed &&
+        cmInstrumentationInterrupt::PendingInterruptSignal() == 0 &&
         cmCTestRunTest::StartAgain(std::move(runner), this->Completed)) {
       this->Completed--; // remove the completed test because run again
       return;
@@ -807,7 +833,12 @@ void cmCTestMultiProcessHandler::FinishTestProcess(
     t.second.Depends.erase(test);
   }
 
-  this->WriteCheckpoint(test);
+  // A test killed by the interrupt (e.g. Ctrl+C) never truly finished, so do
+  // not record it in the checkpoint; otherwise `ctest -F` would skip it when
+  // resuming this interrupted run.
+  if (cmInstrumentationInterrupt::PendingInterruptSignal() == 0) {
+    this->WriteCheckpoint(test);
+  }
   this->DeallocateResources(test);
   this->UnlockResources(test);
 
@@ -1615,14 +1646,6 @@ bool cmCTestMultiProcessHandler::CheckGeneratedResourceSpec()
         cmCTestLog(this->CTest, ERROR_MESSAGE,
                    "Test that defines GENERATED_RESOURCE_SPEC_FILE must have "
                    "exactly one FIXTURES_SETUP"
-                     << std::endl);
-        return false;
-      }
-
-      if (!cmSystemTools::FileIsFullPath(
-            test.second->GeneratedResourceSpecFile)) {
-        cmCTestLog(this->CTest, ERROR_MESSAGE,
-                   "GENERATED_RESOURCE_SPEC_FILE must be an absolute path"
                      << std::endl);
         return false;
       }

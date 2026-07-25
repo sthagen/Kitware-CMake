@@ -704,18 +704,12 @@ bool HandleTargetsMode(std::vector<std::string> const& args,
 
   for (std::string const& tgt : targetList) {
 
-    if (helper.Makefile->IsAlias(tgt)) {
-      status.SetError(
-        cmStrCat("TARGETS given target \"", tgt, "\" which is an alias."));
-      return false;
-    }
     // Lookup this target in the current directory.
     cmTarget* target = helper.Makefile->FindLocalNonAliasTarget(tgt);
     if (!target) {
       // If no local target has been found, find it in the global scope.
       cmTarget* const globalTarget =
-        helper.Makefile->GetGlobalGenerator()->FindTarget(
-          tgt, { cm::TargetDomain::NATIVE });
+        helper.Makefile->GetGlobalGenerator()->FindTarget(tgt);
       if (globalTarget && !globalTarget->IsImported()) {
         target = globalTarget;
       }
@@ -1369,11 +1363,6 @@ bool HandleImportedRuntimeArtifactsMode(std::vector<std::string> const& args,
   }
 
   for (std::string const& tgt : targetList) {
-    if (helper.Makefile->IsAlias(tgt)) {
-      status.SetError(cmStrCat("IMPORTED_RUNTIME_ARTIFACTS given target \"",
-                               tgt, "\" which is an alias."));
-      return false;
-    }
     // Lookup this target in the current directory.
     cmTarget* target = helper.Makefile->FindTargetToUse(tgt);
     if (!target || !target->IsImported()) {

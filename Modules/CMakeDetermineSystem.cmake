@@ -145,6 +145,8 @@ endif()
 # variables around so they can be used in CMakeLists.txt.
 # In all other cases, the host and target platform are the same.
 if(CMAKE_TOOLCHAIN_FILE)
+  # Retain input value to detect changes requiring re-configuration.
+  set(_CMAKE_INPUT_TOOLCHAIN_FILE "${CMAKE_TOOLCHAIN_FILE}")
   if(IS_ABSOLUTE "${CMAKE_TOOLCHAIN_FILE}" AND EXISTS "${CMAKE_TOOLCHAIN_FILE}")
     # Normalize the absolute path.
     set(CMAKE_TOOLCHAIN_FILE "${CMAKE_TOOLCHAIN_FILE}" CACHE FILEPATH "The CMake toolchain file" FORCE)
@@ -225,6 +227,7 @@ if(CMAKE_BINARY_DIR)
   set(INCLUDE_CMAKE_TOOLCHAIN_FILE_IF_REQUIRED)
   if(CMAKE_TOOLCHAIN_FILE)
     string(CONCAT INCLUDE_CMAKE_TOOLCHAIN_FILE_IF_REQUIRED
+      "set(_CMAKE_INPUT_TOOLCHAIN_FILE \"${_CMAKE_INPUT_TOOLCHAIN_FILE}\")\n"
       "set(_CMAKE_SYSTEM_TOOLCHAIN_FILE \"${CMAKE_TOOLCHAIN_FILE}\")\n"
       "include(\"\${_CMAKE_SYSTEM_TOOLCHAIN_FILE}\")"
     )

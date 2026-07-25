@@ -115,6 +115,7 @@ cmTest* cmTestGenerator::GetTest() const
 }
 
 bool cmTestGenerator::GetBuildDependencies(cmLocalGenerator* lg,
+                                           std::string const& config,
                                            BuildDependencies& info)
 {
   if (this->Test == nullptr ||
@@ -128,7 +129,6 @@ bool cmTestGenerator::GetBuildDependencies(cmLocalGenerator* lg,
   // Get dependencies from generator expressions
   cmGeneratorExpression ge(*this->Test->GetMakefile()->GetCMakeInstance(),
                            this->Test->GetBacktrace());
-  std::string const config;
   for (std::string const& arg : this->Test->GetCommand()) {
     auto parsed = ge.Parse(arg);
     parsed->Evaluate(lg, config);
@@ -304,7 +304,7 @@ void cmTestGenerator::GenerateScriptForConfig(std::ostream& os,
             ge.Parse(i.second)->Evaluate(this->LG, config));
   }
   BuildDependencies deps;
-  if (this->GetBuildDependencies(this->LG, deps)) {
+  if (this->GetBuildDependencies(this->LG, config, deps)) {
     cmList depList;
     for (std::string const& dep :
          this->LG->GetGlobalGenerator()->GetTestBuildDependencyPaths(config,

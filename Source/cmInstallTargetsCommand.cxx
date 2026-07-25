@@ -5,6 +5,7 @@
 #include <unordered_map>
 #include <utility>
 
+#include "cmDiagnostics.h"
 #include "cmExecutionStatus.h"
 #include "cmGlobalGenerator.h"
 #include "cmMakefile.h"
@@ -13,12 +14,16 @@
 bool cmInstallTargetsCommand(std::vector<std::string> const& args,
                              cmExecutionStatus& status)
 {
+  cmMakefile& mf = status.GetMakefile();
+
+  mf.IssueDiagnostic(cmDiagnostics::CMD_DEPRECATED,
+                     "The 'install_targets' command has been superseded. "
+                     "Use 'install(TARGETS)' instead.");
+
   if (args.size() < 2) {
     status.SetError("called with incorrect number of arguments");
     return false;
   }
-
-  cmMakefile& mf = status.GetMakefile();
 
   // Enable the install target.
   mf.GetGlobalGenerator()->EnableInstallTarget();

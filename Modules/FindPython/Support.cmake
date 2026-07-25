@@ -3772,7 +3772,7 @@ if (("Development.Module" IN_LIST ${_PYTHON_BASE}_FIND_COMPONENTS
                                   ${__${_PYTHON_PREFIX}_REGISTRY_PATHS}
                             PATH_SUFFIXES ${_${_PYTHON_PREFIX}_PATH_SUFFIXES})
 
-              if (_${_PYTHON_PREFIX}_LIBRARY_RELEASE)
+              if (_${_PYTHON_PREFIX}_SABI_LIBRARY_RELEASE)
                 break()
               endif()
             endforeach()
@@ -3783,14 +3783,18 @@ if (("Development.Module" IN_LIST ${_PYTHON_BASE}_FIND_COMPONENTS
 
     # finalize library version information
     # ABI library does not have the full version information
-    if (${_PYTHON_PREFIX}_Interpreter_FOUND AND NOT _${_PYTHON_PREFIX}_LIBRARY_RELEASE)
-      # update from interpreter
-      set (_${_PYTHON_PREFIX}_VERSION ${${_PYTHON_PREFIX}_VERSION})
-      set (_${_PYTHON_PREFIX}_VERSION_MAJOR ${${_PYTHON_PREFIX}_VERSION_MAJOR})
-      set (_${_PYTHON_PREFIX}_VERSION_MINOR ${${_PYTHON_PREFIX}_VERSION_MINOR})
-      set (_${_PYTHON_PREFIX}_VERSION_PATCH ${${_PYTHON_PREFIX}_VERSION_PATCH})
-    elseif(NOT _${_PYTHON_PREFIX}_LIBRARY_RELEASE)
+    if (NOT _${_PYTHON_PREFIX}_LIBRARY_RELEASE)
       _python_get_version (SABI_LIBRARY PREFIX _${_PYTHON_PREFIX}_)
+      if (_${_PYTHON_PREFIX}_VERSION EQUAL "${_${_PYTHON_PREFIX}_REQUIRED_VERSION_MAJOR}")
+        # not able to extract full version from library name
+        if (${_PYTHON_PREFIX}_Interpreter_FOUND)
+          # update from interpreter
+          set (_${_PYTHON_PREFIX}_VERSION ${${_PYTHON_PREFIX}_VERSION})
+          set (_${_PYTHON_PREFIX}_VERSION_MAJOR ${${_PYTHON_PREFIX}_VERSION_MAJOR})
+          set (_${_PYTHON_PREFIX}_VERSION_MINOR ${${_PYTHON_PREFIX}_VERSION_MINOR})
+          set (_${_PYTHON_PREFIX}_VERSION_PATCH ${${_PYTHON_PREFIX}_VERSION_PATCH})
+        endif()
+      endif()
     endif()
 
     if (_${_PYTHON_PREFIX}_SABI_LIBRARY_RELEASE AND NOT DEFINED ${_PYTHON_PREFIX}_FREE_THREADED)

@@ -2264,11 +2264,14 @@ Job Server Integration
 
 .. versionadded:: 3.29
 
-On POSIX systems, when running under the context of a `Job Server`_,
-CTest shares its job slots.  This is independent of the :prop_test:`PROCESSORS`
-test property, which still counts against CTest's :ctest-option:`-j` parallel
-level.  CTest acquires exactly one token from the job server before running
-each test, and returns it when the test finishes.
+.. versionchanged:: 4.5
+  Added support for job server integration on Windows.
+
+When running under the context of a `Job Server`_, CTest shares its job slots.
+This is independent of the :prop_test:`PROCESSORS` test property, which still
+counts against CTest's :ctest-option:`-j` parallel level.  CTest acquires
+exactly one token from the job server before running each test, and returns it
+when the test finishes.
 
 For example, consider the ``Makefile``:
 
@@ -2277,8 +2280,6 @@ For example, consider the ``Makefile``:
 
 When invoked via ``make -j 2 test``, CTest connects to the job server, acquires
 a token for each test, and runs at most 2 tests concurrently.
-
-On Windows systems, job server integration is not yet implemented.
 
 .. _`Job Server`: https://www.gnu.org/software/make/manual/html_node/Job-Slots.html
 

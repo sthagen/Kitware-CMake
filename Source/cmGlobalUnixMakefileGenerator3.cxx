@@ -967,7 +967,7 @@ void cmGlobalUnixMakefileGenerator3::ComputeTestPrepTargets()
   for (auto const& lg : this->LocalGenerators) {
     for (auto const& tester : lg->GetMakefile()->GetTestGenerators()) {
       cmTestGenerator::BuildDependencies deps;
-      if (!tester->GetBuildDependencies(lg.get(), deps)) {
+      if (!tester->GetBuildDependencies(lg.get(), std::string(), deps)) {
         continue;
       }
       cmTest* test = tester->GetTest();

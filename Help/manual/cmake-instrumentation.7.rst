@@ -456,9 +456,9 @@ Snippet files have a filename with the syntax
 
     The integer signal number that interrupted the command before it completed
     (for example ``2`` for ``SIGINT`` from Ctrl+C). Only included when ``role``
-    is ``cmakeBuild`` or ``cmakeInstall`` and the command was interrupted.
-    Consumers can use the presence of this field to distinguish an interrupted
-    command from one that ran to completion.
+    is ``cmakeBuild``, ``cmakeInstall``, or ``ctest`` and the command was
+    interrupted. Consumers can use the presence of this field to distinguish an
+    interrupted command from one that ran to completion.
 
     Only available as of data version ``1.2``.
 

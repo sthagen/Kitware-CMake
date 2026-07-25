@@ -25,6 +25,16 @@
 #  include "qt_windows.h" // For SetErrorMode
 #endif
 
+static QString sanitizedDirPath(QString const& dir)
+{
+  QString result = QString::fromStdString(
+    cmSystemTools::GetActualCaseForPath(dir.toStdString()));
+  if (result.size() > 1 && result.endsWith(QDir::separator())) {
+    result = result.left(result.size() - 1);
+  }
+  return result;
+}
+
 QCMake::QCMake(QObject* p)
   : QObject(p)
   , StartEnvironment(QProcessEnvironment::systemEnvironment())
@@ -75,8 +85,7 @@ void QCMake::loadCache(QString const& dir)
 
 void QCMake::setSourceDirectory(QString const& _dir)
 {
-  QString dir = QString::fromStdString(
-    cmSystemTools::GetActualCaseForPath(_dir.toStdString()));
+  QString dir = sanitizedDirPath(_dir);
   if (this->SourceDirectory != dir) {
     this->SourceDirectory = QDir::fromNativeSeparators(dir);
     emit this->sourceDirChanged(this->SourceDirectory);
@@ -92,8 +101,7 @@ void QCMake::setSourceDirectory(QString const& _dir)
 
 void QCMake::setBinaryDirectory(QString const& _dir)
 {
-  QString dir = QString::fromStdString(
-    cmSystemTools::GetActualCaseForPath(_dir.toStdString()));
+  QString dir = sanitizedDirPath(_dir);
 
   QString absDir = dir;
 

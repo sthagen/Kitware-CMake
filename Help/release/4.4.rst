@@ -111,7 +111,9 @@ Languages
 Compilers
 ---------
 
-* C++ 20 named modules are now supported with ``clang-cl``.
+* C++ 20 named modules are now supported with ``clang-cl``, except with the
+  :ref:`Visual Studio Generators` (i.e., the ``ClangCl``
+  :variable:`toolset <CMAKE_GENERATOR_TOOLSET>`).
   See :manual:`cmake-cxxmodules(7)`.
 
 * The ``ibm-flang`` compiler is now supported with

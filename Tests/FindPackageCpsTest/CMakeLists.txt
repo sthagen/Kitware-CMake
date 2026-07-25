@@ -27,9 +27,9 @@ function(expect PACKAGE VAR OP VALUE WHAT)
   endif()
 endfunction()
 
-function(expect_property TARGET PROPERTY DESCRIPTION EXPECTED)
+function(expect_property TARGET PROPERTY DESCRIPTION)
   get_target_property(actual ${TARGET} ${PROPERTY})
-  if(NOT "${actual}" STREQUAL "${EXPECTED}")
+  if(NOT "${actual}" STREQUAL "${ARGN}")
     message(SEND_ERROR "${TARGET} has wrong ${DESCRIPTION} '${actual}' !")
   endif()
 endfunction()
@@ -169,16 +169,24 @@ elseif(NOT TARGET Foo::PrefixTest)
   message(SEND_ERROR "Foo::PrefixTest missing !")
 elseif(NOT TARGET Foo::RelativeTest)
   message(SEND_ERROR "Foo::RelativeTest missing !")
+elseif(NOT TARGET Foo::ExecutableTest)
+  message(SEND_ERROR "Foo::ExecutableTest missing !")
 elseif(NOT TARGET Foo::Empty)
   message(SEND_ERROR "Foo::Empty missing !")
 else()
+  expect_property(Foo::PrefixTest TYPE "type" "INTERFACE_LIBRARY")
   expect_property(
     Foo::PrefixTest INTERFACE_INCLUDE_DIRECTORIES "includes"
     "$<$<CONFIG:default>:${CMAKE_CURRENT_SOURCE_DIR}/include>")
 
+  expect_property(Foo::RelativeTest TYPE "type" "INTERFACE_LIBRARY")
   expect_property(
     Foo::RelativeTest INTERFACE_INCLUDE_DIRECTORIES "includes"
     "$<$<CONFIG:default>:${CMAKE_CURRENT_SOURCE_DIR}/cps/../include>")
+
+  expect_property(Foo::ExecutableTest TYPE "type" "EXECUTABLE")
+  expect_property(Foo::ExecutableTest IMPORTED_LOCATION_DEFAULT "location"
+    "${CMAKE_CURRENT_SOURCE_DIR}/foo")
 
   expect_global(Foo::Empty FALSE)
 endif()
@@ -192,7 +200,7 @@ if(NOT Global_FOUND)
 elseif(NOT TARGET Global::Target)
   message(SEND_ERROR "Global::Target missing !")
 else()
-  expect_global(Foo::Empty FALSE)
+  expect_global(Global::Target TRUE)
 endif()
 
 ###############################################################################
@@ -374,4 +382,78 @@ else()
   expect_property(
     DefaultConfigurationsTest::Target2 IMPORTED_CONFIGURATIONS
     "configurations" "TEST")
+endif()
+
+###############################################################################
+# Test unnamed file sets.
+
+find_package(FileSets-Anonymous)
+if(NOT FileSets-Anonymous_FOUND)
+  message(SEND_ERROR "FileSets-Anonymous not found !")
+elseif(NOT TARGET FileSets-Anonymous::Target)
+  message(SEND_ERROR "FileSets-Anonymous::Target missing !")
+else()
+  expect_property(
+    FileSets-Anonymous::Target INTERFACE_HEADER_SETS
+    "include set names" "HEADERS")
+  expect_property(
+    FileSets-Anonymous::Target HEADER_DIRS
+    "include set roots"
+    "${CMAKE_SOURCE_DIR}/include"
+    "${CMAKE_SOURCE_DIR}/include")
+  expect_property(
+    FileSets-Anonymous::Target HEADER_DIRS_HEADERS
+    "include set 'HEADERS' roots"
+    "${CMAKE_SOURCE_DIR}/include"
+    "${CMAKE_SOURCE_DIR}/include")
+  expect_property(
+    FileSets-Anonymous::Target HEADER_SET
+    "include set files"
+    "${CMAKE_SOURCE_DIR}/include/header1.h"
+    "${CMAKE_SOURCE_DIR}/include/header2.h"
+    "${CMAKE_SOURCE_DIR}/include/header3.h")
+  expect_property(
+    FileSets-Anonymous::Target HEADER_SET_HEADERS
+    "include set 'HEADERS' files"
+    "${CMAKE_SOURCE_DIR}/include/header1.h"
+    "${CMAKE_SOURCE_DIR}/include/header2.h"
+    "${CMAKE_SOURCE_DIR}/include/header3.h")
+endif()
+
+###############################################################################
+# Test named file sets.
+
+find_package(FileSets-Named)
+if(NOT FileSets-Named_FOUND)
+  message(SEND_ERROR "FileSets-Named not found !")
+elseif(NOT TARGET FileSets-Named::Target)
+  message(SEND_ERROR "FileSets-Named::Target missing !")
+else()
+  expect_property(
+    FileSets-Named::Target INTERFACE_HEADER_SETS
+    "include set names" "foo;bar")
+  expect_property(
+    FileSets-Named::Target HEADER_DIRS_foo
+    "include set roots"
+    "${CMAKE_SOURCE_DIR}/include/a"
+    "${CMAKE_SOURCE_DIR}/include/b")
+  expect_property(
+    FileSets-Named::Target HEADER_DIRS_foo
+    "include set 'foo' roots"
+    "${CMAKE_SOURCE_DIR}/include/a"
+    "${CMAKE_SOURCE_DIR}/include/b")
+  expect_property(
+    FileSets-Named::Target HEADER_DIRS_bar
+    "include set 'bar' roots"
+    "${CMAKE_SOURCE_DIR}/include")
+  expect_property(
+    FileSets-Named::Target HEADER_SET_foo
+    "include set 'foo' files"
+    "${CMAKE_SOURCE_DIR}/include/a/foo1.h"
+    "${CMAKE_SOURCE_DIR}/include/a/foo2.h"
+    "${CMAKE_SOURCE_DIR}/include/b/foo3.h")
+  expect_property(
+    FileSets-Named::Target HEADER_SET_bar
+    "include set 'bar' files"
+    "${CMAKE_SOURCE_DIR}/include/bar.h")
 endif()
