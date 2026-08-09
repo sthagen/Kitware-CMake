@@ -626,6 +626,13 @@ void cmGlobalGenerator::EnableLanguage(
     return;
   }
 
+  bool propagate = true;
+  // If enable_language calls logic that calls enable_language, we don't
+  // need to propagate variables twice
+  if (!this->LanguagesInProgress.empty()) {
+    propagate = false;
+  }
+
   std::set<std::string> cur_languages(languages.begin(), languages.end());
   for (std::string const& li : cur_languages) {
     if (!this->LanguagesInProgress.insert(li).second) {
@@ -656,6 +663,12 @@ void cmGlobalGenerator::EnableLanguage(
         }
       }
     }
+  }
+
+  // Variable scope to capture enable_language variables to be raised to root.
+  std::unique_ptr<cmMakefile::VariablePushPop> variableScope;
+  if (propagate) {
+    variableScope = cm::make_unique<cmMakefile::VariablePushPop>(mf);
   }
 
   bool fatalError = false;
@@ -1108,6 +1121,30 @@ void cmGlobalGenerator::EnableLanguage(
 
   for (std::string const& lang : cur_languages) {
     this->LanguagesInProgress.erase(lang);
+  }
+
+  // Propagate captured variables and set them at all scopes up to the root
+  if (propagate) {
+    cmStateSnapshot snapshot = mf->GetStateSnapshot();
+    bool warnCMP0220 = false;
+    for (std::string const& key : snapshot.LocalKeys()) {
+      // Should never need to propagate unsets
+      if (!key.empty()) {
+        if (mf->RaiseToRoot(key, snapshot.GetDefinition(key).GetCStr()) ==
+            cmStateSnapshot::WarnCMP0220::Yes) {
+          warnCMP0220 = true;
+        }
+      }
+    }
+
+    if (warnCMP0220 &&
+        mf->PolicyOptionalWarningEnabled("CMAKE_POLICY_WARNING_CMP0220")) {
+      mf->IssuePolicyWarning(
+        cmPolicies::CMP0220, {},
+        "For compatibility with older versions of CMake, the language "
+        "configuration set by this call is not propagated to the enclosing "
+        "variable scopes.");
+    }
   }
 }
 
@@ -1701,6 +1738,9 @@ bool cmGlobalGenerator::Compute()
     return false;
   }
 
+  // Write pre-generated module info for targets that report import errors.
+  this->WriteCxxImportErrorModules();
+
   // Iterate through all targets and set up C++20 module targets.
   // Create target templates for each imported target with C++20 modules.
   // INTERFACE library with BMI-generating rules and a collation step?
@@ -2018,17 +2058,29 @@ void cmGlobalGenerator::ComputeTargetOrder(cmGeneratorTarget const* gt,
 bool cmGlobalGenerator::ApplyCXXStdTarget()
 {
   for (auto const& gen : this->LocalGenerators) {
-
-    // tgt->ApplyCXXStdTarget can create a target itself, so we need iterators
-    // which won't be invalidated by that target creation
-    auto const& genTgts = gen->GetGeneratorTargets();
-    std::vector<cmGeneratorTarget*> existingTgts;
-    existingTgts.reserve(genTgts.size());
-    for (auto const& tgt : genTgts) {
-      existingTgts.push_back(tgt.get());
+    // @cmake_cxx_std is added to OwnedImportedGeneratorTargets during
+    // iteration. If it doesn't exist yet, copy the list to protect against
+    // invalidation when CreateCxxStdlibTarget adds it.
+    if (gen->GetMakefile()->FindTargetToUse("@cmake_cxx_std")) {
+      for (auto const& tgt : gen->GetOwnedImportedGeneratorTargets()) {
+        if (!tgt->ApplyCXXStdTarget()) {
+          return false;
+        }
+      }
+    } else {
+      std::vector<cmGeneratorTarget*> impTgts;
+      impTgts.reserve(gen->GetOwnedImportedGeneratorTargets().size());
+      for (auto const& tgt : gen->GetOwnedImportedGeneratorTargets()) {
+        impTgts.push_back(tgt.get());
+      }
+      for (auto* tgt : impTgts) {
+        if (!tgt->ApplyCXXStdTarget()) {
+          return false;
+        }
+      }
     }
 
-    for (auto const& tgt : existingTgts) {
+    for (auto const& tgt : gen->GetGeneratorTargets()) {
       if (!tgt->ApplyCXXStdTarget()) {
         return false;
       }
@@ -2036,6 +2088,44 @@ bool cmGlobalGenerator::ApplyCXXStdTarget()
   }
 
   return true;
+}
+
+void cmGlobalGenerator::WriteCxxImportErrorModules()
+{
+#ifndef CMAKE_BOOTSTRAP
+  for (auto const& gen : this->LocalGenerators) {
+    for (auto const& tgt : gen->GetOwnedImportedGeneratorTargets()) {
+      auto errorMsg = tgt->Target->GetProperty("CXX_IMPORT_ERROR_MESSAGE");
+      auto modules = tgt->Target->GetProperty("CXX_IMPORT_ERROR_MODULES");
+      if (!errorMsg || !modules) {
+        continue;
+      }
+      auto configs =
+        tgt->Makefile->GetGeneratorConfigs(cmMakefile::IncludeEmptyConfig);
+      for (auto const& config : configs) {
+        auto dir = tgt->GetSupportDirectory();
+        if (this->IsMultiConfig()) {
+          dir = cmStrCat(dir, '/', config);
+        }
+        cmSystemTools::MakeDirectory(dir);
+
+        Json::Value moduleInfo(Json::objectValue);
+        moduleInfo["modules"] = Json::objectValue;
+        Json::Value importError(Json::objectValue);
+        importError["message"] = *errorMsg;
+        Json::Value modulesArray(Json::arrayValue);
+        for (auto const& m : cmList{ *modules }) {
+          modulesArray.append(m);
+        }
+        importError["modules"] = modulesArray;
+        moduleInfo["import-error"] = importError;
+
+        cmGeneratedFileStream mf(cmStrCat(dir, "/CXXModules.json"));
+        mf << moduleInfo;
+      }
+    }
+  }
+#endif
 }
 
 bool cmGlobalGenerator::DiscoverSyntheticTargets()

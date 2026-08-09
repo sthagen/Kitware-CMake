@@ -183,7 +183,7 @@ This module defines the following variables
     * IronPython
     * PyPy
 
-``Python3_FREE_THREADED``
+``Python_FREE_THREADED``
   .. versionadded:: 4.4
 
   Boolean value, which is ``true`` if the python is free threaded (i.e.
@@ -213,7 +213,7 @@ This module defines the following variables
 
   Information computed from ``sysconfig.get_config_var('EXT_SUFFIX')`` or
   ``sysconfig.get_config_var('SOABI')`` or
-  ``python3-config --extension-suffix``.
+  ``python-config --extension-suffix``.
 
 ``Python_SOSABI``
   .. versionadded:: 3.26
@@ -224,6 +224,16 @@ This module defines the following variables
   COMPONENT ``Interpreter`` was specified. Otherwise, the extension is ``abi3``
   or ``abi3t`` except for ``Windows``, ``MSYS`` and ``CYGWIN`` for which this
   is an empty string.
+
+``Python_SOSABI_PLATFORM``
+  .. versionadded:: 4.5
+
+  Extension suffix, with the platform triplet, for modules using the Stable
+  Application Binary Interface. This information is only available on some
+  platforms. This is an empty string for the other platforms.
+
+  Information computed from ``importlib.machinery.EXTENSION_SUFFIXES`` if the
+  COMPONENT ``Interpreter`` was specified. Otherwise, this is an empty string.
 
 ``Python_Compiler_FOUND``
   Boolean indicating whether system has the Python compiler.
@@ -363,6 +373,10 @@ Hints
     threaded python), is added and is optional. If not specified, the value is
     ``OFF``.
 
+  .. versionadded:: 4.4.1
+    The ``pydebug`` flag is now supported on ``Windows`` systems for ``Python``
+    3.14+.
+
   Each element can be set to one of the following:
 
   * ``ON``: Corresponding flag is selected.
@@ -371,8 +385,10 @@ Hints
 
   .. note::
 
-    If ``Python3_FIND_ABI`` is not defined, any ABI, excluding the
-    ``gil_disabled`` flag, will be searched.
+    If ``Python_FIND_ABI`` is not defined, the following default apply:
+
+      * On ``POSIX`` systems: ``ANY``, ``ANY``, ``ANY``, ``OFF``.
+      * On ``Windows`` systems: ``OFF``, ``OFF``, ``OFF``, ``OFF``.
 
   From this 4-tuple, various ABIs will be searched starting from the most
   specialized to the most general. Moreover, when ``ANY`` is specified for
@@ -386,7 +402,10 @@ Hints
     set (Python_FIND_ABI "ON" "ANY" "ANY" "ON")
 
   The following flags combinations will be appended, in that order, to the
-  artifact names: ``tdmu``, ``tdm``, ``tdu``, and ``td``.
+  artifact names:
+
+    * On ``POSIX`` systems: ``tdmu``, ``tdm``, ``tdu``, and ``td``.
+    * On ``Windows`` systems: ``tmu_d``, ``tm_d``, ``tu_d``, and ``t_d``.
 
   And to search any possible ABIs:
 
@@ -394,18 +413,24 @@ Hints
 
     set (Python_FIND_ABI "ANY" "ANY" "ANY" "ANY")
 
-  The following combinations, in that order, will be used: ``mu``, ``m``,
-  ``u``, ``<empty>``, ``dmu``, ``dm``, ``du``, ``d``, ``tmu``, ``tm``, ``tu``,
-  ``t``, ``tdmu``, ``tdm``, ``tdu``, and ``td``.
+  The following combinations, in that order, will be used:
+
+  * On ``POSIX`` systems: ``mu``, ``m``, ``u``, ``<empty>``, ``dmu``, ``dm``,
+    ``du``, ``d``, ``tmu``, ``tm``, ``tu``, ``t``, ``tdmu``, ``tdm``, ``tdu``,
+    and ``td``.
+  * On ``Windows`` systems: ``mu``, ``m``, ``u``, ``<empty>``, ``mu_d``,
+    ``m_d``, ``u_d``, ``_d``, ``tmu``, ``tm``, ``tu``, ``t``, ``tmu_d``, ``tm_d``,
+    ``tu_d``, and ``t_d``.
 
   .. note::
 
-    This hint is useful only on ``POSIX`` systems except for the
-    ``gil_disabled`` flag. So, on ``Windows`` systems,
-    when ``Python_FIND_ABI`` is defined, ``Python`` distributions from
-    `python.org <https://www.python.org/>`_ will be found only if the value for
-    each flag is ``OFF`` or ``ANY`` except for the fourth one
-    (``gil_disabled``).
+    This hint is fully usable on ``POSIX`` systems. On ``Windows`` systems,
+    only the ``gil_disabled`` and ``pydebug`` flags are supported. Moreover,
+    the ``pydebug`` flag is only supported for ``Python`` 3.14+. So, on
+    ``Windows`` systems, when ``Python_FIND_ABI`` is defined, ``Python``
+    distributions from `python.org <https://www.python.org/>`_ will be found
+    only if the value for the flags ``pymalloc`` and ``unicode`` is ``OFF`` or
+    ``ANY``.
 
 ``Python_FIND_STRATEGY``
   .. versionadded:: 3.15
@@ -627,6 +652,19 @@ can be controlled with the following variable:
     ``_FOUND`` variables (i.e. without the custom prefix) are also defined by
     each call to the :command:`find_package` command.
 
+``Python_CROSSCOMPILING_EMULATOR``
+  .. versionadded:: 4.5
+
+  This variable is only used when the :variable:`CMAKE_CROSSCOMPILING` variable
+  is on and the policy :policy:`CMP0190` is ``NEW``. It should point to a
+  command on the host system that can run executable built for the target
+  system. This variable takes precedence over the
+  :variable:`CMAKE_CROSSCOMPILING_EMULATOR` variable.
+
+  Moreover, to support some specific cases (like
+  `crossenv <https://github.com/robotpy/crossenv>`_), it is possible to set an
+  empty string to this variable.
+
 Commands
 ^^^^^^^^
 
@@ -659,13 +697,18 @@ If the library type is not specified, ``MODULE`` is assumed.
   was introduced. Specifying only major version ``3`` is equivalent to ``3.2``.
 
 .. versionchanged:: 4.4
-  When ``USE_SABI`` is specified, if ``Python3_FREE_THREADED`` is ``true`` and
+  When ``USE_SABI`` is specified, if ``Python_FREE_THREADED`` is ``true`` and
   Python version is ``3.15`` or upper, ``Py_TARGET_ABI3T`` preprocessor
   definition will be defined rather than ``Py_LIMITED_API`` (see :pep:`803` for
   more details).
 
   When option ``WITH_SOABI`` is also specified,  the module suffix will include
   the ``Python_SOSABI`` value, if any.
+
+.. versionadded:: 4.5
+  If the sub-option ``PLATFORM`` of ``WITH_SOABI`` option is specified, the
+  module suffix will include preferably the ``Python_SOSABI_PLATFORM`` value,
+  if any or, as fallback, the ``Python_SOSABI`` value.
 
 .. versionadded:: 3.30
   For ``MODULE`` type, the :prop_tgt:`DEBUG_POSTFIX` target property is

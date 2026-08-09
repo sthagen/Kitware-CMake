@@ -398,6 +398,21 @@ bool cmExportFileGenerator::AddTargetNamespace(std::string& input,
     return false;
   }
 
+  std::vector<std::string> replace = tgt->Target->GetExportTargets();
+  if (!replace.empty()) {
+    std::vector<std::string> out;
+    out.reserve(replace.size());
+
+    bool result = true;
+    for (std::string& t : replace) {
+      result = this->AddTargetNamespace(t, target, lg) && result;
+      out.emplace_back(std::move(t));
+    }
+
+    input = cmJoin(out, ";"_s);
+    return result;
+  }
+
   cmFindPackageStack const& pkgStack = tgt->Target->GetFindPackageStack();
   if (!pkgStack.Empty() ||
       tgt->Target->GetProperty("EXPORT_FIND_PACKAGE_NAME")) {
@@ -738,14 +753,6 @@ bool cmExportFileGenerator::PopulateCxxModuleExportProperties(
 
   ModuleTargetPropertyTable const exportedDirectModuleProperties[] = {
     { "CXX_EXTENSIONS"_s, ExportWhen::Defined },
-    // Always define this property as it is an intrinsic property of the target
-    // and should not be inherited from the in-scope `CMAKE_CXX_MODULE_STD`
-    // variable.
-    //
-    // TODO(cxxmodules): A future policy may make this "ON" based on the target
-    // policies if unset. Add a new `ExportWhen` condition to handle it when
-    // this happens.
-    { "CXX_MODULE_STD"_s, ExportWhen::Always },
   };
   for (auto const& prop : exportedDirectModuleProperties) {
     auto const propNameStr = std::string(prop.Name);

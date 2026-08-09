@@ -1096,7 +1096,8 @@ int cmcmd::ExecuteCMakeCommand(std::vector<std::string> const& args,
     if (args[1] == "copy_directory" ||
         args[1] == "copy_directory_if_different" ||
         args[1] == "copy_directory_if_newer") {
-      cmsys::SystemTools::CopyWhen when = cmsys::SystemTools::CopyWhen::Always;
+      cmsys::SystemTools::CopyWhen when =
+        cmsys::SystemTools::CopyWhen::Unconditional;
       if (args[1] == "copy_directory_if_different") {
         when = cmsys::SystemTools::CopyWhen::OnlyIfDifferent;
       } else if (args[1] == "copy_directory_if_newer") {
@@ -1201,13 +1202,20 @@ int cmcmd::ExecuteCMakeCommand(std::vector<std::string> const& args,
         std::cerr << "could not open object list file: " << args[3] << '\n';
         return 1;
       }
-      std::vector<std::string> files;
+      std::vector<std::string> defFiles;
+      std::vector<std::string> objFiles;
       {
         std::string file;
         cmFileTime outTime;
         bool outValid = outTime.Load(args[2]);
         while (cmSystemTools::GetLineFromStream(fin, file)) {
-          files.push_back(file);
+          std::string const& ext =
+            cmSystemTools::GetFilenameLastExtension(file);
+          if (cmSystemTools::LowerCase(ext) == ".def") {
+            defFiles.push_back(file);
+          } else {
+            objFiles.push_back(file);
+          }
           if (outValid) {
             cmFileTime inTime;
             outValid = inTime.Load(file) && inTime.Older(outTime);
@@ -1219,7 +1227,8 @@ int cmcmd::ExecuteCMakeCommand(std::vector<std::string> const& args,
           return 0;
         }
       }
-      FILE* fout = cmsys::SystemTools::Fopen(args[2], "w+");
+      fin.close();
+      cmsys::ofstream fout(args[2].c_str());
       if (!fout) {
         std::cerr << "could not open output .def file: " << args[2] << '\n';
         return 1;
@@ -1233,20 +1242,14 @@ int cmcmd::ExecuteCMakeCommand(std::vector<std::string> const& args,
           std::cerr << "unknown argument: " << a << '\n';
         }
       }
-      for (std::string const& file : files) {
-        std::string const& ext = cmSystemTools::GetFilenameLastExtension(file);
-        if (cmSystemTools::LowerCase(ext) == ".def") {
-          if (!deffile.AddDefinitionFile(file.c_str())) {
-            return 1;
-          }
-        } else {
-          if (!deffile.AddObjectFile(file.c_str())) {
-            return 1;
-          }
-        }
+      if (!deffile.AddDefinitionFile(defFiles) ||
+          !deffile.AddObjectFile(objFiles, cmStrCat(args[3], ".rsp"))) {
+        return 1;
       }
-      deffile.WriteFile(fout);
-      fclose(fout);
+      if (!deffile.WriteFile(fout)) {
+        std::cerr << "could not write output .def file: " << args[2] << '\n';
+        return 1;
+      }
       return 0;
     }
 #endif

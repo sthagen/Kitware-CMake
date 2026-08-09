@@ -432,3 +432,21 @@ Other Changes
 * Targets which provide C++ modules may now be consumed by targets with
   different :prop_tgt:`compile features <COMPILE_FEATURES>` and
   :prop_tgt:`options <COMPILE_OPTIONS>` than the provider.
+
+Updates
+=======
+
+Changes made since CMake 4.4.0 include the following.
+
+4.4.1
+-----
+
+* The :module:`FindPython`, :module:`FindPython3` modules learned
+  to manage, on ``Windows`` systems, the ``pydebug`` ABI flag.
+
+4.4.2
+-----
+
+* This version made no changes to documented features or interfaces.
+  Some implementation updates were made to support ecosystem changes
+  and/or fix regressions.

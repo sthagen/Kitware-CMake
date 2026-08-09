@@ -11,6 +11,7 @@
 #include <utility>
 
 #include <cm/memory>
+#include <cm/string_view>
 
 #include "cmsys/RegularExpression.hxx"
 
@@ -62,6 +63,21 @@ using ImmediateMacroExpander =
 using cmCMakePresetsGraphInternal::ExpandMacros;
 
 bool gSkipNewLine = true;
+
+char const* WorkflowStepTypeToString(WorkflowPreset::WorkflowStep::Type type)
+{
+  switch (type) {
+    case WorkflowPreset::WorkflowStep::Type::Configure:
+      return "configure";
+    case WorkflowPreset::WorkflowStep::Type::Build:
+      return "build";
+    case WorkflowPreset::WorkflowStep::Type::Test:
+      return "test";
+    case WorkflowPreset::WorkflowStep::Type::Package:
+      return "package";
+  }
+  return "";
+}
 
 void InheritString(std::string& child, std::string const& parent)
 {
@@ -146,7 +162,7 @@ bool VisitPreset(
     auto& parentPreset = parent->second.Unexpanded;
     if (!preset.OriginFile->ReachableFiles.count(parentPreset.OriginFile)) {
       cmCMakePresetsErrors::INHERITED_PRESET_UNREACHABLE_FROM_FILE(
-        preset.Name, preset.kind(), &graph.parseState);
+        preset.Name, i, preset.kind(), &graph.parseState);
       return false;
     }
 
@@ -700,10 +716,13 @@ namespace {
 template <typename T>
 bool SetupWorkflowConfigurePreset(T const& preset,
                                   ConfigurePreset const*& configurePreset,
+                                  char const*, std::string const&,
                                   cmJSONState* state)
 {
   if (preset.ConfigurePreset != configurePreset->Name) {
-    cmCMakePresetsErrors::INVALID_WORKFLOW_STEPS(configurePreset->Name, state);
+    cmCMakePresetsErrors::WORKFLOW_STEP_CONFIGURE_PRESET_MISMATCH(
+      preset.kind(), preset.Name, preset.ConfigurePreset,
+      configurePreset->Name, state);
     return false;
   }
   return true;
@@ -712,7 +731,7 @@ bool SetupWorkflowConfigurePreset(T const& preset,
 template <>
 bool SetupWorkflowConfigurePreset<ConfigurePreset>(
   ConfigurePreset const& preset, ConfigurePreset const*& configurePreset,
-  cmJSONState*)
+  char const*, std::string const&, cmJSONState*)
 {
   configurePreset = &preset;
   return true;
@@ -722,20 +741,23 @@ template <typename T>
 bool TryReachPresetFromWorkflow(
   WorkflowPreset const& origin,
   std::map<std::string, PresetPair<T>> const& presets, std::string const& name,
-  ConfigurePreset const*& configurePreset, cmJSONState* state)
+  char const* workflowStepType, ConfigurePreset const*& configurePreset,
+  cmJSONState* state)
 {
   auto it = presets.find(name);
   if (it == presets.end()) {
-    cmCMakePresetsErrors::INVALID_WORKFLOW_STEPS(name, state);
+    cmCMakePresetsErrors::INVALID_WORKFLOW_STEPS(workflowStepType, name,
+                                                 state);
     return false;
   }
   if (!origin.OriginFile->ReachableFiles.count(
         it->second.Unexpanded.OriginFile)) {
-    cmCMakePresetsErrors::WORKFLOW_STEP_UNREACHABLE_FROM_FILE(name, state);
+    cmCMakePresetsErrors::WORKFLOW_STEP_UNREACHABLE_FROM_FILE(workflowStepType,
+                                                              name, state);
     return false;
   }
-  return SetupWorkflowConfigurePreset<T>(it->second.Unexpanded,
-                                         configurePreset, state);
+  return SetupWorkflowConfigurePreset<T>(
+    it->second.Unexpanded, configurePreset, workflowStepType, name, state);
 }
 }
 
@@ -947,6 +969,13 @@ bool cmCMakePresetsGraph::ConfigurePreset::VisitPresetAfterInherit(
       auto const ei = preset.Errors.find(w.first);
       if (ei != preset.Errors.end()) {
         if (w.second == false && ei->second == true) {
+          cm::string_view const diagnostic =
+            version < 12 && w.first == cmDiagnostics::CMD_AUTHOR
+            ? cm::string_view{ "dev" }
+            : cmCMakePresetsGraphInternal::GetDiagnosticJSONName(w.first);
+          this->ErrorDetail = cmStrCat("\"errors.", diagnostic,
+                                       "\" is enabled while \"warnings.",
+                                       diagnostic, "\" is disabled");
           return false;
         }
       }
@@ -1276,14 +1305,16 @@ bool cmCMakePresetsGraph::ReadProjectPresetsInternal(
       auto const configurePreset =
         this->ConfigurePresets.find(it.second.Unexpanded.ConfigurePreset);
       if (configurePreset == this->ConfigurePresets.end()) {
-        cmCMakePresetsErrors::INVALID_CONFIGURE_PRESET(it.first,
-                                                       &this->parseState);
+        cmCMakePresetsErrors::CONFIGURE_PRESET_NOT_FOUND(
+          it.first, BuildPreset::kind(), it.second.Unexpanded.ConfigurePreset,
+          &this->parseState);
         return false;
       }
       if (!it.second.Unexpanded.OriginFile->ReachableFiles.count(
             configurePreset->second.Unexpanded.OriginFile)) {
         cmCMakePresetsErrors::CONFIGURE_PRESET_UNREACHABLE_FROM_FILE(
-          it.first, &this->parseState);
+          it.first, BuildPreset::kind(), it.second.Unexpanded.ConfigurePreset,
+          &this->parseState);
         return false;
       }
 
@@ -1306,14 +1337,16 @@ bool cmCMakePresetsGraph::ReadProjectPresetsInternal(
       auto const configurePreset =
         this->ConfigurePresets.find(it.second.Unexpanded.ConfigurePreset);
       if (configurePreset == this->ConfigurePresets.end()) {
-        cmCMakePresetsErrors::INVALID_CONFIGURE_PRESET(it.first,
-                                                       &this->parseState);
+        cmCMakePresetsErrors::CONFIGURE_PRESET_NOT_FOUND(
+          it.first, TestPreset::kind(), it.second.Unexpanded.ConfigurePreset,
+          &this->parseState);
         return false;
       }
       if (!it.second.Unexpanded.OriginFile->ReachableFiles.count(
             configurePreset->second.Unexpanded.OriginFile)) {
         cmCMakePresetsErrors::CONFIGURE_PRESET_UNREACHABLE_FROM_FILE(
-          it.first, &this->parseState);
+          it.first, TestPreset::kind(), it.second.Unexpanded.ConfigurePreset,
+          &this->parseState);
         return false;
       }
 
@@ -1336,14 +1369,16 @@ bool cmCMakePresetsGraph::ReadProjectPresetsInternal(
       auto const configurePreset =
         this->ConfigurePresets.find(it.second.Unexpanded.ConfigurePreset);
       if (configurePreset == this->ConfigurePresets.end()) {
-        cmCMakePresetsErrors::INVALID_CONFIGURE_PRESET(it.first,
-                                                       &this->parseState);
+        cmCMakePresetsErrors::CONFIGURE_PRESET_NOT_FOUND(
+          it.first, PackagePreset::kind(),
+          it.second.Unexpanded.ConfigurePreset, &this->parseState);
         return false;
       }
       if (!it.second.Unexpanded.OriginFile->ReachableFiles.count(
             configurePreset->second.Unexpanded.OriginFile)) {
         cmCMakePresetsErrors::CONFIGURE_PRESET_UNREACHABLE_FROM_FILE(
-          it.first, &this->parseState);
+          it.first, PackagePreset::kind(),
+          it.second.Unexpanded.ConfigurePreset, &this->parseState);
         return false;
       }
 
@@ -1366,14 +1401,15 @@ bool cmCMakePresetsGraph::ReadProjectPresetsInternal(
 
     ConfigurePreset const* configurePreset = nullptr;
     for (auto const& step : it.second.Unexpanded.Steps) {
+      char const* const stepType = WorkflowStepTypeToString(step.PresetType);
       if (!configurePreset && step.PresetType != Type::Configure) {
         cmCMakePresetsErrors::FIRST_WORKFLOW_STEP_NOT_CONFIGURE(
-          step.PresetName, &this->parseState);
+          stepType, step.PresetName, &this->parseState);
         return false;
       }
       if (configurePreset && step.PresetType == Type::Configure) {
         cmCMakePresetsErrors::CONFIGURE_WORKFLOW_STEP_NOT_FIRST(
-          step.PresetName, &this->parseState);
+          stepType, step.PresetName, &this->parseState);
         return false;
       }
 
@@ -1381,22 +1417,22 @@ bool cmCMakePresetsGraph::ReadProjectPresetsInternal(
         case Type::Configure:
           result = TryReachPresetFromWorkflow(
             it.second.Unexpanded, this->ConfigurePresets, step.PresetName,
-            configurePreset, &this->parseState);
+            stepType, configurePreset, &this->parseState);
           break;
         case Type::Build:
           result = TryReachPresetFromWorkflow(
             it.second.Unexpanded, this->BuildPresets, step.PresetName,
-            configurePreset, &this->parseState);
+            stepType, configurePreset, &this->parseState);
           break;
         case Type::Test:
           result = TryReachPresetFromWorkflow(
-            it.second.Unexpanded, this->TestPresets, step.PresetName,
+            it.second.Unexpanded, this->TestPresets, step.PresetName, stepType,
             configurePreset, &this->parseState);
           break;
         case Type::Package:
           result = TryReachPresetFromWorkflow(
             it.second.Unexpanded, this->PackagePresets, step.PresetName,
-            configurePreset, &this->parseState);
+            stepType, configurePreset, &this->parseState);
           break;
       }
       if (!result) {

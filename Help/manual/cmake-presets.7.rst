@@ -268,6 +268,7 @@ Recognized macros include:
   This is a preset-specific macro.
 
 .. _`CMakePresets hostSystemName`:
+.. |CMakePresets hostSystemName| replace:: ``${hostSystemName}``
 
 ``${hostSystemName}``
   .. presets-versionadded:: 3
@@ -276,6 +277,7 @@ Recognized macros include:
   :variable:`CMAKE_HOST_SYSTEM_NAME`.
 
 .. _`CMakePresets fileDir`:
+.. |CMakePresets fileDir| replace:: ``${fileDir}``
 
 ``${fileDir}``
   .. presets-versionadded:: 4
@@ -316,6 +318,7 @@ Recognized macros include:
   A literal dollar sign (``$``).
 
 .. _`CMakePresets pathListSep`:
+.. |CMakePresets pathListSep| replace:: ``${pathListSep}``
 
 ``${pathListSep}``
   .. presets-versionadded:: 5
@@ -395,7 +398,7 @@ they were added and a summary of the new features and changes is given below.
 
     * Changes to `Macro Expansion`_
 
-      * The `${hostSystemName} <CMakePresets hostSystemName_>`_ macro was
+      * The |CMakePresets hostSystemName|_ macro was
         added.
 
   ``4``
@@ -409,7 +412,7 @@ they were added and a summary of the new features and changes is given below.
 
     * Changes to `Macro Expansion`_
 
-      * The `${fileDir} <CMakePresets fileDir_>`_ macro was added.
+      * The |CMakePresets fileDir|_ macro was added.
 
   ``5``
     .. versionadded:: 3.24
@@ -421,7 +424,7 @@ they were added and a summary of the new features and changes is given below.
 
     * Changes to `Macro Expansion`_
 
-      * The `${pathListSep} <CMakePresets pathListSep_>`_ macro was added.
+      * The |CMakePresets pathListSep|_ macro was added.
 
   ``6``
     .. versionadded:: 3.25
@@ -487,19 +490,28 @@ they were added and a summary of the new features and changes is given below.
         :preset:`configurePresets.errors`.
 
       * The ``installAbsoluteDestination`` field was added to
-        :preset:`configurePresets.warnings` and :preset:`configurePresets.errors`.
+        :preset:`configurePresets.warnings` and
+        :preset:`configurePresets.errors`.
 
     * Changes to `Macro Expansion`_
 
-      * The `${fileDir} <CMakePresets fileDir_>`_ macro now always expands to
-        the directory of presets file containing the ``${fileDir}`` macro,
-        regardless of whether it is inherited by another preset in a different
-        directory.
+      * The |CMakePresets fileDir|_ macro now always expands to the directory
+        of presets file containing the ``${fileDir}`` macro, regardless of
+        whether it is inherited by another preset in a different directory.
 
     * Changes to `Test Presets <Test Preset_>`_
 
       * The :preset:`testPresets.execution.testPassthroughArguments` field was
         added to forward arguments to test executables.
+
+  ``13``
+    .. versionadded:: 4.5
+
+    * Changes to `Configure Presets <Configure Preset_>`_:
+
+      * The ``strict`` and ``nonTargetDirective`` fields were added to
+        :preset:`configurePresets.warnings` and
+        :preset:`configurePresets.errors`.
 
 Schema
 ======
