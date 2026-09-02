@@ -69,6 +69,7 @@
 #include "cmUVHandlePtr.h"
 #include "cmUVProcessChain.h"
 #include "cmUVStream.h"
+#include "cmUnreachable.h"
 #include "cmValue.h"
 #include "cmVersion.h"
 #include "cmVersionConfig.h"
@@ -1604,8 +1605,11 @@ bool cmCTest::SetArgsFromPreset(cmCMakePresetsArgs const& args)
     return false;
   }
 
-  if (args.ListPresets) {
-    settingsFile.PrintTestPresetList();
+  if (args.ListPresetsMode) {
+    cmake cm(cmState::Role::CTest);
+    auto configureUsabilityCheck = cm.CreateConfigurePresetUsabilityCheck();
+    settingsFile.PrintTestPresetList(*args.ListPresetsMode,
+                                     configureUsabilityCheck);
     return true;
   }
 
@@ -1617,7 +1621,10 @@ bool cmCTest::SetArgsFromPreset(cmCMakePresetsArgs const& args)
       workingDirectory);
   if (resolveError) {
     cmSystemTools::Error(*resolveError);
-    settingsFile.PrintTestPresetList();
+    cmake cm(cmState::Role::CTest);
+    auto configureUsabilityCheck = cm.CreateConfigurePresetUsabilityCheck();
+    settingsFile.PrintTestPresetList(
+      cmCMakePresetsGraph::PresetListMode::Available, configureUsabilityCheck);
     return false;
   }
   auto const* expandedPreset = resolveResult.Preset;
@@ -1628,7 +1635,10 @@ bool cmCTest::SetArgsFromPreset(cmCMakePresetsArgs const& args)
     cmSystemTools::Error(cmStrCat("No such configure preset in ",
                                   workingDirectory, ": \"",
                                   expandedPreset->ConfigurePreset, '"'));
-    settingsFile.PrintConfigurePresetList();
+    cmake cm(cmState::Role::CTest);
+    auto configureUsabilityCheck = cm.CreateConfigurePresetUsabilityCheck();
+    settingsFile.PrintConfigurePresetList(
+      cmCMakePresetsGraph::PresetListMode::Available, configureUsabilityCheck);
     return false;
   }
 
@@ -1636,7 +1646,10 @@ bool cmCTest::SetArgsFromPreset(cmCMakePresetsArgs const& args)
     cmSystemTools::Error(cmStrCat("Cannot use hidden configure preset in ",
                                   workingDirectory, ": \"",
                                   expandedPreset->ConfigurePreset, '"'));
-    settingsFile.PrintConfigurePresetList();
+    cmake cm(cmState::Role::CTest);
+    auto configureUsabilityCheck = cm.CreateConfigurePresetUsabilityCheck();
+    settingsFile.PrintConfigurePresetList(
+      cmCMakePresetsGraph::PresetListMode::Available, configureUsabilityCheck);
     return false;
   }
 
@@ -1683,6 +1696,7 @@ bool cmCTest::SetArgsFromPreset(cmCMakePresetsArgs const& args)
           break;
         case cmCMakePresetsGraph::TestPreset::OutputOptions::VerbosityEnum::
           Default:
+          CM_FALLTHROUGH;
         default:
           // leave default settings
           break;
@@ -1746,7 +1760,7 @@ bool cmCTest::SetArgsFromPreset(cmCMakePresetsArgs const& args)
           break;
         case cmCMakePresetsGraph::TestPreset::ExecutionOptions::ShowOnlyEnum::
           Human:
-          // intentional fallthrough (human is the default)
+          CM_FALLTHROUGH;
         default:
           break;
       }
@@ -1768,7 +1782,7 @@ bool cmCTest::SetArgsFromPreset(cmCMakePresetsArgs const& args)
           this->Impl->RepeatMode = cmCTest::Repeat::AfterTimeout;
           break;
         default:
-          // should never default since mode is required
+          CM_UNREACHABLE;
           return false;
       }
     }
@@ -1801,7 +1815,7 @@ bool cmCTest::SetArgsFromPreset(cmCMakePresetsArgs const& args)
           NoTestsActionEnum::Default:
           break;
         default:
-          // should never default
+          CM_UNREACHABLE;
           return false;
       }
     }
@@ -2005,10 +2019,15 @@ int cmCTest::Run(std::vector<std::string> const& args)
     cmCommandLineArgument<bool(std::string const& value)>;
 
   auto const presetArguments = std::vector<CommandArgument>{
-    CommandArgument{ "--list-presets", CommandArgument::Values::Zero,
-                     [&presetsArgs](std::string const&) -> bool {
-                       presetsArgs.ListPresets = true;
-                       return true;
+    CommandArgument{ "--list-presets", CommandArgument::Values::ZeroOrOne,
+                     [&presetsArgs](std::string const& value) -> bool {
+                       if (presetsArgs.SetListPresets(value)) {
+                         return true;
+                       }
+                       cmSystemTools::Error(
+                         "Invalid value specified for --list-presets.\n"
+                         "The only supported value is \"defined\".");
+                       return false;
                      } },
     CommandArgument{ "--preset", "'--preset' requires an argument",
                      CommandArgument::Values::One,
@@ -2024,8 +2043,10 @@ int cmCTest::Run(std::vector<std::string> const& args)
                        return true;
                      } }
   };
-  auto const isPresetArgument = [&](std::string const& arg) -> bool {
-    return cmHasLiteralPrefix(arg, "--preset") || arg == "--list-presets";
+  auto const isPresetArgument = [&presetArguments](std::string const& arg) {
+    return std::any_of(
+      presetArguments.begin(), presetArguments.end(),
+      [&arg](CommandArgument const& option) { return option.matches(arg); });
   };
 
   auto const arguments = std::vector<CommandArgument>{
@@ -2539,7 +2560,7 @@ int cmCTest::Run(std::vector<std::string> const& args)
 
   if (presetsArgs.HasPresetsArg()) {
     bool success = this->SetArgsFromPreset(presetsArgs);
-    if (presetsArgs.ListPresets) {
+    if (presetsArgs.ListPresetsMode) {
       return static_cast<int>(!success);
     }
     if (!success) {
@@ -2776,7 +2797,7 @@ int cmCTest::ExecuteTests(std::vector<std::string> const& args)
         return instrumentation.InstrumentCommand(
           "ctest", args,
           [&processHandler]() -> cmInstrumentation::CommandResult {
-            return { processHandler(), cm::nullopt, cm::nullopt };
+            return { processHandler(), cm::nullopt, cm::nullopt, cm::nullopt };
           },
           data);
       });

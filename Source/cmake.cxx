@@ -84,7 +84,6 @@
 #  include <cm3p/json/writer.h>
 
 #  include "cmCMakePresetsArgs.h"
-#  include "cmCMakeSarifLogger.h"
 #  include "cmConfigureLog.h"
 #  include "cmFileAPI.h"
 #  include "cmGraphVizWriter.h"
@@ -1366,16 +1365,6 @@ void cmake::SetArgs(std::vector<std::string> const& args)
         state->SetIgnoreLinkWarningAsError(true);
         return true;
       } },
-#ifndef CMAKE_BOOTSTRAP
-    CommandArgument{ "--sarif-output", "No file specified for --sarif-output",
-                     CommandArgument::Values::One,
-                     [](std::string const& value, cmake* state) -> bool {
-                       state->SarifFilePath =
-                         cmSystemTools::ToNormalizedPathOnDisk(value);
-                       state->SarifFileOutput = true;
-                       return true;
-                     } },
-#endif
     CommandArgument{ "--debugger", CommandArgument::Values::Zero,
                      [](std::string const&, cmake* state) -> bool {
 #ifdef CMake_ENABLE_DEBUGGER
@@ -1461,26 +1450,31 @@ void cmake::SetArgs(std::vector<std::string> const& args)
   arguments.emplace_back(
     "--list-presets", CommandArgument::Values::ZeroOrOne,
     [&](std::string const& value, cmake*) -> bool {
-      if (value.empty() || value == "configure") {
+      std::string type = value;
+      auto const mode = presetsArgs.ParseListPresetsMode(type);
+
+      if (type.empty() || type == "configure") {
         presetsArgs.ListPresets = ListPresets::Configure;
-      } else if (value == "build") {
+      } else if (type == "build") {
         presetsArgs.ListPresets = ListPresets::Build;
-      } else if (value == "test") {
+      } else if (type == "test") {
         presetsArgs.ListPresets = ListPresets::Test;
-      } else if (value == "package") {
+      } else if (type == "package") {
         presetsArgs.ListPresets = ListPresets::Package;
-      } else if (value == "workflow") {
+      } else if (type == "workflow") {
         presetsArgs.ListPresets = ListPresets::Workflow;
-      } else if (value == "all") {
+      } else if (type == "all") {
         presetsArgs.ListPresets = ListPresets::All;
       } else {
         cmSystemTools::Error(
           "Invalid value specified for --list-presets.\n"
-          "Valid values are configure, build, test, package, or all. "
-          "When no value is passed the default is configure.");
+          "Valid values are configure, build, test, package, workflow, all, "
+          "defined, or any of the type values suffixed with -defined. When "
+          "no value is passed the default is configure.");
         return false;
       }
 
+      presetsArgs.ListPresetsMode = mode;
       return true;
     });
 
@@ -2057,24 +2051,39 @@ bool cmake::SetArgsFromPreset(cmCMakePresetsConfigureArgs const& args,
   }
 
   if (args.ListPresets != ListPresets::None) {
+    auto configureUsabilityCheck = this->CreateConfigurePresetUsabilityCheck();
     switch (args.ListPresets) {
       case ListPresets::Configure:
-        this->PrintPresetList(presetsGraph);
+        presetsGraph.PrintConfigurePresetList(args.ListPresetsMode,
+                                              configureUsabilityCheck);
         break;
       case ListPresets::Build:
-        presetsGraph.PrintBuildPresetList();
+        presetsGraph.PrintBuildPresetList(args.ListPresetsMode,
+                                          configureUsabilityCheck);
         break;
       case ListPresets::Test:
-        presetsGraph.PrintTestPresetList();
+        presetsGraph.PrintTestPresetList(args.ListPresetsMode,
+                                         configureUsabilityCheck);
         break;
       case ListPresets::Package:
-        presetsGraph.PrintPackagePresetList();
+        presetsGraph.PrintPackagePresetList(args.ListPresetsMode,
+                                            configureUsabilityCheck);
         break;
       case ListPresets::Workflow:
-        presetsGraph.PrintWorkflowPresetList();
+        presetsGraph.PrintWorkflowPresetList(args.ListPresetsMode,
+                                             configureUsabilityCheck);
         break;
       case ListPresets::All:
-        presetsGraph.PrintAllPresets();
+        presetsGraph.PrintConfigurePresetList(args.ListPresetsMode,
+                                              configureUsabilityCheck);
+        presetsGraph.PrintBuildPresetList(args.ListPresetsMode,
+                                          configureUsabilityCheck);
+        presetsGraph.PrintTestPresetList(args.ListPresetsMode,
+                                         configureUsabilityCheck);
+        presetsGraph.PrintPackagePresetList(args.ListPresetsMode,
+                                            configureUsabilityCheck);
+        presetsGraph.PrintWorkflowPresetList(args.ListPresetsMode,
+                                             configureUsabilityCheck);
         break;
       default:
         break;
@@ -2192,23 +2201,32 @@ bool cmake::SetArgsFromPreset(cmCMakePresetsConfigureArgs const& args,
   return true;
 }
 
-void cmake::PrintPresetList(cmCMakePresetsGraph const& graph) const
+cmCMakePresetsGraph::ConfigurePresetUsabilityCheck
+cmake::CreateConfigurePresetUsabilityCheck() const
 {
   std::vector<GeneratorInfo> generators;
   this->GetRegisteredGenerators(generators);
-  auto filter =
-    [&generators](cmCMakePresetsGraph::ConfigurePreset const& preset) -> bool {
-    if (preset.Generator.empty()) {
-      return true;
-    }
-    auto condition = [&preset](GeneratorInfo const& info) -> bool {
-      return info.name == preset.Generator;
-    };
-    auto it = std::find_if(generators.begin(), generators.end(), condition);
-    return it != generators.end();
-  };
 
-  graph.PrintConfigurePresetList(filter);
+  std::set<std::string> generatorNames;
+  for (auto const& generator : generators) {
+    generatorNames.insert(generator.name);
+  }
+
+  return [generatorNames](cmCMakePresetsGraph::ConfigurePreset const& preset)
+           -> cm::optional<std::string> {
+    if (preset.Generator.empty() ||
+        generatorNames.count(preset.Generator) != 0) {
+      return cm::nullopt;
+    }
+    return cmStrCat("generator \"", preset.Generator, "\" is not available");
+  };
+}
+
+void cmake::PrintPresetList(cmCMakePresetsGraph const& graph,
+                            cmCMakePresetsGraph::PresetListMode mode) const
+{
+  graph.PrintConfigurePresetList(mode,
+                                 this->CreateConfigurePresetUsabilityCheck());
 }
 #endif
 
@@ -2809,7 +2827,7 @@ int cmake::ActualConfigure()
   int ret = this->Instrumentation->InstrumentCommand(
     "configure", this->cmdArgs,
     [doConfigure]() -> cmInstrumentation::CommandResult {
-      return { doConfigure(), cm::nullopt, cm::nullopt };
+      return { doConfigure(), cm::nullopt, cm::nullopt, cm::nullopt };
     },
     cm::nullopt, cm::nullopt,
     this->GetIsInTryCompile() ? cmInstrumentation::LoadQueriesAfter::No
@@ -3033,6 +3051,68 @@ void cmake::InitializeInstrumentation()
 #endif
 }
 
+int cmake::HandleDifferentSystemEnvironmentId(std::string envId,
+                                              std::string cachedId)
+{
+  enum class Action
+  {
+    Ignore,
+    Warn,
+    Refresh,
+  } action = Action::Warn;
+  static std::string const actionEnvName = "CMAKE_SYSTEM_ENVIRONMENT_ACTION";
+  if (cmSystemTools::HasEnv(actionEnvName)) {
+    std::string actionEnv;
+    cmSystemTools::GetEnv(actionEnvName, actionEnv);
+    if (actionEnv == "IGNORE") {
+      action = Action::Ignore;
+    } else if (actionEnv == "WARN") {
+      action = Action::Warn;
+    } else if (actionEnv == "REFRESH") {
+      action = Action::Refresh;
+    } else {
+      this->IssueMessage(
+        MessageType::FATAL_ERROR,
+        cmStrCat("Unsupported ", actionEnvName, " '", actionEnv, '\''));
+      return -1;
+    }
+  }
+  switch (action) {
+    case Action::Ignore:
+      break;
+    case Action::Warn: {
+      std::string msg = cmStrCat(
+        "CMAKE_SYSTEM_ENVIRONMENT_ID: ", envId,
+        "\nDoes not match the previous value: ", cachedId,
+        "\nThe configure results are probably outdated. Consider running"
+        " cmake with --fresh, removing the CMakeCache.txt file and"
+        " CMakeFiles directory, or choosing a different binary"
+        " directory.");
+      this->IssueMessage(MessageType::WARNING, msg);
+      break;
+    }
+    case Action::Refresh: {
+      std::string msg =
+        cmStrCat("CMAKE_SYSTEM_ENVIRONMENT_ID: ", envId,
+                 "\nDoes not match the previous value: ", cachedId,
+                 "\nThe cache will be refreshed automatically.");
+      this->IssueMessage(MessageType::MESSAGE, msg);
+      this->DeleteCache(this->GetHomeOutputDirectory());
+      if (this->LoadCache() < 0) {
+        cmSystemTools::Error(
+          "Error executing cmake::LoadCache(). Aborting.\n");
+        return -1;
+      }
+      this->AddCacheEntry(
+        "CMAKE_SYSTEM_ENVIRONMENT_ID", envId,
+        "Opaque identifier for the current system environment",
+        cmStateEnums::INTERNAL);
+      break;
+    }
+  }
+  return 0;
+}
+
 // handle a command line invocation
 int cmake::Run(std::vector<std::string> const& args, bool noconfigure)
 {
@@ -3046,8 +3126,9 @@ int cmake::Run(std::vector<std::string> const& args, bool noconfigure)
   }
 
 #ifndef CMAKE_BOOTSTRAP
-  // Configure the SARIF log for the current run
-  cmCMakeSarifLogger sarifLogger(*this);
+  if (this->State->GetRole() == cmState::Role::Project) {
+    this->MarkCliAsUsed("CMAKE_EXPORT_SARIF");
+  }
 
   this->VariableWatch->AddWatch("CMAKE_WARN_DEPRECATED", cmDeprecatedWatch);
   this->VariableWatch->AddWatch("CMAKE_ERROR_DEPRECATED", cmDeprecatedWatch);
@@ -3078,6 +3159,24 @@ int cmake::Run(std::vector<std::string> const& args, bool noconfigure)
     if (this->LoadCache() < 0) {
       cmSystemTools::Error("Error executing cmake::LoadCache(). Aborting.\n");
       return -1;
+    }
+    std::string const idKey = "CMAKE_SYSTEM_ENVIRONMENT_ID";
+    cmValue cachedEnvId = this->State->GetInitializedCacheValue(idKey);
+    std::string sysEnvId;
+    cmSystemTools::GetEnv(idKey, sysEnvId);
+    if (cachedEnvId) {
+      if (sysEnvId != *cachedEnvId) {
+        if (this->HandleDifferentSystemEnvironmentId(sysEnvId, *cachedEnvId) <
+            0) {
+          // Failed to LoadCache()
+          return -1;
+        }
+      }
+    } else {
+      this->AddCacheEntry(
+        idKey, sysEnvId,
+        "Opaque identifier for the current system environment",
+        cmStateEnums::INTERNAL);
     }
   } else {
     if (this->FreshCache) {
@@ -3212,7 +3311,7 @@ int cmake::Generate()
   int ret = this->Instrumentation->InstrumentCommand(
     "generate", this->cmdArgs,
     [doGenerate]() -> cmInstrumentation::CommandResult {
-      return { doGenerate(), cm::nullopt, cm::nullopt };
+      return { doGenerate(), cm::nullopt, cm::nullopt, cm::nullopt };
     });
   if (ret != 0) {
     return ret;
@@ -3926,8 +4025,11 @@ int cmake::Build(cmBuildArgs buildArgs, std::vector<std::string> targets,
       return 1;
     }
 
-    if (presetsArgs.ListPresets) {
-      settingsFile.PrintBuildPresetList();
+    if (presetsArgs.ListPresetsMode) {
+      auto configureUsabilityCheck =
+        this->CreateConfigurePresetUsabilityCheck();
+      settingsFile.PrintBuildPresetList(*presetsArgs.ListPresetsMode,
+                                        configureUsabilityCheck);
       return 0;
     }
 
@@ -4159,7 +4261,7 @@ int cmake::Build(cmBuildArgs buildArgs, std::vector<std::string> targets,
         return instrumentation.InstrumentCommand(
           "cmakeBuild", args,
           [&doBuild]() -> cmInstrumentation::CommandResult {
-            return { doBuild(), cm::nullopt, cm::nullopt };
+            return { doBuild(), cm::nullopt, cm::nullopt, cm::nullopt };
           });
       });
   int buildresult = buildOutcome.ExitCode;
@@ -4310,8 +4412,10 @@ int cmake::Workflow(cmCMakePresetsWorkflowArgs const& args)
     return 1;
   }
 
-  if (args.ListPresets) {
-    settingsFile.PrintWorkflowPresetList();
+  if (args.ListPresetsMode) {
+    auto configureUsabilityCheck = this->CreateConfigurePresetUsabilityCheck();
+    settingsFile.PrintWorkflowPresetList(*args.ListPresetsMode,
+                                         configureUsabilityCheck);
     return 0;
   }
 

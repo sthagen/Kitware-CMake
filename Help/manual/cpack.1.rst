@@ -68,6 +68,9 @@ Options
   Set a CPack variable.  This will override any value set for ``<var>`` in the
   input file read by :program:`cpack`.
 
+  .. versionadded:: 4.0
+    The single-argument form ``-D<var>=<value>`` is now supported.
+
 .. option:: --config <configFile>
 
   Specify the configuration file read by :program:`cpack` to provide the packaging
@@ -141,9 +144,11 @@ Options
   If ``--presets-file`` is given, presets defined in ``CMakePresets.json`` and
   ``CMakeUserPresets.json`` will be ignored.
 
-.. option:: --list-presets
+.. option:: --list-presets[=defined]
 
-  Lists the available package presets.
+  Lists the available package presets. With ``defined``, all non-hidden
+  defined package presets are listed, including unavailable presets with the
+  reason they cannot be used.
 
   .. versionchanged:: 4.4
     If :cpack-option:`--presets-file` is specified, neither of
@@ -151,6 +156,9 @@ Options
     present, and only presets defined in the given ``<file>`` will be listed.
     Otherwise, they are required to be present in the top level source
     directory.  In prior versions, this was strictly required.
+
+  .. versionadded:: 4.5
+    Support for the ``defined`` value.
 
 .. include:: include/OPTIONS_HELP.rst
 

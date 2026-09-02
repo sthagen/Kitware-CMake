@@ -28,6 +28,7 @@
 // https://msdn.microsoft.com/en-us/library/ms683219(VS.85).aspx
 
 #include "kwsysPrivate.h"
+
 #include KWSYS_HEADER(String.h)
 #include KWSYS_HEADER(SystemInformation.hxx)
 #include KWSYS_HEADER(Process.h)
@@ -48,6 +49,10 @@
 #include <limits>
 #include <map>
 #include <set>
+
+#if !defined(_WIN32)
+#  include <sys/resource.h>
+#endif
 #include <sstream>
 #include <string>
 #include <vector>
@@ -67,15 +72,16 @@ using siginfo_t = int;
 #  include <powerbase.h>
 #  include <winternl.h> // NTSTATUS
 #else
-#  include <sys/types.h>
-
 #  include <cerrno> // extern int errno;
 #  include <csignal>
+
 #  include <fcntl.h>
+#  include <unistd.h>
+
 #  include <sys/resource.h> // getrlimit
 #  include <sys/time.h>
+#  include <sys/types.h>
 #  include <sys/utsname.h> // int uname(struct utsname *buf);
-#  include <unistd.h>
 #endif
 
 #if defined(__CYGWIN__) && !defined(_WIN32)
@@ -87,6 +93,7 @@ using siginfo_t = int;
   defined(__DragonFly__)
 #  include <netdb.h>
 #  include <netinet/in.h>
+
 #  include <sys/param.h>
 #  include <sys/socket.h>
 #  include <sys/sysctl.h>
@@ -108,6 +115,7 @@ using siginfo_t = int;
 #  include <mach/vm_statistics.h>
 #  include <netdb.h>
 #  include <netinet/in.h>
+
 #  include <sys/socket.h>
 #  include <sys/sysctl.h>
 #  if defined(KWSYS_SYS_HAS_IFADDRS_H)
@@ -124,6 +132,7 @@ using siginfo_t = int;
   defined(__GLIBC__) || defined(__GNU__)
 #  include <netdb.h>
 #  include <netinet/in.h>
+
 #  include <sys/socket.h>
 #  if defined(KWSYS_SYS_HAS_IFADDRS_H)
 #    include <ifaddrs.h>
@@ -155,6 +164,18 @@ using ResourceLimitType = struct rlimit;
 #  include <OS.h>
 #endif
 
+#if defined(_WIN32) || defined(__CYGWIN__)
+namespace {
+unsigned __int64 fileTimeToUInt64(FILETIME const& ft)
+{
+  LARGE_INTEGER out;
+  out.HighPart = ft.dwHighDateTime;
+  out.LowPart = ft.dwLowDateTime;
+  return out.QuadPart;
+}
+}
+#endif
+
 #if defined(KWSYS_SYSTEMINFORMATION_HAS_BACKTRACE)
 #  include <execinfo.h>
 #  if defined(KWSYS_SYSTEMINFORMATION_HAS_CPP_DEMANGLE)
@@ -171,6 +192,7 @@ using ResourceLimitType = struct rlimit;
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+
 #include <memory.h>
 
 #if defined(_MSC_VER) && (_MSC_VER >= 1300) && !defined(_WIN64) &&            \
@@ -778,6 +800,72 @@ double SystemInformation::GetLoadAverage()
 long long SystemInformation::GetProcessId()
 {
   return this->Implementation->GetProcessId();
+}
+
+bool SystemInformation::GetProcessResourceUsage(
+  SystemInformation::ProcessResourceUsage& usage, void* processHandle)
+{
+#if defined(_WIN32)
+#  if defined(KWSYS_SYS_HAS_PSAPI)
+  HANDLE hProc = static_cast<HANDLE>(processHandle);
+  if (!hProc) {
+    return false;
+  }
+
+  FILETIME creationTime;
+  FILETIME exitTime;
+  FILETIME kernelTime;
+  FILETIME userTime;
+  if (!GetProcessTimes(hProc, &creationTime, &exitTime, &kernelTime,
+                       &userTime)) {
+    return false;
+  }
+
+  PROCESS_MEMORY_COUNTERS pmc;
+  if (!GetProcessMemoryInfo(hProc, &pmc, sizeof(pmc))) {
+    return false;
+  }
+
+  usage = SystemInformation::ProcessResourceUsage{};
+  usage.ru_maxrss =
+    static_cast<decltype(usage.ru_maxrss)>(pmc.PeakWorkingSetSize / 1024);
+
+  unsigned __int64 const user100ns = fileTimeToUInt64(userTime);
+  unsigned __int64 const kernel100ns = fileTimeToUInt64(kernelTime);
+  unsigned __int64 const userUSec = user100ns / 10ULL;
+  unsigned __int64 const kernelUSec = kernel100ns / 10ULL;
+
+  usage.ru_utime.tv_sec = static_cast<long>(userUSec / 1000000ULL);
+  usage.ru_utime.tv_usec = static_cast<long>(userUSec % 1000000ULL);
+  usage.ru_stime.tv_sec = static_cast<long>(kernelUSec / 1000000ULL);
+  usage.ru_stime.tv_usec = static_cast<long>(kernelUSec % 1000000ULL);
+  return true;
+#  else // !defined(KWSYS_SYS_HAS_PSAPI)
+  static_cast<void>(usage);
+  static_cast<void>(processHandle);
+  return false;
+#  endif
+#else // !defined(_WIN32)
+  static_cast<void>(processHandle);
+  struct rusage rusage;
+  if (getrusage(RUSAGE_CHILDREN, &rusage) != 0) {
+    return false;
+  }
+  usage = SystemInformation::ProcessResourceUsage{};
+  usage.ru_maxrss = rusage.ru_maxrss;
+#  if defined(__APPLE__)
+  // Apple platforms report bytes.  Convert to KiB.
+  usage.ru_maxrss /= 1024;
+#  elif defined(__sun)
+  // Solaris platforms report pages.  Convert to KiB.
+  usage.ru_maxrss *= getpagesize() / 1024;
+#  endif
+  usage.ru_utime.tv_sec = rusage.ru_utime.tv_sec;
+  usage.ru_utime.tv_usec = rusage.ru_utime.tv_usec;
+  usage.ru_stime.tv_sec = rusage.ru_stime.tv_sec;
+  usage.ru_stime.tv_usec = rusage.ru_stime.tv_usec;
+  return true;
+#endif
 }
 
 void SystemInformation::SetStackTraceOnError(int enable)
@@ -1388,13 +1476,6 @@ double calculateCPULoad(unsigned __int64 idleTicks,
   return load;
 }
 
-unsigned __int64 fileTimeToUInt64(FILETIME const& ft)
-{
-  LARGE_INTEGER out;
-  out.HighPart = ft.dwHighDateTime;
-  out.LowPart = ft.dwLowDateTime;
-  return out.QuadPart;
-}
 #endif
 
 } // anonymous namespace
@@ -3981,12 +4062,18 @@ std::string SystemInformationImplementation::GetProgramStack(int firstFrame,
 
   void* stack[TRACE_MAX_STACK_FRAMES];
   HANDLE process = GetCurrentProcess();
+  // SymSetOptions affects the process-global symbol handler options, so
+  // save the caller's options and restore them before returning.
+  DWORD options = SymGetOptions();
+  SymSetOptions(options | SYMOPT_UNDNAME | SYMOPT_DEFERRED_LOADS |
+                SYMOPT_LOAD_LINES);
   SymInitialize(process, nullptr, TRUE);
   WORD numberOfFrames =
     CaptureStackBackTrace(firstFrame, TRACE_MAX_STACK_FRAMES, stack, nullptr);
   SYMBOL_INFO* symbol = static_cast<SYMBOL_INFO*>(
-    malloc(sizeof(SYMBOL_INFO) +
-           (TRACE_MAX_FUNCTION_NAME_LENGTH - 1) * sizeof(TCHAR)));
+    calloc(1,
+           sizeof(SYMBOL_INFO) +
+             (TRACE_MAX_FUNCTION_NAME_LENGTH - 1) * sizeof(TCHAR)));
   symbol->MaxNameLen = TRACE_MAX_FUNCTION_NAME_LENGTH;
   symbol->SizeOfStruct = sizeof(SYMBOL_INFO);
   DWORD displacement;
@@ -3994,15 +4081,58 @@ std::string SystemInformationImplementation::GetProgramStack(int firstFrame,
   line.SizeOfStruct = sizeof(IMAGEHLP_LINE64);
   for (int i = 0; i < numberOfFrames; i++) {
     DWORD64 address = reinterpret_cast<DWORD64>(stack[i]);
-    SymFromAddr(process, address, nullptr, symbol);
-    if (SymGetLineFromAddr64(process, address, &displacement, &line)) {
+    DWORD64 symDisplacement = 0;
+    bool haveName =
+      SymFromAddr(process, address, &symDisplacement, symbol) != FALSE;
+    // When a module has no matching PDB, dbghelp falls back to its export
+    // table and reports the nearest preceding export, which is generally not
+    // the (non-exported) function the address really belongs to. Names are
+    // only exact when real debug info was loaded for the module, so ask the
+    // module how its symbols were obtained rather than trusting the name.
+    // Inexact names are still printed, but marked and always accompanied by
+    // the module-relative address so they cannot be mistaken for the truth.
+    bool exactName = haveName;
+    if (exactName) {
+      IMAGEHLP_MODULE64 moduleInfo;
+      memset(&moduleInfo, 0, sizeof(moduleInfo));
+      moduleInfo.SizeOfStruct = sizeof(moduleInfo);
+      if (!SymGetModuleInfo64(process, address, &moduleInfo) ||
+          moduleInfo.SymType == SymNone || moduleInfo.SymType == SymExport ||
+          moduleInfo.SymType == SymDeferred) {
+        exactName = false;
+      }
+    }
+    if (exactName &&
+        SymGetLineFromAddr64(process, address, &displacement, &line)) {
       oss << " at " << symbol->Name << " in " << line.FileName << " line "
           << line.LineNumber << std::endl;
+    } else if (exactName) {
+      oss << " at " << symbol->Name << "+0x" << std::hex << symDisplacement
+          << std::dec << std::endl;
     } else {
-      oss << " at " << symbol->Name << std::endl;
+      // Report the module containing the address together with the offset
+      // into that module, which is what a disassembler needs, plus the
+      // nearest export as an approximate location hint when one is known.
+      wchar_t modulePath[MAX_PATH];
+      DWORD64 moduleBase = SymGetModuleBase64(process, address);
+      if (moduleBase &&
+          GetModuleFileNameW(reinterpret_cast<HMODULE>(moduleBase), modulePath,
+                             MAX_PATH) > 0) {
+        oss << " at " << modulePath << "+0x" << std::hex
+            << (address - moduleBase) << std::dec;
+      } else {
+        oss << " at 0x" << std::hex << address << std::dec;
+      }
+      if (haveName) {
+        oss << " (near " << symbol->Name << "+0x" << std::hex
+            << symDisplacement << std::dec << ")";
+      }
+      oss << std::endl;
     }
   }
   free(symbol);
+  SymSetOptions(options);
+  SymCleanup(process);
 
 #else
   programStack += ""

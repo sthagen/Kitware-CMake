@@ -31,7 +31,8 @@ cmDocumentationEntry const cmDocumentationOptions[] = {
     "Read arguments from a test preset." },
   { "--presets-file <file>, --presets-file=<file>",
     "Load test presets from the given file." },
-  { "--list-presets", "List available test presets." },
+  { "--list-presets[=defined]",
+    "List available or all defined test presets." },
   { "-C <cfg>, --build-config <cfg>", "Choose configuration to test." },
   { "--progress", "Enable short progress output from tests." },
   { "-V,--verbose", "Enable verbose output from tests." },
@@ -208,6 +209,10 @@ int main(int argc, char const* const* argv)
   // Dispatch 'ctest --instrument' mode directly.
   if (argc >= 2 && strcmp(argv[1], "--instrument") == 0) {
     return cmCTestLaunch::Main(argc, argv, cmCTestLaunch::Op::Instrument);
+  }
+
+  if (argc >= 2 && strcmp(argv[1], "--instrument-test") == 0) {
+    return cmCTestLaunch::Main(argc, argv, cmCTestLaunch::Op::InstrumentTest);
   }
 
   // Dispatch post-build instrumentation daemon for ninja

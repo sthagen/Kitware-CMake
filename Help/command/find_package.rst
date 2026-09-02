@@ -116,7 +116,7 @@ The command has a few modes by which it searches for packages:
     A call to ``find_package()`` can be redirected internally to a package
     provided by the :module:`FetchContent` module.  To the caller, the behavior
     will appear similar to Config mode, except that the search logic is
-    by-passed and the component information is not used.  See
+    bypassed and the component information is not used.  See
     :command:`FetchContent_Declare` and :command:`FetchContent_MakeAvailable`
     for further details.
 
@@ -333,7 +333,7 @@ is stored in the CMake variable ``<PackageName>_CONFIG``.
 .. note::
 
   Because CPS files are not permitted to have names that do *not* match the
-  package name, specifying ``CONFIGS`` will suppress searcing for CPS files.
+  package name, specifying ``CONFIGS`` will suppress searching for CPS files.
 
 All configuration files which have been considered by CMake while
 searching for the package with an appropriate version are stored in the
