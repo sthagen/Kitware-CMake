@@ -36,13 +36,14 @@ This module defines the following variables:
   Boolean indicating whether the library implementing the LAPACK interface
   was found.
 ``LAPACK_LINKER_FLAGS``
-  Uncached list of required linker flags (excluding ``-l`` and ``-L``).
+  List of required linker flags, excluding ``-l`` and ``-L``,
+  to pass to :command:`target_link_options`.
 ``LAPACK_LIBRARIES``
-  Uncached list of libraries (using full path name) to link against to use
-  LAPACK.
+  List of libraries to link via :command:`target_link_libraries`
+  to use LAPACK.
 ``LAPACK95_LIBRARIES``
-  Uncached list of libraries (using full path name) to link against to use
-  LAPACK95.
+  List of libraries to link via :command:`target_link_libraries`
+  to use LAPACK95.
 ``LAPACK95_FOUND``
   Boolean indicating whether the library implementing the LAPACK95 interface
   was found.
@@ -750,15 +751,15 @@ if(NOT LAPACK_NOT_FOUND_MESSAGE)
       list(APPEND _lapack_nvpl_threads "_seq")
     endif()
 
-    find_package(nvpl QUIET)
-    if(nvpl_FOUND)
+    find_package(nvpl QUIET COMPONENTS lapack)
+    if(nvpl_lapack_FOUND)
       foreach(_nvpl_thread IN LISTS _lapack_nvpl_threads)
         foreach(_nvpl_int IN LISTS _lapack_nvpl_ints)
 
           set(_lapack_lib "nvpl::lapack${_nvpl_int}${_nvpl_thread}")
 
           if(TARGET ${_lapack_lib})
-            set(LAPACK_LIBRARIES ${_lapack_lib})
+            get_target_property(LAPACK_LIBRARIES ${_lapack_lib} IMPORTED_LOCATION_RELEASE)
             break()
           endif()
 
