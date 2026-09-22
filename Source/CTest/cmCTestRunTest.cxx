@@ -83,8 +83,7 @@ void cmCTestRunTest::CheckOutput(std::string const& line)
     }
   }
 
-  this->ProcessOutput += line;
-  this->ProcessOutput += "\n";
+  this->ProcessOutput = cmStrCat(std::move(this->ProcessOutput), line, '\n');
 
   // Check for TIMEOUT_AFTER_MATCH property.
   if (!this->TestProperties->TimeoutRegularExpressions.empty()) {
@@ -136,10 +135,9 @@ cmCTestRunTest::EndTestResult cmCTestRunTest::EndTest(size_t completed,
     if (!found) {
       reason = "Required regular expression not found. Regex=[";
       for (auto& pass : this->TestProperties->RequiredRegularExpressions) {
-        reason += pass.second;
-        reason += "\n";
+        reason = cmStrCat(std::move(reason), pass.second, '\n');
       }
-      reason += "]";
+      reason += ']';
       forceFail = true;
     }
   }
@@ -265,16 +263,15 @@ cmCTestRunTest::EndTestResult cmCTestRunTest::EndTest(size_t completed,
         std::max<size_t>(this->CTest->GetMaxTestNameWidth(), testName.size());
       testName.resize(maxTestNameWidth + 4, '.');
 
-      output += testName;
-      output += outputStream.str();
+      output = cmStrCat(std::move(output), testName, outputStream.str());
       outputStream.str("");
       outputStream.clear();
       outputStream << output;
       cmCTestLog(this->CTest, HANDLER_TEST_PROGRESS_OUTPUT, "\n"); // flush
     }
     if (completed == total) {
-      std::string testName = this->GetTestPrefix(completed, total) +
-        this->TestProperties->Name + "\n";
+      std::string testName = cmStrCat(this->GetTestPrefix(completed, total),
+                                      this->TestProperties->Name, '\n');
       cmCTestLog(this->CTest, HANDLER_TEST_PROGRESS_OUTPUT, testName);
     }
   }
@@ -384,7 +381,7 @@ cmCTestRunTest::EndTestResult cmCTestRunTest::EndTest(size_t completed,
     std::string const stampDir = this->CTest->GetStampDir();
     cmSystemTools::MakeDirectory(stampDir);
     std::string const stampFile =
-      stampDir + "/" + this->TestProperties->GetStampFile();
+      cmStrCat(stampDir, '/', this->TestProperties->GetStampFile());
     cmSystemTools::Touch(stampFile, true);
   }
   // If the test does not need to rerun push the current TestResult onto the
@@ -394,6 +391,7 @@ cmCTestRunTest::EndTestResult cmCTestRunTest::EndTest(size_t completed,
   }
   cmCTestRunTest::EndTestResult testResult;
   testResult.Passed = passed || skipped;
+  testResult.TestStatus = this->TestResult.Status;
   if (res == cmProcess::State::Expired &&
       this->TestProcess->GetTimeoutReason() ==
         cmProcess::TimeoutReason::StopTime) {
@@ -427,8 +425,7 @@ bool cmCTestRunTest::StartAgain(std::unique_ptr<cmCTestRunTest> runner,
 
 bool cmCTestRunTest::NeedsToRepeat()
 {
-  this->NumberOfRunsLeft--;
-  if (this->NumberOfRunsLeft == 0) {
+  if (this->RunNumber == this->RunCount) {
     return false;
   }
   // If a test is marked as NOT_RUN it will not be repeated
@@ -436,9 +433,8 @@ bool cmCTestRunTest::NeedsToRepeat()
   if (this->TestResult.Status == cmCTestTestHandler::NOT_RUN) {
     return false;
   }
-  // if number of runs left is not 0, and we are running until
-  // we find a failed (or passed) test, then return true so the test can be
-  // restarted
+  // The test has runs left, so run it again if we are running until we find
+  // a failed (or passed) test.
   if ((this->RepeatMode == cmCTest::Repeat::UntilFail &&
        this->TestResult.Status == cmCTestTestHandler::COMPLETED) ||
       (this->RepeatMode == cmCTest::Repeat::UntilPass &&
@@ -446,6 +442,7 @@ bool cmCTestRunTest::NeedsToRepeat()
       (this->RepeatMode == cmCTest::Repeat::AfterTimeout &&
        this->TestResult.Status == cmCTestTestHandler::TIMEOUT)) {
     this->RunAgain = true;
+    this->RunNumber++;
     return true;
   }
   return false;
@@ -562,11 +559,10 @@ bool cmCTestRunTest::StartTest(size_t completed, size_t total)
 {
   this->TotalNumberOfTests = total; // save for rerun case
 
-  std::string runIterationSuffix{};
-  if (this->NumberOfRunsTotal > 1) {
-    runIterationSuffix = " (run " +
-      std::to_string(1 + this->NumberOfRunsTotal - this->NumberOfRunsLeft) +
-      "/" + std::to_string(this->NumberOfRunsTotal) + ")";
+  std::string runIterationSuffix;
+  if (this->RunCount > 1) {
+    runIterationSuffix =
+      cmStrCat(" (run ", this->RunNumber, '/', this->RunCount, ')');
   }
   if (!this->CTest->GetTestProgressOutput()) {
     cmCTestLog(
@@ -576,8 +572,8 @@ bool cmCTestRunTest::StartTest(size_t completed, size_t total)
         << this->TestProperties->Index << ": " << this->TestProperties->Name
         << runIterationSuffix << std::endl);
   } else {
-    std::string testName = this->GetTestPrefix(completed, total) +
-      this->TestProperties->Name + "\n";
+    std::string testName = cmStrCat(this->GetTestPrefix(completed, total),
+                                    this->TestProperties->Name, '\n');
     cmCTestLog(this->CTest, HANDLER_TEST_PROGRESS_OUTPUT, testName);
   }
 
@@ -624,7 +620,7 @@ bool cmCTestRunTest::StartTest(size_t completed, size_t total)
   if (!this->FailedDependencies.empty()) {
     std::string msg = "Failed test dependencies:";
     for (std::string const& failedDep : this->FailedDependencies) {
-      msg += " " + failedDep;
+      msg = cmStrCat(std::move(msg), ' ', failedDep);
     }
     *this->TestHandler->LogFile << msg << std::endl;
     cmCTestLog(this->CTest, HANDLER_OUTPUT, msg << std::endl);
@@ -722,15 +718,11 @@ void cmCTestRunTest::ComputeArguments()
   // Prepends memcheck args to our command string
   this->TestHandler->GenerateTestCommand(this->Arguments, this->Index);
   for (std::string const& arg : this->Arguments) {
-    testCommand += " \"";
-    testCommand += arg;
-    testCommand += "\"";
+    testCommand = cmStrCat(std::move(testCommand), " \"", arg, '"');
   }
 
   for (; j != this->TestProperties->Args.end(); ++j) {
-    testCommand += " \"";
-    testCommand += *j;
-    testCommand += "\"";
+    testCommand = cmStrCat(std::move(testCommand), " \"", *j, '"');
     this->Arguments.push_back(*j);
   }
   // Append passthrough arguments from ctest command line (after --)
@@ -759,9 +751,7 @@ void cmCTestRunTest::ComputeArguments()
                            realArguments.end());
 
     testCommand = cmSystemTools::ConvertToOutputPath(this->ActualCommand);
-    for (std::string const& arg : this->Arguments) {
-      testCommand += cmStrCat(" \"", arg, '"');
-    }
+    testCommand += cmWrap(" \"", this->Arguments, "\"", "");
     this->TestResult.Environment.clear();
   }
   this->TestResult.FullCommandLine = testCommand;
@@ -1008,18 +998,25 @@ void cmCTestRunTest::WriteLogOutputTop(size_t completed, size_t total)
 {
   std::ostringstream outputStream;
 
-  // If this is the last or only run of this test, or progress output is
-  // requested, then print out completed / total.
-  // Only issue is if a test fails and we are running until fail
-  // then it will never print out the completed / total, same would
-  // got for run until pass.  Trick is when this is called we don't
-  // yet know if we are passing or failing.
-  bool const progressOnLast =
-    (this->RepeatMode != cmCTest::Repeat::UntilPass &&
-     this->RepeatMode != cmCTest::Repeat::AfterTimeout);
-  if ((progressOnLast && this->NumberOfRunsLeft == 1) ||
-      (!progressOnLast && this->NumberOfRunsLeft == this->NumberOfRunsTotal) ||
-      this->CTest->GetTestProgressOutput()) {
+  // Print "completed/total" on the run whose result is the one recorded for
+  // the test, and blanks on its other runs.  Which run that is has to be
+  // decided before the run finishes: with until-fail it is the last run, and
+  // with until-pass and after-timeout the repetitions may end early, so it
+  // is the first.  A test that its fixture repeats records every run.
+  bool countThisRun = true;
+  switch (this->RepeatMode) {
+    case cmCTest::Repeat::Never:
+      break;
+    case cmCTest::Repeat::UntilFail:
+      countThisRun = this->RunNumber == this->RunCount;
+      break;
+    case cmCTest::Repeat::UntilPass:
+      CM_FALLTHROUGH;
+    case cmCTest::Repeat::AfterTimeout:
+      countThisRun = this->RunNumber == 1;
+      break;
+  }
+  if (countThisRun || this->CTest->GetTestProgressOutput()) {
     outputStream << std::setw(getNumWidth(total)) << completed << "/";
     outputStream << std::setw(getNumWidth(total)) << total << " ";
   }
@@ -1184,8 +1181,8 @@ void cmCTestRunTest::FinalizeTest(bool started)
           ProcessMetrics usage{};
           Json::Value const& processMetrics = root["processMetrics"];
           usage.ru_maxrss = processMetrics["maxRSS"].asLargestUInt();
-          auto userUSec = processMetrics["userTimeUSec"].asLargestUInt();
-          auto systemUSec = processMetrics["systemTimeUSec"].asLargestUInt();
+          auto userUSec = processMetrics["userTime"].asLargestUInt();
+          auto systemUSec = processMetrics["systemTime"].asLargestUInt();
           usage.ru_utime.tv_sec = static_cast<long>(userUSec / 1000000ULL);
           usage.ru_utime.tv_usec = static_cast<long>(userUSec % 1000000ULL);
           usage.ru_stime.tv_sec = static_cast<long>(systemUSec / 1000000ULL);

@@ -40,8 +40,11 @@
 #include "cmExperimental.h"
 #include "cmExportBuildFileGenerator.h"
 #include "cmExternalMakefileProjectGenerator.h"
+#include "cmFileSet.h"
+#include "cmFileSetMetadata.h"
 #include "cmGeneratedFileStream.h"
 #include "cmGeneratorExpression.h"
+#include "cmGeneratorRule.h"
 #include "cmGeneratorTarget.h"
 #include "cmInstallDirs.h"
 #include "cmInstallExportGenerator.h"
@@ -58,6 +61,7 @@
 #include "cmOutputConverter.h"
 #include "cmPolicies.h"
 #include "cmRange.h"
+#include "cmRule.h"
 #include "cmSbomArguments.h"
 #include "cmSourceFile.h"
 #include "cmState.h"
@@ -65,6 +69,7 @@
 #include "cmStateTypes.h"
 #include "cmStringAlgorithms.h"
 #include "cmSystemTools.h"
+#include "cmTarget.h"
 #include "cmTargetExport.h"
 #include "cmUnreachable.h"
 #include "cmValue.h"
@@ -1524,6 +1529,9 @@ void cmGlobalGenerator::Configure()
 void cmGlobalGenerator::CreateGenerationObjects(TargetTypes targetTypes)
 {
   this->CreateLocalGenerators();
+
+  this->CreateCustomCommandsFromRules();
+
   // Commit side effects only if we are actually generating
   if (targetTypes == TargetTypes::AllTargets) {
     this->CheckTargetProperties();
@@ -1564,6 +1572,11 @@ cmExportBuildFileGenerator* cmGlobalGenerator::GetExportedTargetsFile(
 void cmGlobalGenerator::AddCMP0068WarnTarget(std::string const& target)
 {
   this->CMP0068WarnTargets.insert(target);
+}
+
+void cmGlobalGenerator::AddCMP0224WarnTest(std::string const& test)
+{
+  this->CMP0224WarnTests.insert(test);
 }
 
 bool cmGlobalGenerator::ShouldWarnCMP0210(std::string const& lang)
@@ -1685,6 +1698,9 @@ bool cmGlobalGenerator::Compute()
 
   // clear targets to issue warning CMP0068 for
   this->CMP0068WarnTargets.clear();
+
+  // clear tests to issue warning CMP0224 for
+  this->CMP0224WarnTests.clear();
 
   // Check whether this generator is allowed to run.
   if (!this->CheckALLOW_DUPLICATE_CUSTOM_TARGETS()) {
@@ -1961,6 +1977,22 @@ void cmGlobalGenerator::Generate()
       ;
     /* clang-format on */
     for (std::string const& t : this->CMP0068WarnTargets) {
+      w << ' ' << t << '\n';
+    }
+    this->GetCMakeInstance()->IssueDiagnostic(cmDiagnostics::CMD_POLICY,
+                                              w.str());
+  }
+
+  if (!this->CMP0224WarnTests.empty()) {
+    std::ostringstream w;
+    /* clang-format off */
+    w <<
+      cmPolicies::GetPolicyWarning(cmPolicies::CMP0224) << "\n"
+      "For compatibility with older versions of CMake, the fixtures of the "
+      "following tests will use EACH_TEST_SEPARATELY mode:\n"
+      ;
+    /* clang-format on */
+    for (std::string const& t : this->CMP0224WarnTests) {
       w << ' ' << t << '\n';
     }
     this->GetCMakeInstance()->IssueDiagnostic(cmDiagnostics::CMD_POLICY,
@@ -2272,6 +2304,58 @@ cmGlobalGenerator::CreateMSVC60LinkLineComputer(
     cm::make_unique<cmMSVC60LinkLineComputer>(outputConverter, stateDir));
 }
 
+void cmGlobalGenerator::CreateCustomCommandsFromRules()
+{
+  for (unsigned int i = 0; i < this->LocalGenerators.size(); ++i) {
+    cmMakefile* mf = this->Makefiles[i].get();
+    cmLocalGenerator* lg = this->LocalGenerators[i].get();
+    for (auto& item : mf->GetTargets()) {
+      cmTarget& target = item.second;
+      for (auto const& fsName : target.GetAllFileSetNames(
+             cm::FileSetMetadata::FileSetDomain::RULE)) {
+        cmFileSet const* fileSet = target.GetFileSet(fsName);
+        cmRule const* rule =
+          fileSet->GetMakefile()->FindRuleToUse(fileSet->GetType());
+        if (!rule) {
+          continue;
+        }
+
+        // generated files by the custom command are stored in a file set
+        cmFileSet* outFileSet = rule->GetOutputFileSet(&target, fileSet);
+        if (!outFileSet) {
+          continue;
+        }
+
+        cmRule::PatternSet fileSetPatterns;
+        if (!rule->Instantiate(&target, fileSet, outFileSet,
+                               fileSetPatterns)) {
+          continue;
+        }
+
+        for (auto const& files : fileSet->GetFileEntries()) {
+          for (auto const& file :
+               cmList{ cm::remove_BT(files), cmList::EmptyElements::No }) {
+            cmSourceFile* source = mf->GetOrCreateSource(file);
+            source->ResolveFullPath();
+
+            cmRule::PatternSet sourcePatterns{ fileSetPatterns };
+            if (!rule->Instantiate(&target, fileSet, outFileSet, source,
+                                   sourcePatterns)) {
+              continue;
+            }
+
+            auto genRule = cm::make_unique<cmGeneratorRule>(
+              rule, &target, fileSet, outFileSet, source, sourcePatterns);
+            auto cc = genRule->Generate(outFileSet);
+            lg->AddGeneratorRule(std::move(genRule));
+            mf->AddCustomCommandToOutput(std::move(cc));
+          }
+        }
+      }
+    }
+  }
+}
+
 void cmGlobalGenerator::FinalizeTargetConfiguration()
 {
   std::vector<std::string> const langs =
@@ -2392,6 +2476,7 @@ void cmGlobalGenerator::ClearGeneratorMembers()
   this->TargetDependencies.clear();
   this->TargetSearchIndex.clear();
   this->GeneratorTargetSearchIndex.clear();
+  this->RuleSearchIndex.clear();
   this->MakefileSearchIndex.clear();
   this->LocalGeneratorSearchIndex.clear();
   this->TargetOrderIndex.clear();
@@ -3027,6 +3112,20 @@ std::string cmGlobalGenerator::IndexGeneratorTargetUniquely(
   return id;
 }
 
+void cmGlobalGenerator::IndexRule(cmRule* rule)
+{
+  if (rule->IsGloballyVisible()) {
+    this->RuleSearchIndex[rule->GetName()] = rule;
+  }
+}
+
+void cmGlobalGenerator::IndexGeneratorRule(cmGeneratorRule* gr)
+{
+  if (gr->IsGloballyVisible()) {
+    this->GeneratorRuleSearchIndex[gr->GetName()] = gr;
+  }
+}
+
 void cmGlobalGenerator::IndexMakefile(cmMakefile* mf)
 {
   // We index by both source and binary directory.  add_subdirectory
@@ -3089,6 +3188,25 @@ cmGeneratorTarget* cmGlobalGenerator::FindGeneratorTarget(
     return this->FindGeneratorTargetImpl(ai->second);
   }
   return this->FindGeneratorTargetImpl(name);
+}
+
+cmRule* cmGlobalGenerator::FindRule(std::string const& name) const
+{
+  auto const it = this->RuleSearchIndex.find(name);
+  if (it != this->RuleSearchIndex.end()) {
+    return it->second;
+  }
+  return nullptr;
+}
+
+cmGeneratorRule* cmGlobalGenerator::FindGeneratorRule(
+  std::string const& name) const
+{
+  auto const it = this->GeneratorRuleSearchIndex.find(name);
+  if (it != this->GeneratorRuleSearchIndex.end()) {
+    return it->second;
+  }
+  return nullptr;
 }
 
 bool cmGlobalGenerator::NameResolvesToFramework(
@@ -3614,7 +3732,7 @@ void ModuleCompilationDatabaseCommandAction::operator()(
 
   cc->SetBacktrace(lfbt);
   cc->SetCommandLines(command_lines);
-  cc->SetWorkingDirectory(lg.GetBinaryDirectory().c_str());
+  cc->SetWorkingDirectory(lg.GetBinaryDirectory());
   cc->SetDependsExplicitOnly(true);
   cc->SetOutputs(this->Output);
   if (!inputs.empty()) {
@@ -3646,7 +3764,7 @@ void ModuleCompilationDatabaseTargetAction::operator()(
   std::unique_ptr<cmCustomCommand> cc)
 {
   cc->SetBacktrace(lfbt);
-  cc->SetWorkingDirectory(lg.GetBinaryDirectory().c_str());
+  cc->SetWorkingDirectory(lg.GetBinaryDirectory());
   std::vector<std::string> target_inputs;
   target_inputs.emplace_back(this->Output);
   cc->SetDepends(target_inputs);
@@ -3698,7 +3816,7 @@ bool cmGlobalGenerator::AddBuildDatabaseTargets()
 
   static cm::static_string_view TargetPrefix = "cmake_build_database"_s;
   auto AddMergeTarget =
-    [&mf](std::string const& name, char const* comment,
+    [&mf](std::string const& name, std::string const& comment,
           std::string const& output,
           std::function<std::vector<std::string>()> inputs) {
       // Add the custom command.
@@ -3732,13 +3850,13 @@ bool cmGlobalGenerator::AddBuildDatabaseTargets()
                              lang, ".json");
       mf->GetOrCreateGeneratedSource(output);
       AddMergeTarget(
-        cmStrCat(TargetPrefix, '-', lang), comment.c_str(), output,
+        cmStrCat(TargetPrefix, '-', lang), comment, output,
         [this, lang]() { return this->PerLanguageModuleDbs[lang]; });
       all_lang_paths.emplace_back(std::move(output));
     }
 
     // Add the overall target.
-    auto const* comment = "Combining module command databases";
+    std::string comment{ "Combining module command databases" };
     auto output =
       cmStrCat(mf->GetHomeOutputDirectory(), "/build_database.json");
     mf->GetOrCreateGeneratedSource(output);
@@ -3758,8 +3876,8 @@ bool cmGlobalGenerator::AddBuildDatabaseTargets()
       auto output = cmStrCat(mf->GetHomeOutputDirectory(), "/build_database_",
                              lang, '_', config, ".json");
       mf->GetOrCreateGeneratedSource(output);
-      AddMergeTarget(cmStrCat(TargetPrefix, '-', lang, '-', config),
-                     comment.c_str(), output, [this, config, lang]() {
+      AddMergeTarget(cmStrCat(TargetPrefix, '-', lang, '-', config), comment,
+                     output, [this, config, lang]() {
                        return this->PerConfigModuleDbs[config][lang];
                      });
       all_config_paths.emplace_back(std::move(output));
@@ -3770,8 +3888,8 @@ bool cmGlobalGenerator::AddBuildDatabaseTargets()
     auto output = cmStrCat(mf->GetHomeOutputDirectory(), "/build_database_",
                            config, ".json");
     mf->GetOrCreateGeneratedSource(output);
-    AddMergeTarget(cmStrCat(TargetPrefix, '-', config), comment.c_str(),
-                   output, [all_config_paths]() { return all_config_paths; });
+    AddMergeTarget(cmStrCat(TargetPrefix, '-', config), comment, output,
+                   [all_config_paths]() { return all_config_paths; });
   }
 
   // NMC considerations
@@ -3783,13 +3901,13 @@ bool cmGlobalGenerator::AddBuildDatabaseTargets()
                            lang, ".json");
     mf->GetOrCreateGeneratedSource(output);
     AddMergeTarget(
-      cmStrCat(TargetPrefix, '-', lang), comment.c_str(), output,
+      cmStrCat(TargetPrefix, '-', lang), comment, output,
       [this, lang]() { return this->PerLanguageModuleDbs[lang]; });
     all_config_paths.emplace_back(std::move(output));
   }
 
   // Add the overall target.
-  auto const* comment = "Combining all module command databases";
+  std::string comment{ "Combining all module command databases" };
   auto output = cmStrCat(mf->GetHomeOutputDirectory(), "/build_database.json");
   mf->GetOrCreateGeneratedSource(output);
   AddMergeTarget(std::string(TargetPrefix), comment, output,
@@ -3844,7 +3962,7 @@ void cmGlobalGenerator::CreateGlobalTarget(GlobalTargetInfo const& gti,
   // Store the custom command in the target.
   cmCustomCommand cc;
   cc.SetCommandLines(gti.CommandLines);
-  cc.SetWorkingDirectory(gti.WorkingDir.c_str());
+  cc.SetWorkingDirectory(gti.WorkingDir);
   cc.SetStdPipesUTF8(gti.StdPipesUTF8);
   cc.SetUsesTerminal(gti.UsesTerminal);
   cc.SetRole(gti.Role);

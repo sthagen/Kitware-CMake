@@ -200,6 +200,12 @@ std::string normalizeCliWarningName(cm::string_view cliName)
   return out;
 }
 
+std::string findClosestOption(std::string const& arg,
+                              std::vector<CommandArgument> const& arguments)
+{
+  return cmFindClosestCommandLineArgument(arg, arguments);
+}
+
 bool cmakeCheckStampFile(std::string const& stampName)
 {
   // The stamp file does not exist.  Use the stamp dependencies to
@@ -1101,7 +1107,11 @@ void cmake::SetArgs(std::vector<std::string> const& args)
                      CommandArgument::RequiresSeparator::No, SourceArgLambda },
     CommandArgument{ "-H", "No source directory specified for -H",
                      CommandArgument::Values::One,
-                     CommandArgument::RequiresSeparator::No, SourceArgLambda },
+                     CommandArgument::RequiresSeparator::No,
+                     [&](std::string const& value, cmake* state) -> bool {
+                       warnDeprecated("-H", "-S");
+                       return SourceArgLambda(value, state);
+                     } },
     CommandArgument{ "-O", CommandArgument::Values::Zero,
                      IgnoreAndTrueLambda },
     CommandArgument{ "-B", "No build directory specified for -B",
@@ -1548,7 +1558,13 @@ void cmake::SetArgs(std::vector<std::string> const& args)
   }
   if (!possibleUnknownArg.empty() &&
       this->State->GetRole() != cmState::Role::Script) {
-    cmSystemTools::Error(cmStrCat("Unknown argument ", possibleUnknownArg));
+    std::string error = cmStrCat("Unknown argument ", possibleUnknownArg);
+    std::string const suggestion =
+      findClosestOption(possibleUnknownArg, arguments);
+    if (!suggestion.empty()) {
+      error = cmStrCat(error, ". Did you mean: ", suggestion, '?');
+    }
+    cmSystemTools::Error(error);
     cmSystemTools::Error("Run 'cmake --help' for all supported options.");
     exit(1);
   }

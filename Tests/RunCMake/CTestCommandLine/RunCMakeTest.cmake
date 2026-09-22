@@ -104,6 +104,84 @@ endfunction()
 run_repeat_until_fail_tests(--repeat-until-fail 3)
 run_repeat_until_fail_tests(--repeat until-fail:3)
 
+function(run_repeat_fixture_test case)
+  # Each case runs one fixture around one test with `--repeat until-fail:3`.
+  # The FIXTURE_REPEAT_MODE property and policy CMP0224 decide whether the
+  # fixture repeats with the test, around it, or on its own.
+  set(RunCMake_TEST_BINARY_DIR ${RunCMake_BINARY_DIR}/repeat-fixture-${case}-build)
+  run_cmake_with_options(repeat-fixture-${case}-cmake ${ARGN})
+  set(RunCMake_TEST_NO_CLEAN 1)
+  run_cmake_command(repeat-fixture-${case}-ctest
+    ${CMAKE_CTEST_COMMAND} -C Debug --repeat until-fail:3
+    )
+endfunction()
+# CMP0224 selects the default mode for fixture tests with no explicit mode.
+# Its warning is off by default, so the WARN case asks for it.
+run_repeat_fixture_test(default) # not set, and silent
+run_repeat_fixture_test(warn -DCMAKE_POLICY_WARNING_CMP0224=ON)
+run_repeat_fixture_test(old)  # OLD: EACH_TEST_SEPARATELY
+run_repeat_fixture_test(new)  # NEW: AROUND_EACH_REPEAT
+# An explicit FIXTURE_REPEAT_MODE property applies whatever the policy says.
+run_repeat_fixture_test(around-all)
+run_repeat_fixture_test(around-each)
+run_repeat_fixture_test(separately)
+# The property describes the fixture, so one of its tests may carry it alone.
+run_repeat_fixture_test(setup-only)
+run_repeat_fixture_test(cleanup-only)
+# Fixtures that share a test repeat as one unit.
+run_repeat_fixture_test(merge)
+# A test depending on one inside the group waits for the last repetition.
+run_repeat_fixture_test(depends)
+
+block()
+  # A repeat group records its tests in the checkpoint once, when it stops
+  # repeating, so that `ctest -F` re-runs an interrupted group from its first
+  # repetition.  A checkpoint naming a test twice, or naming one this run
+  # does not have, must not upset the resume either.
+  set(RunCMake_TEST_BINARY_DIR
+    ${RunCMake_BINARY_DIR}/repeat-fixture-resume-build)
+  run_cmake(repeat-fixture-resume-cmake)
+  set(RunCMake_TEST_NO_CLEAN 1)
+  file(WRITE "${RunCMake_TEST_BINARY_DIR}/Testing/Temporary/CTestCheckpoint.txt"
+    "1\n2\n3\n1\n99\n")
+  run_cmake_command(repeat-fixture-resume-ctest
+    ${CMAKE_CTEST_COMMAND} -C Debug -F --repeat until-fail:3
+    )
+endblock()
+
+function(run_repeat_fixture_until_pass_test)
+  set(RunCMake_TEST_BINARY_DIR
+    ${RunCMake_BINARY_DIR}/repeat-fixture-until-pass-build)
+  run_cmake(repeat-fixture-until-pass-cmake)
+  set(RunCMake_TEST_NO_CLEAN 1)
+  run_cmake_command(repeat-fixture-until-pass-ctest
+    ${CMAKE_CTEST_COMMAND} -C Debug --repeat until-pass:3
+    )
+endfunction()
+run_repeat_fixture_until_pass_test()
+
+function(run_repeat_fixture_conflict_test case)
+  # Fixtures that repeat together must agree on the mode; ctest refuses to
+  # run when they do not.
+  set(RunCMake_TEST_BINARY_DIR
+    ${RunCMake_BINARY_DIR}/repeat-fixture-conflict-${case}-build)
+  run_cmake(repeat-fixture-conflict-${case}-cmake)
+  set(RunCMake_TEST_NO_CLEAN 1)
+  run_cmake_command(repeat-fixture-conflict-${case}-ctest
+    ${CMAKE_CTEST_COMMAND} -C Debug --repeat until-fail:3
+    )
+endfunction()
+run_repeat_fixture_conflict_test(fixture) # one fixture, disagreeing tests
+run_repeat_fixture_conflict_test(shared)  # two fixtures sharing a test
+
+function(run_repeat_fixture_bad_mode_test)
+  set(RunCMake_TEST_BINARY_DIR ${RunCMake_BINARY_DIR}/repeat-fixture-bad-mode-build)
+  run_cmake(repeat-fixture-bad-mode-cmake)
+  set(RunCMake_TEST_NO_CLEAN 1)
+  run_cmake_command(repeat-fixture-bad-mode-ctest ${CMAKE_CTEST_COMMAND} -C Debug)
+endfunction()
+run_repeat_fixture_bad_mode_test()
+
 block()
   set(RunCMake_TEST_BINARY_DIR ${RunCMake_BINARY_DIR}/rerun)
   set(RunCMake_TEST_NO_CLEAN 1)
@@ -374,7 +452,7 @@ run_Parallel(env-0)
 set(ENV{CTEST_PARALLEL_LEVEL} 3)
 run_Parallel(env-3)
 unset(ENV{CTEST_PARALLEL_LEVEL})
-unset(ENV{__CTEST_FAKE_PROCESSOR_COUNT_FOR_TESTING)
+unset(ENV{__CTEST_FAKE_PROCESSOR_COUNT_FOR_TESTING})
 
 function(run_TestLoad name load)
   set(RunCMake_TEST_BINARY_DIR ${RunCMake_BINARY_DIR}/TestLoad)
@@ -916,6 +994,84 @@ block()
     -V)
 endblock()
 
+# Environment variables from a test preset selected by -D CTEST_PRESET are
+# applied when dashboard mode runs the Test step.
+block()
+  set(src "${RunCMake_BINARY_DIR}/TestPresetCLIVarEnvironment")
+  set(bin "${RunCMake_BINARY_DIR}/TestPresetCLIVarEnvironment-build")
+  file(REMOVE_RECURSE "${src}" "${bin}")
+  file(MAKE_DIRECTORY "${src}" "${bin}")
+  configure_file("${RunCMake_SOURCE_DIR}/TestPresetCLIVarEnvironment-CMakePresets.json.in"
+                 "${src}/CMakePresets.json" @ONLY)
+  file(WRITE "${bin}/DartConfiguration.tcl"
+    "BuildDirectory: ${bin}\n"
+    "SourceDirectory: ${src}\n")
+  file(WRITE "${bin}/CTestTestfile.cmake" "
+add_test(print-env \"${CMAKE_COMMAND}\" -E environment)
+set_tests_properties(print-env PROPERTIES PASS_REGULAR_EXPRESSION \"DASHBOARD_PRESET_ENV=from-preset\")
+")
+  set(RunCMake_TEST_SOURCE_DIR "${src}")
+  set(RunCMake_TEST_BINARY_DIR "${bin}")
+  set(RunCMake_TEST_NO_CLEAN 1)
+  run_cmake_command(TestPresetCLIVarEnvironment
+    ${CMAKE_CTEST_COMMAND}
+    -M Experimental
+    -D "CTEST_PRESET=my-test-preset"
+    -T Test
+    -V)
+endblock()
+
+# CTEST_PARALLEL_LEVEL set by a test preset's environment is respected.
+block()
+  set(src "${RunCMake_BINARY_DIR}/TestPresetParallelLevelEnvironment")
+  set(bin "${RunCMake_BINARY_DIR}/TestPresetParallelLevelEnvironment-build")
+  file(REMOVE_RECURSE "${src}" "${bin}")
+  file(MAKE_DIRECTORY "${src}" "${bin}")
+  configure_file("${RunCMake_SOURCE_DIR}/TestPresetParallelLevelEnvironment-CMakePresets.json.in"
+                 "${src}/CMakePresets.json" @ONLY)
+  file(WRITE "${bin}/DartConfiguration.tcl"
+    "BuildDirectory: ${bin}\n"
+    "SourceDirectory: ${src}\n")
+  file(WRITE "${bin}/CTestTestfile.cmake" "
+foreach(i RANGE 1 6)
+  add_test(test\${i} \"${CMAKE_COMMAND}\" -E true)
+endforeach()
+")
+  set(RunCMake_TEST_SOURCE_DIR "${src}")
+  set(RunCMake_TEST_BINARY_DIR "${bin}")
+  set(RunCMake_TEST_NO_CLEAN 1)
+  # Spoof a number of processors to make these tests predictable.
+  set(ENV{__CTEST_FAKE_PROCESSOR_COUNT_FOR_TESTING} 1)
+  run_cmake_command(TestPresetParallelLevelEnvironment
+    ${CMAKE_CTEST_COMMAND}
+    -M Experimental
+    -D "CTEST_PRESET=my-test-preset"
+    -T Test)
+  unset(ENV{__CTEST_FAKE_PROCESSOR_COUNT_FOR_TESTING})
+endblock()
+
+# CTEST_NO_TESTS_ACTION set by a test preset's environment is respected.
+block()
+  set(src "${RunCMake_BINARY_DIR}/TestPresetNoTestsActionEnvironment")
+  set(bin "${RunCMake_BINARY_DIR}/TestPresetNoTestsActionEnvironment-build")
+  file(REMOVE_RECURSE "${src}" "${bin}")
+  file(MAKE_DIRECTORY "${src}" "${bin}")
+  configure_file("${RunCMake_SOURCE_DIR}/TestPresetNoTestsActionEnvironment-CMakePresets.json.in"
+                 "${src}/CMakePresets.json" @ONLY)
+  file(WRITE "${bin}/DartConfiguration.tcl"
+    "BuildDirectory: ${bin}\n"
+    "SourceDirectory: ${src}\n")
+  file(WRITE "${bin}/CTestTestfile.cmake" "")
+  set(RunCMake_TEST_SOURCE_DIR "${src}")
+  set(RunCMake_TEST_BINARY_DIR "${bin}")
+  set(RunCMake_TEST_NO_CLEAN 1)
+  run_cmake_command(TestPresetNoTestsActionEnvironment
+    ${CMAKE_CTEST_COMMAND}
+    -M Experimental
+    -D "CTEST_PRESET=my-test-preset"
+    -T Test)
+endblock()
+
 # Test --output-junit
 function(run_output_junit)
   set(RunCMake_TEST_BINARY_DIR ${RunCMake_BINARY_DIR}/output-junit)
@@ -951,6 +1107,7 @@ endfunction()
 run_output_junit_invalid()
 
 run_cmake_command(invalid-ctest-argument ${CMAKE_CTEST_COMMAND} --not-a-valid-ctest-argument)
+run_cmake_command(invalid-ctest-argument-did-you-mean ${CMAKE_CTEST_COMMAND} --parallell 2)
 
 block()
   set(RunCMake_TEST_BINARY_DIR ${RunCMake_BINARY_DIR}/TimeoutDefault)

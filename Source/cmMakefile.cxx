@@ -52,6 +52,7 @@
 #include "cmLocalGenerator.h"
 #include "cmMessageType.h"
 #include "cmRange.h"
+#include "cmRule.h"
 #include "cmSourceFile.h"
 #include "cmSourceFileLocation.h"
 #include "cmSourceGroup.h"
@@ -99,6 +100,12 @@ namespace {
 std::string const kCMAKE_CURRENT_LIST_DIR = "CMAKE_CURRENT_LIST_DIR";
 std::string const kCMAKE_CURRENT_LIST_FILE = "CMAKE_CURRENT_LIST_FILE";
 std::string const kCMAKE_PARENT_LIST_FILE = "CMAKE_PARENT_LIST_FILE";
+
+std::string findClosestCommand(std::string const& name,
+                               std::vector<std::string> const& commands)
+{
+  return cmFindClosestString(name, commands);
+}
 
 class FileScopeBase
 {
@@ -643,6 +650,11 @@ bool cmMakefile::ExecuteCommand(cmListFileFunction const& lff,
     if (!cmSystemTools::GetFatalErrorOccurred()) {
       std::string error =
         cmStrCat("Unknown CMake command \"", lff.OriginalName(), "\".");
+      std::string const suggestion = findClosestCommand(
+        lff.OriginalName(), this->GetState()->GetCommandNames());
+      if (!suggestion.empty()) {
+        error = cmStrCat(error, " Did you mean: \"", suggestion, "\"?");
+      }
       this->IssueMessage(MessageType::FATAL_ERROR, error);
       result = false;
       cmSystemTools::SetFatalErrorOccurred();
@@ -1299,6 +1311,29 @@ void cmMakefile::AppendCustomCommandToOutput(
   }
 }
 
+cmRule* cmMakefile::AddRule(std::unique_ptr<cmRule> rule)
+{
+  // Add to the set of available rules.
+  this->Rules[rule->GetName()] = rule.get();
+  this->GetGlobalGenerator()->IndexRule(rule.get());
+  this->GetStateSnapshot().GetDirectory().AddRuleName(rule->GetName());
+
+  // Transfer ownership to this cmMakefile object.
+  this->RulesOwned.push_back(std::move(rule));
+  return this->RulesOwned.back().get();
+}
+
+cmRule* cmMakefile::FindRuleToUse(std::string const& name) const
+{
+  auto i = this->Rules.find(name);
+  if (i != this->Rules.end()) {
+    return i->second;
+  }
+
+  // Look for a target built in this project.
+  return this->GetGlobalGenerator()->FindRule(name);
+}
+
 cmTarget* cmMakefile::AddUtilityCommand(std::string const& utilityName,
                                         bool excludeFromAll,
                                         std::unique_ptr<cmCustomCommand> cc)
@@ -1474,6 +1509,9 @@ void cmMakefile::InitializeFromParent(cmMakefile* parent)
 
   // Copy include regular expressions.
   this->ComplainFileRegularExpression = parent->ComplainFileRegularExpression;
+
+  // Non-global rules.
+  this->Rules = parent->Rules;
 
   // Imported targets.
   this->ImportedTargets = parent->ImportedTargets;

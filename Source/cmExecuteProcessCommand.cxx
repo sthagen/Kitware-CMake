@@ -79,7 +79,7 @@ bool cmExecuteProcessCommand(std::vector<std::string> const& args,
 
   struct Arguments : public ArgumentParser::ParseResult
   {
-    std::vector<std::vector<std::string>> Commands;
+    ArgumentParser::MaybeEmpty<std::vector<std::vector<std::string>>> Commands;
     std::string OutputVariable;
     std::string ErrorVariable;
     std::string ResultVariable;
@@ -310,8 +310,8 @@ bool cmExecuteProcessCommand(std::vector<std::string> const& args,
       } else {
         error = " called with '";
       }
-      error += echo_output;
-      error += "' expected STDERR|STDOUT|NONE";
+      error = cmStrCat(std::move(error), std::move(echo_output),
+                       "' expected STDERR|STDOUT|NONE");
       if (!echo_output_from_variable) {
         error += " for COMMAND_ECHO.";
       }
@@ -322,10 +322,7 @@ bool cmExecuteProcessCommand(std::vector<std::string> const& args,
   if (echo_stdout || echo_stderr) {
     std::string command;
     for (auto const& cmd : arguments.Commands) {
-      command += "'";
-      command += cmJoin(cmd, "' '");
-      command += "'";
-      command += "\n";
+      command = cmStrCat(std::move(command), '\'', cmJoin(cmd, "' '"), "'\n");
     }
     if (echo_stdout) {
       std::cout << command;

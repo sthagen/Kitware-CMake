@@ -584,7 +584,8 @@ void cmNinjaNormalTargetGenerator::WriteLinkRule(
       vars.LanguageCompileFlags = langFlags.c_str();
     }
 
-    std::string linkerLauncher = this->GetLinkerLauncher(config);
+    std::string const linkerLauncher =
+      this->ConvertLauncherToShell(this->GetLinkerLauncher(config));
     if (cmNonempty(linkerLauncher)) {
       vars.Launcher = linkerLauncher.c_str();
     }
@@ -1520,7 +1521,7 @@ void cmNinjaNormalTargetGenerator::WriteLinkStatement(
                                      true, config);
         localGen.AppendCustomCommandLines(ccg, *cmdLineLists[i]);
         if (cc.GetComment()) {
-          auto cge = ge.Parse(cc.GetComment());
+          auto cge = ge.Parse(cc.GetComment().value());
           cmdComments[i]->emplace_back(
             cge->Evaluate(this->GetLocalGenerator(), config));
         }

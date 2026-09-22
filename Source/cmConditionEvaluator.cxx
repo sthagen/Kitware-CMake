@@ -53,6 +53,7 @@ auto const keyOR = "OR"_s;
 auto const keyParenL = "("_s;
 auto const keyParenR = ")"_s;
 auto const keyPOLICY = "POLICY"_s;
+auto const keyRULE = "RULE"_s;
 auto const keySTREQUAL = "STREQUAL"_s;
 auto const keySTRGREATER = "STRGREATER"_s;
 auto const keySTRGREATER_EQUAL = "STRGREATER_EQUAL"_s;
@@ -116,6 +117,24 @@ bool looksLikeSpecialVariable(std::string const& var,
   // <prefix> + `{` + <varname> + `}`
   return ((prefix.size() + 3) <= varNameLen) &&
     cmHasPrefix(var, cmStrCat(prefix, '{')) && var[varNameLen - 1] == '}';
+}
+
+// CMP0223: an empty path used to be a prefix of every path.
+bool IsPrefixCMP0223(cmCMakePath const& prefix, cmMakefile& mf)
+{
+  if (!prefix.IsEmpty()) {
+    return false;
+  }
+  switch (mf.GetPolicyStatus(cmPolicies::CMP0223)) {
+    case cmPolicies::WARN:
+      mf.IssuePolicyWarning(cmPolicies::CMP0223);
+      CM_FALLTHROUGH;
+    case cmPolicies::OLD:
+      return true;
+    case cmPolicies::NEW:
+      break;
+  }
+  return false;
 }
 } // anonymous namespace
 
@@ -497,6 +516,12 @@ bool cmConditionEvaluator::HandleLevel1(cmArgumentList& newArgs, std::string&,
       newArgs.ReduceOneArg(
         cmPolicies::GetPolicyID(args.next->GetValue().c_str(), pid), args);
     }
+    // does a rule exist
+    else if (this->IsKeyword(keyRULE, *args.current)) {
+      newArgs.ReduceOneArg(
+        static_cast<bool>(this->Makefile.FindRuleToUse(args.next->GetValue())),
+        args);
+    }
     // does a target exist
     else if (this->IsKeyword(keyTARGET, *args.current)) {
       newArgs.ReduceOneArg(static_cast<bool>(this->Makefile.FindTargetToUse(
@@ -689,7 +714,9 @@ bool cmConditionEvaluator::HandleLevel2(cmArgumentList& newArgs,
 
         cmValue lhs = this->GetVariableOrString(*args.current);
         cmValue rhs = this->GetVariableOrString(*args.nextnext);
-        auto const result = cmCMakePath{ *lhs }.IsPrefix(cmCMakePath{ *rhs });
+        cmCMakePath const prefix{ *lhs };
+        auto const result = prefix.IsPrefix(cmCMakePath{ *rhs }) ||
+          IsPrefixCMP0223(prefix, this->Makefile);
         newArgs.ReduceTwoArgs(result, args);
       }
 

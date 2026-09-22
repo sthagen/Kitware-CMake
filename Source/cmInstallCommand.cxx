@@ -923,14 +923,8 @@ bool HandleScriptMode(std::vector<std::string> const& args,
       return ArgumentParser::Continue::No;
     }
 
-    ArgumentParser::Continue AddComponent(cm::string_view value)
-    {
-      this->Components.emplace_back(value);
-      return ArgumentParser::Continue::No;
-    }
-
     std::vector<Script> Scripts;
-    std::vector<std::string> Components;
+    cm::optional<std::string> Component;
     bool ExcludeFromAll = false;
     bool AllComponents = false;
   };
@@ -939,7 +933,7 @@ bool HandleScriptMode(std::vector<std::string> const& args,
     cmArgumentParser<Arguments>{}
       .Bind("SCRIPT"_s, &Arguments::AddScript)
       .Bind("CODE"_s, &Arguments::AddScript)
-      .Bind("COMPONENT"_s, &Arguments::AddComponent)
+      .Bind("COMPONENT"_s, &Arguments::Component)
       .Bind("EXCLUDE_FROM_ALL"_s, &Arguments::ExcludeFromAll)
       .Bind("ALL_COMPONENTS"_s, &Arguments::AllComponents);
 
@@ -949,22 +943,15 @@ bool HandleScriptMode(std::vector<std::string> const& args,
     return false;
   }
 
-  if (arguments.Components.size() > 1) {
-    status.SetError("given more than one COMPONENT for the SCRIPT or CODE "
-                    "signature of the INSTALL command. "
-                    "Use multiple INSTALL commands with one COMPONENT each.");
-    return false;
-  }
-
-  if (arguments.AllComponents && !arguments.Components.empty()) {
+  if (arguments.AllComponents && arguments.Component.has_value()) {
     status.SetError("ALL_COMPONENTS and COMPONENT are mutually exclusive");
     return false;
   }
 
   Helper helper(status);
-  std::string const component = arguments.Components.empty()
-    ? helper.DefaultComponentName
-    : arguments.Components.front();
+  std::string const component = arguments.Component.has_value()
+    ? *arguments.Component
+    : helper.DefaultComponentName;
 
   for (Arguments::Script& script : arguments.Scripts) {
     if (!script.IsCode &&
@@ -1016,7 +1003,7 @@ bool HandleTargetsMode(std::vector<std::string> const& args,
     ArgumentParser::MaybeEmpty<std::vector<std::string>> PublicHeader;
     ArgumentParser::MaybeEmpty<std::vector<std::string>> Resource;
     ArgumentParser::MaybeEmpty<std::vector<std::string>> CxxModulesBmi;
-    std::vector<std::vector<std::string>> FileSets;
+    ArgumentParser::MaybeEmpty<std::vector<std::vector<std::string>>> FileSets;
   };
 
   static auto const argHelper =
@@ -1325,23 +1312,30 @@ bool HandleTargetsMode(std::vector<std::string> const& args,
   }
 
   auto ctx = std::make_shared<InstallContext>();
-  ctx->GenericArgs = cm::make_unique<cmInstallCommandArguments>(genericArgs);
-  ctx->ArchiveArgs = cm::make_unique<cmInstallCommandArguments>(archiveArgs);
-  ctx->LibraryArgs = cm::make_unique<cmInstallCommandArguments>(libraryArgs);
-  ctx->RuntimeArgs = cm::make_unique<cmInstallCommandArguments>(runtimeArgs);
-  ctx->ObjectArgs = cm::make_unique<cmInstallCommandArguments>(objectArgs);
+  ctx->GenericArgs =
+    cm::make_unique<cmInstallCommandArguments>(std::move(genericArgs));
+  ctx->ArchiveArgs =
+    cm::make_unique<cmInstallCommandArguments>(std::move(archiveArgs));
+  ctx->LibraryArgs =
+    cm::make_unique<cmInstallCommandArguments>(std::move(libraryArgs));
+  ctx->RuntimeArgs =
+    cm::make_unique<cmInstallCommandArguments>(std::move(runtimeArgs));
+  ctx->ObjectArgs =
+    cm::make_unique<cmInstallCommandArguments>(std::move(objectArgs));
   ctx->FrameworkArgs =
-    cm::make_unique<cmInstallCommandArguments>(frameworkArgs);
-  ctx->BundleArgs = cm::make_unique<cmInstallCommandArguments>(bundleArgs);
+    cm::make_unique<cmInstallCommandArguments>(std::move(frameworkArgs));
+  ctx->BundleArgs =
+    cm::make_unique<cmInstallCommandArguments>(std::move(bundleArgs));
   ctx->PrivateHeaderArgs =
-    cm::make_unique<cmInstallCommandArguments>(privateHeaderArgs);
+    cm::make_unique<cmInstallCommandArguments>(std::move(privateHeaderArgs));
   ctx->PublicHeaderArgs =
-    cm::make_unique<cmInstallCommandArguments>(publicHeaderArgs);
-  ctx->ResourceArgs = cm::make_unique<cmInstallCommandArguments>(resourceArgs);
+    cm::make_unique<cmInstallCommandArguments>(std::move(publicHeaderArgs));
+  ctx->ResourceArgs =
+    cm::make_unique<cmInstallCommandArguments>(std::move(resourceArgs));
   ctx->CxxModuleBmiArgs =
-    cm::make_unique<cmInstallCommandArguments>(cxxModuleBmiArgs);
-  ctx->IncludesArgs = includesArgs;
-  ctx->FileSetArgs = fileSetArgs;
+    cm::make_unique<cmInstallCommandArguments>(std::move(cxxModuleBmiArgs));
+  ctx->IncludesArgs = std::move(includesArgs);
+  ctx->FileSetArgs = std::move(fileSetArgs);
   ctx->NamelinkMode = namelinkMode;
   ctx->ImportlinkMode = importlinkMode;
   ctx->Exports = exports;
